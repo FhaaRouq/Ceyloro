@@ -89,9 +89,14 @@ final class ImageConverterTests: XCTestCase {
         }
 
         let sourceExif: [CFString: Any] = [kCGImagePropertyExifUserComment: "Ceyloro test metadata"]
+        let sourceGPS: [CFString: Any] = [
+            kCGImagePropertyGPSLatitude: 37.7749,
+            kCGImagePropertyGPSLongitude: -122.4194
+        ]
         CGImageDestinationAddImage(destination, image, [
             kCGImagePropertyOrientation: 6,
-            kCGImagePropertyExifDictionary: sourceExif
+            kCGImagePropertyExifDictionary: sourceExif,
+            kCGImagePropertyGPSDictionary: sourceGPS
         ] as CFDictionary)
         XCTAssertTrue(CGImageDestinationFinalize(destination))
 
@@ -104,6 +109,11 @@ final class ImageConverterTests: XCTestCase {
 
         XCTAssertEqual(width, 30)
         XCTAssertEqual(height, 60)
+        XCTAssertEqual(properties[kCGImagePropertyOrientation] as? Int, 1)
+        if let tiff = properties[kCGImagePropertyTIFFDictionary] as? NSDictionary {
+            XCTAssertEqual(tiff[kCGImagePropertyTIFFOrientation] as? Int, 1)
+        }
+        XCTAssertNil(properties[kCGImagePropertyGPSDictionary], "GPS metadata must be stripped for privacy")
         let outputExif = properties[kCGImagePropertyExifDictionary] as? NSDictionary
         XCTAssertEqual(outputExif?[kCGImagePropertyExifUserComment] as? String, "Ceyloro test metadata")
     }

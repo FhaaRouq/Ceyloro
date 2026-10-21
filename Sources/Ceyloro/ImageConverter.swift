@@ -109,7 +109,7 @@ final class ImageConverter {
                         filename = "page-\(String(format: "%0*d", max(String(frameCount).count, 2), index + 1)).\(target.fileExtension)"
                     }
                     let output = temporaryDirectory.appendingPathComponent(filename)
-                    let properties = normalizedProperties(from: sourceImage, index: index)
+                    let properties = normalizedProperties(from: sourceImage, index: index, transformedImage: image, stripGPS: true)
                     try write(image: image, to: output, target: target, options: options, metadata: properties)
                     outputs.append(output)
                     progress(Double(index + 1) / Double(frameCount))
@@ -208,9 +208,32 @@ final class ImageConverter {
         return CGImageSourceCreateThumbnailAtIndex(source, index, options as CFDictionary)
     }
 
-    private func normalizedProperties(from source: CGImageSource, index: Int) -> [CFString: Any] {
+    private func normalizedProperties(from source: CGImageSource, index: Int, transformedImage: CGImage? = nil, stripGPS: Bool = true) -> [CFString: Any] {
         var properties = (CGImageSourceCopyPropertiesAtIndex(source, index, nil) as? [CFString: Any]) ?? [:]
         properties[kCGImagePropertyOrientation] = 1
+
+        // Normalize TIFF orientation to prevent double-rotation in viewers inspecting TIFF header
+        if var tiff = properties[kCGImagePropertyTIFFDictionary] as? [CFString: Any] {
+            tiff[kCGImagePropertyTIFFOrientation] = 1
+            properties[kCGImagePropertyTIFFDictionary] = tiff
+        }
+
+        // Strip GPS location metadata to safeguard user privacy (M-13)
+        if stripGPS {
+            properties.removeValue(forKey: kCGImagePropertyGPSDictionary)
+        }
+
+        // Align pixel dimensions with the transformed image geometry (M-12)
+        if let transformedImage {
+            properties[kCGImagePropertyPixelWidth] = transformedImage.width
+            properties[kCGImagePropertyPixelHeight] = transformedImage.height
+            if var exif = properties[kCGImagePropertyExifDictionary] as? [CFString: Any] {
+                exif[kCGImagePropertyExifPixelXDimension] = transformedImage.width
+                exif[kCGImagePropertyExifPixelYDimension] = transformedImage.height
+                properties[kCGImagePropertyExifDictionary] = exif
+            }
+        }
+
         return properties
     }
 
