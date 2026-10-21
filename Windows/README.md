@@ -29,6 +29,10 @@ Alur penggunaan saat ini: jalankan Ceyloro, tekan `Ctrl+Alt+Space`, lalu tarik
 file dari Explorer ke roda dan lepaskan pada target yang diinginkan. `Esc`
 membatalkan overlay.
 
+Untuk membuka roda langsung saat pengujian manual, jalankan `Ceyloro.exe --show`.
+Jika Ceyloro sudah berjalan di system tray, peluncuran kedua akan mengaktifkan
+roda pada instance yang sudah terbuka.
+
 Shell Windows ditargetkan untuk x64 dan ARM64. Paket release dibuat terpisah
 untuk tiap arsitektur dan menyertakan FFmpeg serta FFprobe yang sesuai.
 Gestur `Shift` sambil menarik file belum tersedia di Windows; alur Windows
@@ -63,5 +67,6 @@ atau PDF.
 
 Jika Windows SmartScreen muncul saat pertama kali membuka aplikasi, pilih
 **More info**, lalu **Run anyway** hanya untuk paket yang diunduh dari GitHub
-Release resmi Ceyloro.
+Release resmi Ceyloro. Paket preview belum ditandatangani dengan Authenticode;
+release Windows menyertakan file SHA-256 untuk memeriksa integritas unduhan.
 
