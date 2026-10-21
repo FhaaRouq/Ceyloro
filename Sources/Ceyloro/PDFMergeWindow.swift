@@ -24,19 +24,30 @@ final class PDFMergeViewModel: ObservableObject {
         rememberChoice = !askEveryTime
     }
 
+    private var thumbnailTask: Task<Void, Never>?
+
     func loadThumbnails() {
+        thumbnailTask?.cancel()
         let urls = list.items
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+        thumbnailTask = Task.detached(priority: .userInitiated) { [weak self] in
             var loaded: [URL: NSImage] = [:]
             for url in urls {
+                if Task.isCancelled { return }
                 if let image = NSImage(contentsOf: url) {
                     loaded[url] = image
                 }
             }
-            DispatchQueue.main.async {
-                self?.thumbnails = loaded
+            if Task.isCancelled { return }
+            let finalLoaded = loaded
+            await MainActor.run { [weak self] in
+                self?.thumbnails = finalLoaded
             }
         }
+    }
+
+    func cancelThumbnailLoading() {
+        thumbnailTask?.cancel()
+        thumbnailTask = nil
     }
 
     func move(from offsets: IndexSet, to destination: Int) {
@@ -57,11 +68,18 @@ final class PDFMergeViewModel: ObservableObject {
     }
 
     func moveSelection(up: Bool) {
-        guard let selected = selection.first, let index = list.items.firstIndex(of: selected) else { return }
-        if up, index > 0 {
-            list.move(fromOffsets: IndexSet(integer: index), toOffset: index - 1)
-        } else if !up, index < list.items.count - 1 {
-            list.move(fromOffsets: IndexSet(integer: index), toOffset: index + 2)
+        let indices = list.items.indices.filter { selection.contains(list.items[$0]) }
+        guard !indices.isEmpty else { return }
+        if up {
+            guard let first = indices.first, first > 0 else { return }
+            for index in indices {
+                list.move(fromOffsets: IndexSet(integer: index), toOffset: index - 1)
+            }
+        } else {
+            guard let last = indices.last, last < list.items.count - 1 else { return }
+            for index in indices.reversed() {
+                list.move(fromOffsets: IndexSet(integer: index), toOffset: index + 2)
+            }
         }
     }
 
@@ -239,6 +257,11 @@ final class PDFMergeWindowController: NSWindowController {
     }
 
     private func cancel() {
+        model.cancelThumbnailLoading()
         close()
+    }
+
+    deinit {
+        model.cancelThumbnailLoading()
     }
 }

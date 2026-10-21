@@ -78,10 +78,12 @@ final class FFmpegConverter {
                 }
             }
         }
+        defer {
+            progressPipe.fileHandleForReading.readabilityHandler = nil
+            errorPipe.fileHandleForReading.readabilityHandler = nil
+        }
         while process.isRunning {
             if isCancelled() {
-                progressPipe.fileHandleForReading.readabilityHandler = nil
-                errorPipe.fileHandleForReading.readabilityHandler = nil
                 process.terminate()
                 process.waitUntilExit()
                 _ = progressPipe.fileHandleForReading.readDataToEndOfFile()
@@ -92,8 +94,6 @@ final class FFmpegConverter {
             progress(progressQueue.sync { latestProgress })
             Thread.sleep(forTimeInterval: 0.1)
         }
-        progressPipe.fileHandleForReading.readabilityHandler = nil
-        errorPipe.fileHandleForReading.readabilityHandler = nil
         _ = progressPipe.fileHandleForReading.readDataToEndOfFile()
         let remainingError = errorPipe.fileHandleForReading.readDataToEndOfFile()
         if let text = String(data: remainingError, encoding: .utf8) ?? String(data: remainingError, encoding: .ascii), !text.isEmpty {

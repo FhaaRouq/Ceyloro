@@ -162,8 +162,8 @@ final class SettingsWindowController: NSWindowController {
         panel.canChooseFiles = true
         panel.allowsMultipleSelection = false
         panel.prompt = "Pilih"
-        panel.begin { response in
-            guard response == .OK, let url = panel.url else { return }
+        panel.begin { [weak self] response in
+            guard let self, response == .OK, let url = panel.url else { return }
             UserDefaults.standard.set(url.path, forKey: "ffmpegPath")
             self.ffmpegPathField.stringValue = url.path
             NotificationCenter.default.post(name: .ceyloroEngineSettingsChanged, object: nil)
