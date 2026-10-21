@@ -2,7 +2,7 @@
 
 > Konverter file lokal yang bekerja dari menu bar—pilih file, arahkan ke format tujuan, selesai.
 
-[![Latest release](https://img.shields.io/github/v/release/neuraldigital/Ceyloro?display_name=tag&sort=semver)](https://github.com/neuraldigital/Ceyloro/releases/latest)
+[![Preview release](https://img.shields.io/github/v/release/neuraldigital/Ceyloro?display_name=tag&sort=semver&include_prereleases)](https://github.com/neuraldigital/Ceyloro/releases)
 [![Windows build](https://github.com/neuraldigital/Ceyloro/actions/workflows/windows-shell.yml/badge.svg)](https://github.com/neuraldigital/Ceyloro/actions/workflows/windows-shell.yml)
 [![License](https://img.shields.io/badge/core-MIT-2f855a.svg)](LICENSE)
 
@@ -14,8 +14,8 @@ Semua pemrosesan berjalan lokal. File asli tidak diubah, ditimpa, atau diunggah 
 
 | Platform | Paket |
 | --- | --- |
-| macOS Intel + Apple Silicon | [Download Ceyloro untuk macOS](https://github.com/neuraldigital/Ceyloro/releases/latest/download/Ceyloro-macOS-universal.zip) |
-| Windows x64 | [Download Ceyloro untuk Windows](https://github.com/neuraldigital/Ceyloro/releases/latest/download/Ceyloro-Windows-x64.zip) |
+| macOS Intel + Apple Silicon | [Download Ceyloro untuk macOS](https://github.com/neuraldigital/Ceyloro/releases/download/v0.1.0-preview.3/Ceyloro-macOS-universal.zip) |
+| Windows x64 | [Download Ceyloro untuk Windows](https://github.com/neuraldigital/Ceyloro/releases/download/v0.1.0-preview.3/Ceyloro-Windows-x64.zip) |
 
 Paket di atas adalah preview release. Build macOS sudah universal (`x86_64` + `arm64`), sedangkan paket Windows bersifat self-contained dan tidak memerlukan instalasi .NET.
 
