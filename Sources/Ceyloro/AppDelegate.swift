@@ -264,32 +264,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
             let ffmpegConverter = self.ffmpegConverter
             let ffmpegURL = self.ffmpegURL
             let ffmpegEncoders = self.ffmpegEncoders
-            let id = runner.submit(inputs: files, target: target, outputDirectory: outputDirectory, multiPageOutput: multiPageOutput, processor: { [converter, audioConverter, videoConverter, ffmpegConverter, ffmpegURL, ffmpegEncoders] input, target, temp, progress, cancelled in
-                if FileFormat.detect(url: input).kind == .audio {
+            let id = runner.submit(inputs: files, target: target, outputDirectory: outputDirectory, multiPageOutput: multiPageOutput, processor: { [converter, audioConverter, videoConverter, subtitleConverter, archiveConverter, ffmpegConverter, ffmpegURL, ffmpegEncoders] input, target, temp, progress, cancelled in
+                let inputFormat = FileFormat.detect(url: input)
+                if inputFormat.kind == .audio {
                     let audioTemp = temp.appendingPathComponent(UUID().uuidString)
                     if audioConverter.supportedTargets(for: [input], candidates: [target]).contains(target) {
                         return try audioConverter.convert(input: input, target: target, temporaryDirectory: audioTemp, progress: progress, isCancelled: cancelled)
                     }
                     return try ffmpegConverter.convert(input: input, target: target, temporaryDirectory: audioTemp, ffmpegURL: ffmpegURL, encoders: ffmpegEncoders, progress: progress, isCancelled: cancelled)
                 }
-                if FileFormat.detect(url: input).kind == .video {
+                if inputFormat.kind == .video {
                     let videoTemp = temp.appendingPathComponent(UUID().uuidString)
                     if videoConverter.supportedTargets(for: [input], candidates: [target]).contains(target) {
                         return try videoConverter.convert(input: input, target: target, temporaryDirectory: videoTemp, progress: progress, isCancelled: cancelled)
                     }
                     return try ffmpegConverter.convert(input: input, target: target, temporaryDirectory: videoTemp, ffmpegURL: ffmpegURL, encoders: ffmpegEncoders, progress: progress, isCancelled: cancelled)
                 }
-                if FileFormat.detect(url: input).fileExtension == "gif" {
+                if inputFormat.fileExtension == "gif" {
                     if FFmpegConversionPolicy.videoTargets.contains(target) {
                         return try ffmpegConverter.convert(input: input, target: target, temporaryDirectory: temp.appendingPathComponent(UUID().uuidString), ffmpegURL: ffmpegURL, encoders: ffmpegEncoders, progress: progress, isCancelled: cancelled)
                     }
                     return try converter.convert(input: input, target: target, temporaryDirectory: temp.appendingPathComponent(UUID().uuidString), progress: progress, isCancelled: cancelled, options: imageOptions)
                 }
-                if FileFormat.detect(url: input).kind == .subtitle {
-                    return try SubtitleConverter().convert(input: input, target: target, temporaryDirectory: temp.appendingPathComponent(UUID().uuidString), progress: progress, isCancelled: cancelled)
+                if inputFormat.kind == .subtitle {
+                    return try subtitleConverter.convert(input: input, target: target, temporaryDirectory: temp.appendingPathComponent(UUID().uuidString), progress: progress, isCancelled: cancelled)
                 }
-                if FileFormat.detect(url: input).kind == .archive {
-                    return try ArchiveConverter().convert(input: input, target: target, temporaryDirectory: temp.appendingPathComponent(UUID().uuidString), progress: progress, isCancelled: cancelled)
+                if inputFormat.kind == .archive {
+                    return try archiveConverter.convert(input: input, target: target, temporaryDirectory: temp.appendingPathComponent(UUID().uuidString), progress: progress, isCancelled: cancelled)
                 }
                 return try converter.convert(input: input, target: target, temporaryDirectory: temp.appendingPathComponent(UUID().uuidString), progress: progress, isCancelled: cancelled, options: imageOptions)
             }) { [weak self] snapshot in
