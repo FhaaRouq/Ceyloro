@@ -29,4 +29,25 @@ final class RadialOverlayTests: XCTestCase {
         let frame = RadialOverlay.combinedScreenFrame(screens: [], fallback: fallback)
         XCTAssertEqual(frame, fallback)
     }
+
+    func testRadialOverlayViewAccessibilityElements() {
+        let view = RadialOverlayView()
+        view.mode = .convert
+        view.items = [
+            WheelItem(title: "JPG", target: .jpg, action: nil),
+            WheelItem(title: "PNG", target: .png, action: nil)
+        ]
+
+        XCTAssertTrue(view.isAccessibilityElement())
+        XCTAssertEqual(view.accessibilityRole(), .group)
+        XCTAssertEqual(view.accessibilityLabel(), "Menu Radial Ceyloro - Konversi")
+
+        let children = view.accessibilityChildren() as? [RadialSectorAccessibilityElement]
+        XCTAssertEqual(children?.count, 2)
+        XCTAssertEqual(children?.first?.accessibilityLabel(), "JPG")
+        XCTAssertNil(children?.first?.accessibilityValue())
+
+        view.activeIndex = 0
+        XCTAssertEqual(children?.first?.accessibilityValue() as? String, "Terpilih")
+    }
 }

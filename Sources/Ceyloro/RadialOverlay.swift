@@ -171,7 +171,7 @@ final class RadialOverlay: NSPanel {
         wheelView.needsDisplay = true
     }
 
-    private func activateKeyboardSelection() {
+    func activateKeyboardSelection() {
         guard let index = wheelView.activeIndex, items.indices.contains(index) else { return }
         let item = items[index]
         let selectedFiles = files
@@ -222,14 +222,41 @@ extension RadialOverlay: NSDraggingDestination {
 
 final class RadialOverlayView: NSView {
     weak var delegate: RadialOverlay?
-    var items: [WheelItem] = []
+    var items: [WheelItem] = [] {
+        didSet {
+            accessibilityChildrenCache.removeAll()
+        }
+    }
     var mode: WheelMode = .convert
     var selectionSummary = "File"
-    var activeIndex: Int?
+    var activeIndex: Int? {
+        didSet {
+            guard activeIndex != oldValue else { return }
+            if let activeIndex, accessibilityChildrenCache.indices.contains(activeIndex) {
+                NSAccessibility.post(element: accessibilityChildrenCache[activeIndex], notification: .focusedUIElementChanged)
+            }
+        }
+    }
     var centerPoint = NSPoint.zero
     private let geometry = RadialGeometry()
+    private var accessibilityChildrenCache: [RadialSectorAccessibilityElement] = []
 
     override var isFlipped: Bool { false }
+
+    override func isAccessibilityElement() -> Bool { true }
+    override func accessibilityRole() -> NSAccessibility.Role? { .group }
+    override func accessibilityLabel() -> String? {
+        "Menu Radial Ceyloro - \(mode == .convert ? "Konversi" : mode == .tools ? "Alat" : "Aksi")"
+    }
+
+    override func accessibilityChildren() -> [Any]? {
+        if accessibilityChildrenCache.count != items.count {
+            accessibilityChildrenCache = items.enumerated().map { index, item in
+                RadialSectorAccessibilityElement(index: index, title: item.title, parentView: self)
+            }
+        }
+        return accessibilityChildrenCache
+    }
 
     func update(point: NSPoint) {
         let center = centerPoint
@@ -274,22 +301,29 @@ final class RadialOverlayView: NSView {
             path.stroke()
 
             let mid = midpoint * .pi / 180
-            let labelRadius = (innerRadius + outerRadius) / 2
             let item = items[index]
-            let text = NSString(string: item.title.uppercased())
+            let fontSize: CGFloat = count > 10 ? 9.5 : count > 8 ? 10.0 : 11.0
             let attributes: [NSAttributedString.Key: Any] = [
-                .font: NSFont.systemFont(ofSize: count > 8 ? 9 : 10.5, weight: isActive ? .bold : .semibold),
-                .foregroundColor: NSColor(calibratedWhite: 1, alpha: isActive ? 1 : 0.92)
+                .font: NSFont.systemFont(ofSize: fontSize, weight: isActive ? .bold : .semibold),
+                .foregroundColor: NSColor(calibratedWhite: 1, alpha: isActive ? 1.0 : 0.92)
             ]
+            let text = NSString(string: item.title.uppercased())
             let size = text.size(withAttributes: attributes)
-            let labelCenter = NSPoint(x: center.x + Darwin.cos(mid) * labelRadius, y: center.y + Darwin.sin(mid) * labelRadius)
-            let iconSize: CGFloat = count > 8 ? 16 : 18
-            if let icon = NSImage(systemSymbolName: item.symbolName, accessibilityDescription: nil) {
+
+            // When there are many sectors, stagger the icon outward and text inward along the radial vector
+            // to maximize available horizontal width in narrow sectors
+            let iconRadius = count > 8 ? (innerRadius * 0.40 + outerRadius * 0.60) + 7 : (innerRadius + outerRadius) / 2 + 10
+            let textRadius = count > 8 ? (innerRadius * 0.65 + outerRadius * 0.35) - 3 : (innerRadius + outerRadius) / 2 - 10
+            let iconCenter = NSPoint(x: center.x + Darwin.cos(mid) * iconRadius, y: center.y + Darwin.sin(mid) * iconRadius)
+            let textCenter = NSPoint(x: center.x + Darwin.cos(mid) * textRadius, y: center.y + Darwin.sin(mid) * textRadius)
+
+            let iconSize: CGFloat = count > 10 ? 15 : count > 8 ? 16 : 18
+            if let icon = NSImage(systemSymbolName: item.symbolName, accessibilityDescription: item.title) {
                 icon.isTemplate = true
-                let iconRect = NSRect(x: labelCenter.x - iconSize / 2, y: labelCenter.y + 2, width: iconSize, height: iconSize)
-                icon.draw(in: iconRect, from: .zero, operation: .sourceOver, fraction: isActive ? 1 : 0.86)
+                let iconRect = NSRect(x: iconCenter.x - iconSize / 2, y: iconCenter.y - iconSize / 2, width: iconSize, height: iconSize)
+                icon.draw(in: iconRect, from: .zero, operation: .sourceOver, fraction: isActive ? 1.0 : 0.88)
             }
-            let point = NSPoint(x: labelCenter.x - size.width / 2, y: labelCenter.y - size.height - 4)
+            let point = NSPoint(x: textCenter.x - size.width / 2, y: textCenter.y - size.height / 2)
             text.draw(at: point, withAttributes: attributes)
         }
 
@@ -339,5 +373,31 @@ final class RadialOverlayView: NSView {
         path.appendArc(withCenter: center, radius: innerRadius, startAngle: endAngle, endAngle: startAngle, clockwise: false)
         path.close()
         return path
+    }
+}
+
+final class RadialSectorAccessibilityElement: NSAccessibilityElement {
+    let index: Int
+    let title: String
+    weak var parentView: RadialOverlayView?
+
+    init(index: Int, title: String, parentView: RadialOverlayView) {
+        self.index = index
+        self.title = title
+        self.parentView = parentView
+        super.init()
+        setAccessibilityRole(.button)
+        setAccessibilityLabel(title)
+        setAccessibilityParent(parentView)
+    }
+
+    override func accessibilityValue() -> Any? {
+        parentView?.activeIndex == index ? "Terpilih" : nil
+    }
+
+    override func accessibilityPerformPress() -> Bool {
+        parentView?.activeIndex = index
+        parentView?.delegate?.activateKeyboardSelection()
+        return true
     }
 }
