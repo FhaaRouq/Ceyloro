@@ -49,6 +49,9 @@ fi
 if [ -f "$ROOT/Sources/Ceyloro/Resources/CeyloroMenuTemplate.png" ]; then
     cp "$ROOT/Sources/Ceyloro/Resources/CeyloroMenuTemplate.png" "$APP/Contents/Resources/CeyloroMenuTemplate.png"
 fi
+if [ -f "$ROOT/Sources/Ceyloro/Resources/CeyloroMenuTemplate@2x.png" ]; then
+    cp "$ROOT/Sources/Ceyloro/Resources/CeyloroMenuTemplate@2x.png" "$APP/Contents/Resources/CeyloroMenuTemplate@2x.png"
+fi
 FFMPEG_SOURCE="${CEYLORO_FFMPEG_PATH:-$ROOT/Sources/Ceyloro/Resources/ffmpeg}"
 if [ -e "$FFMPEG_SOURCE" ] && [ ! -x "$FFMPEG_SOURCE" ]; then
     echo "FFmpeg ditemukan tetapi tidak executable: $FFMPEG_SOURCE" >&2
@@ -61,5 +64,13 @@ else
     echo "FFmpeg tidak dibundel; target yang memerlukannya akan disembunyikan."
 fi
 chmod +x "$APP/Contents/MacOS/Ceyloro"
-codesign --force --deep --sign - "$APP" >/dev/null
+
+SIGN_IDENTITY="${APPLE_SIGNING_IDENTITY:-${DEVELOPER_ID:--}}"
+if [ "$SIGN_IDENTITY" = "-" ]; then
+    echo "Info: Menggunakan ad-hoc code signature (-). Untuk rilis publik dengan Gatekeeper notarization, sediakan APPLE_SIGNING_IDENTITY."
+    codesign --force --deep --sign - "$APP" >/dev/null
+else
+    echo "Menandatangani aplikasi dengan Developer ID: $SIGN_IDENTITY"
+    codesign --force --deep --options runtime --sign "$SIGN_IDENTITY" "$APP"
+fi
 echo "Built $APP ($(lipo -archs "$APP/Contents/MacOS/Ceyloro"))"
