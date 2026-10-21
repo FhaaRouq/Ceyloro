@@ -31,4 +31,20 @@ else
     echo "Install Xcode or set DEVELOPER_DIR to its Contents/Developer directory."
 fi
 
-DEVELOPER_DIR="$DEV_DIR" swift build -c release
+CHECK_UNIVERSAL="${CHECK_UNIVERSAL:-0}"
+for arg in "$@"; do
+    case "$arg" in
+        --universal)
+            CHECK_UNIVERSAL=1
+            ;;
+    esac
+done
+
+if [ "$CHECK_UNIVERSAL" = "1" ]; then
+    echo "Memeriksa build release universal (x86_64 & arm64)..."
+    DEVELOPER_DIR="$DEV_DIR" swift build -c release --arch x86_64
+    DEVELOPER_DIR="$DEV_DIR" swift build -c release --arch arm64
+    echo "Build release universal valid."
+else
+    DEVELOPER_DIR="$DEV_DIR" swift build -c release
+fi
