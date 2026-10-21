@@ -18,7 +18,7 @@ final class SettingsWindowController: NSWindowController {
     private let ffmpegPathField = NSTextField(string: "")
 
     convenience init() {
-        let content = NSView(frame: NSRect(x: 0, y: 0, width: 520, height: 520))
+        let content = NSView(frame: NSRect(x: 0, y: 0, width: 520, height: 540))
         let window = NSWindow(contentRect: content.frame, styleMask: [.titled, .closable], backing: .buffered, defer: true)
         window.title = "Pengaturan Ceyloro"
         window.isReleasedWhenClosed = false
@@ -28,80 +28,94 @@ final class SettingsWindowController: NSWindowController {
 
         let heading = NSTextField(labelWithString: "Preferensi")
         heading.font = NSFont.systemFont(ofSize: 20, weight: .semibold)
-        heading.frame = NSRect(x: 24, y: 420, width: 470, height: 28)
+        heading.frame = NSRect(x: 24, y: 486, width: 472, height: 28)
         content.addSubview(heading)
 
         let folderTitle = NSTextField(labelWithString: "Folder output")
-        folderTitle.frame = NSRect(x: 24, y: 376, width: 120, height: 20)
+        folderTitle.font = NSFont.systemFont(ofSize: 13, weight: .medium)
+        folderTitle.frame = NSRect(x: 24, y: 448, width: 140, height: 20)
         content.addSubview(folderTitle)
-        folderLabel.frame = NSRect(x: 24, y: 348, width: 370, height: 22)
+        folderLabel.frame = NSRect(x: 24, y: 418, width: 318, height: 22)
         folderLabel.lineBreakMode = .byTruncatingMiddle
         folderLabel.usesSingleLineMode = true
+        folderLabel.textColor = .secondaryLabelColor
         content.addSubview(folderLabel)
-        let choose = NSButton(title: "Pilih…", target: self, action: #selector(chooseFolder))
-        choose.frame = NSRect(x: 420, y: 344, width: 76, height: 30)
-        content.addSubview(choose)
         let reset = NSButton(title: "Reset", target: self, action: #selector(resetFolder))
-        reset.frame = NSRect(x: 340, y: 344, width: 70, height: 30)
+        reset.frame = NSRect(x: 348, y: 414, width: 70, height: 28)
         content.addSubview(reset)
+        let choose = NSButton(title: "Pilih…", target: self, action: #selector(chooseFolder))
+        choose.frame = NSRect(x: 422, y: 414, width: 74, height: 28)
+        content.addSubview(choose)
 
         let multiPageTitle = NSTextField(labelWithString: "Hasil multi-halaman")
-        multiPageTitle.frame = NSRect(x: 24, y: 298, width: 170, height: 20)
+        multiPageTitle.font = NSFont.systemFont(ofSize: 13, weight: .medium)
+        multiPageTitle.frame = NSRect(x: 24, y: 370, width: 180, height: 20)
         content.addSubview(multiPageTitle)
         multiPagePopup.addItems(withTitles: ["Folder", "ZIP"])
-        multiPagePopup.frame = NSRect(x: 250, y: 292, width: 150, height: 28)
+        multiPagePopup.frame = NSRect(x: 280, y: 366, width: 140, height: 28)
         multiPagePopup.target = self
         multiPagePopup.action = #selector(multiPageChanged)
         content.addSubview(multiPagePopup)
 
         let jpgTitle = NSTextField(labelWithString: "Kualitas JPG")
-        jpgTitle.frame = NSRect(x: 24, y: 252, width: 130, height: 20)
+        jpgTitle.frame = NSRect(x: 24, y: 326, width: 130, height: 20)
         content.addSubview(jpgTitle)
-        jpgQualitySlider.frame = NSRect(x: 160, y: 250, width: 250, height: 20)
+        jpgQualitySlider.frame = NSRect(x: 160, y: 324, width: 250, height: 20)
         jpgQualitySlider.target = self
         jpgQualitySlider.action = #selector(qualityChanged)
         content.addSubview(jpgQualitySlider)
-        jpgQualityLabel.frame = NSRect(x: 420, y: 252, width: 70, height: 20)
+        jpgQualityLabel.frame = NSRect(x: 420, y: 326, width: 60, height: 20)
         content.addSubview(jpgQualityLabel)
 
         let heicTitle = NSTextField(labelWithString: "Kualitas HEIC")
-        heicTitle.frame = NSRect(x: 24, y: 212, width: 130, height: 20)
+        heicTitle.frame = NSRect(x: 24, y: 286, width: 130, height: 20)
         content.addSubview(heicTitle)
-        heicQualitySlider.frame = NSRect(x: 160, y: 210, width: 250, height: 20)
+        heicQualitySlider.frame = NSRect(x: 160, y: 284, width: 250, height: 20)
         heicQualitySlider.target = self
         heicQualitySlider.action = #selector(qualityChanged)
         content.addSubview(heicQualitySlider)
-        heicQualityLabel.frame = NSRect(x: 420, y: 212, width: 70, height: 20)
+        heicQualityLabel.frame = NSRect(x: 420, y: 286, width: 60, height: 20)
         content.addSubview(heicQualityLabel)
 
-        loginButton.frame = NSRect(x: 24, y: 164, width: 240, height: 24)
+        loginButton.frame = NSRect(x: 24, y: 240, width: 240, height: 22)
         loginButton.target = self
         loginButton.action = #selector(loginChanged)
         content.addSubview(loginButton)
-        mergeAskButton.frame = NSRect(x: 24, y: 128, width: 450, height: 24)
+        mergeAskButton.frame = NSRect(x: 24, y: 208, width: 472, height: 22)
         mergeAskButton.target = self
         mergeAskButton.action = #selector(mergeAskChanged)
         content.addSubview(mergeAskButton)
 
         let ffmpegTitle = NSTextField(labelWithString: "FFmpeg")
-        ffmpegTitle.frame = NSRect(x: 24, y: 96, width: 130, height: 20)
+        ffmpegTitle.font = NSFont.systemFont(ofSize: 13, weight: .medium)
+        ffmpegTitle.frame = NSRect(x: 24, y: 164, width: 130, height: 20)
         content.addSubview(ffmpegTitle)
-        ffmpegPathField.frame = NSRect(x: 24, y: 66, width: 310, height: 24)
+        ffmpegPathField.frame = NSRect(x: 24, y: 132, width: 318, height: 24)
         ffmpegPathField.placeholderString = "Otomatis (bundled atau PATH)"
         ffmpegPathField.lineBreakMode = .byTruncatingMiddle
         ffmpegPathField.usesSingleLineMode = true
         content.addSubview(ffmpegPathField)
         let chooseFFmpeg = NSButton(title: "Pilih…", target: self, action: #selector(chooseFFmpeg))
-        chooseFFmpeg.frame = NSRect(x: 342, y: 63, width: 76, height: 30)
+        chooseFFmpeg.frame = NSRect(x: 348, y: 130, width: 70, height: 28)
         content.addSubview(chooseFFmpeg)
         let resetFFmpeg = NSButton(title: "Otomatis", target: self, action: #selector(resetFFmpeg))
-        resetFFmpeg.frame = NSRect(x: 420, y: 63, width: 76, height: 30)
+        resetFFmpeg.frame = NSRect(x: 422, y: 130, width: 74, height: 28)
         content.addSubview(resetFFmpeg)
 
         let note = NSTextField(wrappingLabelWithString: "Semua pemrosesan berlangsung lokal. File asli tidak pernah diubah atau ditimpa.")
-        note.frame = NSRect(x: 24, y: 22, width: 470, height: 34)
+        note.frame = NSRect(x: 24, y: 64, width: 472, height: 34)
         note.textColor = .secondaryLabelColor
         content.addSubview(note)
+
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1.0"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"
+        let versionLabel = NSTextField(labelWithString: "Ceyloro v\(version) (\(build))")
+        versionLabel.frame = NSRect(x: 24, y: 24, width: 472, height: 18)
+        versionLabel.font = NSFont.systemFont(ofSize: 11, weight: .regular)
+        versionLabel.textColor = .tertiaryLabelColor
+        versionLabel.alignment = .center
+        content.addSubview(versionLabel)
+
         updateControls()
     }
 
