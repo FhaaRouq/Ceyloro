@@ -15,14 +15,19 @@ internal static class ArchiveConverter
         {
             if (extension == "zip")
             {
-                using var archive = ZipFile.OpenRead(input);
-                return true;
+                using var file = new FileStream(input, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                if (file.Length < 4) return false;
+                Span<byte> magic = stackalloc byte[4];
+                return file.Read(magic) == 4 && magic[0] == 0x50 && magic[1] == 0x4B;
             }
             if (extension == "tar")
             {
-                using var file = File.OpenRead(input);
-                using var reader = new TarReader(file);
-                return reader.GetNextEntry() is not null;
+                using var file = new FileStream(input, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                if (file.Length < 512) return false;
+                Span<byte> header = stackalloc byte[512];
+                if (file.Read(header) < 512) return false;
+                return (header[257] == (byte)'u' && header[258] == (byte)'s' && header[259] == (byte)'t' && header[260] == (byte)'a' && header[261] == (byte)'r')
+                    || header.Slice(0, 100).IndexOfAnyExcept((byte)0) >= 0;
             }
             if (extension == "gzip")
             {
@@ -74,7 +79,7 @@ internal static class ArchiveConverter
         {
             using var archive = ZipFile.OpenRead(input);
             if (archive.Entries.Count > MaximumEntries)
-                throw new InvalidDataException("Arsip melebihi batas ukuran ekstraksi 2 GB.");
+                throw new InvalidDataException("Arsip melebihi batas 100.000 entri berkas.");
             var root = Path.GetFullPath(destination) + Path.DirectorySeparatorChar;
             long zipExpanded = 0;
             foreach (var entry in archive.Entries)

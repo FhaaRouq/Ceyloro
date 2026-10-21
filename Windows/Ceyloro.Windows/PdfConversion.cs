@@ -165,6 +165,17 @@ internal static class PdfConversion
         using var stream = new MemoryStream(bytes, writable: false);
         using var image = Image.FromStream(stream);
         using var file = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+        if (target == "jpg")
+        {
+            var codec = ImageCodecInfo.GetImageEncoders().FirstOrDefault(encoder => encoder.MimeType == "image/jpeg");
+            if (codec is not null)
+            {
+                using var parameters = new EncoderParameters(1);
+                parameters.Param[0] = new EncoderParameter(System.Drawing.Imaging.Encoder.Quality, 92L);
+                image.Save(file, codec, parameters);
+                return;
+            }
+        }
         image.Save(file, target == "jpg" ? ImageFormat.Jpeg : ImageFormat.Png);
     }
 
