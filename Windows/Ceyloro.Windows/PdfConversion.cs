@@ -15,6 +15,8 @@ internal static class PdfConversion
 {
     private sealed record JpegImage(byte[] Bytes, int Width, int Height);
 
+    public static bool CanCreatePdfFromImage(string extension) => extension is "jpg" or "png" or "tiff" or "bmp" or "gif";
+
     public static async Task<IReadOnlyList<string>> ConvertPdfAsync(
         string input,
         string target,
@@ -310,3 +312,4 @@ internal static class PdfConversion
         catch { }
     }
 }
+
