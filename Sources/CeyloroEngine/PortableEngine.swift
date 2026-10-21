@@ -43,20 +43,22 @@ public struct PortableFileFormat: Hashable, Codable, Sendable {
     }
 
     public static func detect(url: URL) -> Self {
-        let ext = Self(fileExtension: url.pathExtension, kind: .unknown).fileExtension
+        let rawExt = url.pathExtension.lowercased()
+        let ext = Self(fileExtension: rawExt, kind: .unknown).fileExtension
         let image = ["jpg", "jpeg", "png", "webp", "heic", "heif", "tif", "tiff", "bmp", "gif", "avif", "jfif"]
         let audio = ["mp3", "m4a", "wav", "flac", "ogg", "opus", "aiff", "wma"]
-        let video = ["mp4", "mov", "mkv", "webm", "avi", "wmv"]
+        let video = ["mp4", "mov", "mkv", "webm", "avi", "wmv", "gif"]
         let documents = ["pdf", "doc", "docx", "rtf", "txt", "md", "pages", "xls", "xlsx", "ppt", "pptx"]
         let subtitles = ["srt", "vtt"]
-        let archives = ["zip", "tar", "gz", "gzip", "rar", "7z"]
+        let archives = ["zip", "tar", "gz", "gzip", "tgz", "rar", "7z"]
 
-        if image.contains(ext) { return Self(fileExtension: ext, kind: .image) }
-        if audio.contains(ext) { return Self(fileExtension: ext, kind: .audio) }
-        if video.contains(ext) { return Self(fileExtension: ext, kind: .video) }
-        if documents.contains(ext) { return Self(fileExtension: ext, kind: ext == "pdf" ? .pdf : .document) }
-        if subtitles.contains(ext) { return Self(fileExtension: ext, kind: .subtitle) }
-        if archives.contains(ext) { return Self(fileExtension: ext, kind: .archive) }
+        if ext == "pdf" { return Self(fileExtension: ext, kind: .pdf) }
+        if image.contains(ext) || image.contains(rawExt) { return Self(fileExtension: ext, kind: .image) }
+        if audio.contains(ext) || audio.contains(rawExt) { return Self(fileExtension: ext, kind: .audio) }
+        if video.contains(ext) || video.contains(rawExt) { return Self(fileExtension: ext, kind: .video) }
+        if documents.contains(ext) || documents.contains(rawExt) { return Self(fileExtension: ext, kind: .document) }
+        if subtitles.contains(ext) || subtitles.contains(rawExt) { return Self(fileExtension: ext, kind: .subtitle) }
+        if archives.contains(ext) || archives.contains(rawExt) { return Self(fileExtension: ext, kind: .archive) }
         return Self(fileExtension: ext, kind: .unknown)
     }
 }
