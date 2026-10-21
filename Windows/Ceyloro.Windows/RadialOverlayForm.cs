@@ -37,6 +37,8 @@ public sealed class RadialOverlayForm : Form
         DragLeave += (_, _) => { selectedIndex = -1; Invalidate(); };
         DragDrop += OnDragDrop;
         KeyDown += OnKeyDown;
+        MouseMove += (_, _) => { UpdateSelection(Cursor.Position); Invalidate(); };
+        MouseClick += OnMouseClick;
         Shown += (_, _) => Focus();
     }
 
@@ -53,8 +55,8 @@ public sealed class RadialOverlayForm : Form
         var extensions = draggedFiles.Select(path => PortableFileFormat.Detect(path).Extension).Distinct(StringComparer.OrdinalIgnoreCase);
         AppLog.Write($"DragEnter fileDrop={e.Data?.GetDataPresent(DataFormats.FileDrop) == true} files={draggedFiles.Length} extensions={string.Join(",", extensions)} targets={string.Join(",", availableTargets)} state={emptyStateMessage}");
         dragOverLogged = false;
-        e.Effect = draggedFiles.Length > 0 && availableTargets.Length > 0 ? DragDropEffects.Copy : DragDropEffects.None;
         UpdateSelection(Cursor.Position);
+        e.Effect = draggedFiles.Length > 0 && availableTargets.Length > 0 && selectedIndex >= 0 ? DragDropEffects.Copy : DragDropEffects.None;
         Invalidate();
     }
 
@@ -67,13 +69,13 @@ public sealed class RadialOverlayForm : Form
             waitingForCapabilities = false;
             Invalidate();
         }
-        e.Effect = availableTargets.Length > 0 ? DragDropEffects.Copy : DragDropEffects.None;
+        UpdateSelection(Cursor.Position);
+        e.Effect = availableTargets.Length > 0 && selectedIndex >= 0 ? DragDropEffects.Copy : DragDropEffects.None;
         if (!dragOverLogged)
         {
             AppLog.Write($"DragOver effect={e.Effect} targets={availableTargets.Length}");
             dragOverLogged = true;
         }
-        UpdateSelection(Cursor.Position);
         Invalidate();
     }
 
@@ -86,9 +88,22 @@ public sealed class RadialOverlayForm : Form
             return;
         }
 
-        isConverting = true;
         var files = ReadFiles(e.Data);
-        var target = availableTargets[selectedIndex];
+        if (files.Length == 0)
+            files = draggedFiles;
+        await StartConversionAsync(files, selectedIndex);
+    }
+
+    private async Task StartConversionAsync(string[] files, int targetIndex)
+    {
+        if (isConverting || targetIndex < 0 || targetIndex >= availableTargets.Length || files.Length == 0)
+        {
+            Close();
+            return;
+        }
+
+        isConverting = true;
+        var target = availableTargets[targetIndex];
         var createCombinedPdf = false;
         var combinedPdfName = "Gabungan";
         var pdfSettings = engine.Settings.Current;
@@ -172,7 +187,7 @@ public sealed class RadialOverlayForm : Form
         }
     }
 
-    private void OnKeyDown(object? sender, KeyEventArgs e)
+    private async void OnKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.KeyCode == Keys.Escape)
         {
@@ -181,6 +196,14 @@ public sealed class RadialOverlayForm : Form
         }
         if (availableTargets.Length == 0)
             return;
+        if (e.KeyCode is Keys.Enter or Keys.Return)
+        {
+            if (selectedIndex >= 0 && selectedIndex < availableTargets.Length && draggedFiles.Length > 0)
+            {
+                await StartConversionAsync(draggedFiles, selectedIndex);
+                return;
+            }
+        }
         if (e.KeyCode >= Keys.D1 && e.KeyCode <= Keys.D9)
         {
             var requestedIndex = (int)e.KeyCode - (int)Keys.D1;
@@ -200,6 +223,23 @@ public sealed class RadialOverlayForm : Form
         Invalidate();
     }
 
+    private async void OnMouseClick(object? sender, MouseEventArgs e)
+    {
+        var local = new Point(e.X, e.Y);
+        var dx = local.X - center.X;
+        var dy = local.Y - center.Y;
+        var radius = Math.Sqrt(dx * dx + dy * dy);
+        if (radius < 66 || radius > 154)
+        {
+            Close();
+            return;
+        }
+        if (selectedIndex >= 0 && selectedIndex < availableTargets.Length && draggedFiles.Length > 0)
+        {
+            await StartConversionAsync(draggedFiles, selectedIndex);
+        }
+    }
+
     private void UpdateSelection(Point screenPoint)
     {
         var local = new Point(screenPoint.X - virtualBounds.Left, screenPoint.Y - virtualBounds.Top);
@@ -211,9 +251,12 @@ public sealed class RadialOverlayForm : Form
             selectedIndex = -1;
             return;
         }
+        var count = availableTargets.Length;
+        var step = 360d / count;
         var degrees = Math.Atan2(dy, dx) * 180 / Math.PI + 90;
         if (degrees < 0) degrees += 360;
-        selectedIndex = (int)(degrees / (360d / availableTargets.Length)) % availableTargets.Length;
+        var normalized = (degrees + step / 2) % 360;
+        selectedIndex = (int)(normalized / step) % count;
     }
 
     protected override void OnPaint(PaintEventArgs e)
