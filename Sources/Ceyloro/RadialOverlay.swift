@@ -95,7 +95,7 @@ final class RadialOverlay: NSPanel {
         let screen = NSScreen.screens.first { $0.frame.contains(point) } ?? NSScreen.main
         let selectedScreenFrame = screen?.frame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
         let visibleFrame = screen?.visibleFrame ?? selectedScreenFrame
-        let screenFrame = NSScreen.screens.dropFirst().reduce(selectedScreenFrame) { $0.union($1.frame) }
+        let screenFrame = Self.combinedScreenFrame(screens: NSScreen.screens.map(\.frame), fallback: selectedScreenFrame)
         setFrame(screenFrame, display: true)
         wheelView.frame = contentView?.bounds ?? NSRect(origin: .zero, size: screenFrame.size)
         let margin = geometry.discRadius + 21
@@ -115,6 +115,11 @@ final class RadialOverlay: NSPanel {
         }
         orderFrontRegardless()
         makeKey()
+    }
+
+    static func combinedScreenFrame(screens: [NSRect], fallback: NSRect = NSRect(x: 0, y: 0, width: 1440, height: 900)) -> NSRect {
+        guard let first = screens.first else { return fallback }
+        return screens.dropFirst().reduce(first) { $0.union($1) }
     }
 
     private static func summary(for files: [URL]) -> String {

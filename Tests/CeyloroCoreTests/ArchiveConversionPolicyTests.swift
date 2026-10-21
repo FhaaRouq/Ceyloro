@@ -18,4 +18,11 @@ final class ArchiveConversionPolicyTests: XCTestCase {
         XCTAssertTrue(policy.targets(for: FileFormat(fileExtension: "rar", kind: .archive)).isEmpty)
         XCTAssertTrue(policy.targets(for: FileFormat(fileExtension: "7z", kind: .archive)).isEmpty)
     }
+
+    func testUnsupportedArchiveSourcesAreFlagged() {
+        let policy = ArchiveConversionPolicy()
+        XCTAssertTrue(policy.isSupported(source: FileFormat(fileExtension: "zip", kind: .archive)))
+        XCTAssertFalse(policy.isSupported(source: FileFormat(fileExtension: "rar", kind: .archive)))
+        XCTAssertFalse(policy.isSupported(source: FileFormat(fileExtension: "7z", kind: .archive)))
+    }
 }

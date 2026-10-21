@@ -39,6 +39,8 @@ final class ConversionMatrixTests: XCTestCase {
         let matrix = ConversionMatrix()
         XCTAssertEqual(Set(matrix.targets(for: FileFormat(fileExtension: "srt", kind: .subtitle))), Set([.vtt, .txt]))
         XCTAssertEqual(Set(matrix.targets(for: FileFormat(fileExtension: "zip", kind: .archive))), Set([.tar, .gzip]))
+        XCTAssertTrue(matrix.targets(for: FileFormat(fileExtension: "rar", kind: .archive)).isEmpty)
+        XCTAssertTrue(matrix.targets(for: FileFormat(fileExtension: "7z", kind: .archive)).isEmpty)
     }
 
     func testEquivalentImageExtensionsAreCanonicalized() {

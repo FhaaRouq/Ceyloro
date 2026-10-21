@@ -16,6 +16,7 @@ public struct ConversionMatrix: Sendable {
         case .subtitle:
             return [.srt, .vtt, .txt].filter { $0.fileExtension != source.fileExtension }
         case .archive:
+            guard ArchiveConversionPolicy.nativeSources.contains(source.fileExtension) else { return [] }
             return [.zip, .tar, .gzip].filter { $0.fileExtension != source.fileExtension }
         default:
             return []

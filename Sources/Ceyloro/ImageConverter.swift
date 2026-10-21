@@ -237,7 +237,7 @@ enum ConversionError: LocalizedError {
     case archiveConversionFailed
     case archiveTooLarge
     case ffmpegUnavailable
-    case ffmpegFailed
+    case ffmpegFailed(reason: String? = nil)
     case unsupportedConversion
 
     var errorDescription: String? {
@@ -251,7 +251,11 @@ enum ConversionError: LocalizedError {
         case .archiveConversionFailed: return "Ceyloro tidak dapat membuat arsip hasil."
         case .archiveTooLarge: return "Isi arsip melebihi batas aman 2 GB."
         case .ffmpegUnavailable: return "FFmpeg belum tersedia untuk format ini."
-        case .ffmpegFailed: return "FFmpeg gagal memproses file ini."
+        case let .ffmpegFailed(reason):
+            if let reason, !reason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return "FFmpeg gagal memproses file ini: \(reason.trimmingCharacters(in: .whitespacesAndNewlines))"
+            }
+            return "FFmpeg gagal memproses file ini."
         case .unsupportedConversion: return "Format ini belum didukung di MVP."
         }
     }

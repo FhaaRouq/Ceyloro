@@ -62,8 +62,17 @@ final class FFmpegConverter {
                 }
             }
         }
+        let errorQueue = DispatchQueue(label: "com.node.ceyloro.ffmpeg-error")
+        var errorBuffer = ""
         errorPipe.fileHandleForReading.readabilityHandler = { handle in
-            _ = handle.availableData
+            let data = handle.availableData
+            guard !data.isEmpty, let text = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .ascii) else { return }
+            errorQueue.sync {
+                errorBuffer += text
+                if errorBuffer.count > 16384 {
+                    errorBuffer = String(errorBuffer.suffix(16384))
+                }
+            }
         }
         while process.isRunning {
             if isCancelled() {
@@ -71,6 +80,8 @@ final class FFmpegConverter {
                 errorPipe.fileHandleForReading.readabilityHandler = nil
                 process.terminate()
                 process.waitUntilExit()
+                _ = progressPipe.fileHandleForReading.readDataToEndOfFile()
+                _ = errorPipe.fileHandleForReading.readDataToEndOfFile()
                 try? fileManager.removeItem(at: output)
                 throw CancellationError()
             }
@@ -80,14 +91,47 @@ final class FFmpegConverter {
         progressPipe.fileHandleForReading.readabilityHandler = nil
         errorPipe.fileHandleForReading.readabilityHandler = nil
         _ = progressPipe.fileHandleForReading.readDataToEndOfFile()
-        _ = errorPipe.fileHandleForReading.readDataToEndOfFile()
+        let remainingError = errorPipe.fileHandleForReading.readDataToEndOfFile()
+        if let text = String(data: remainingError, encoding: .utf8) ?? String(data: remainingError, encoding: .ascii), !text.isEmpty {
+            errorQueue.sync {
+                errorBuffer += text
+                if errorBuffer.count > 16384 {
+                    errorBuffer = String(errorBuffer.suffix(16384))
+                }
+            }
+        }
         guard process.terminationStatus == 0,
               fileManager.fileExists(atPath: output.path) else {
             try? fileManager.removeItem(at: output)
-            throw ConversionError.ffmpegFailed
+            let rawError = errorQueue.sync { errorBuffer }
+            let reason = Self.extractDiagnosticReason(from: rawError)
+            throw ConversionError.ffmpegFailed(reason: reason)
         }
         progress(1)
         return .files([output])
+    }
+
+    static func extractDiagnosticReason(from stderr: String) -> String? {
+        let lines = stderr
+            .split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { line in
+                !line.isEmpty &&
+                !line.hasPrefix("ffmpeg version") &&
+                !line.hasPrefix("built with") &&
+                !line.hasPrefix("configuration:") &&
+                !line.hasPrefix("libav") &&
+                !line.hasPrefix("libsw") &&
+                !line.hasPrefix("libpostproc")
+            }
+        guard !lines.isEmpty else { return nil }
+        if let errorLine = lines.last(where: {
+            let lower = $0.lowercased()
+            return lower.contains("error") || lower.contains("failed") || lower.contains("invalid") || lower.contains("not found")
+        }) {
+            return String(errorLine.prefix(250))
+        }
+        return String(lines.last!.prefix(250))
     }
 
     private func isExecutableFile(_ url: URL) -> Bool {
