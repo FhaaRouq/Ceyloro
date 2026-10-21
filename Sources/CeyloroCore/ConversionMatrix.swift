@@ -12,7 +12,7 @@ public struct ConversionMatrix: Sendable {
         case .audio:
             return [.mp3, .m4a, .wav, .flac, .ogg, .opus, .aiff].filter { $0.fileExtension != source.fileExtension }
         case .video:
-            return [.mp4, .mov, .mkv, .webm, .avi, .wmv, .gif].filter { $0.fileExtension != source.fileExtension }
+            return ([.mp4, .mov, .mkv, .webm, .avi, .wmv, .gif, .mp3, .m4a, .wav, .flac, .ogg, .opus, .aiff]).filter { $0.fileExtension != source.fileExtension }
         case .subtitle:
             return [.srt, .vtt, .txt].filter { $0.fileExtension != source.fileExtension }
         case .archive:

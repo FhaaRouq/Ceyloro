@@ -10,6 +10,29 @@ final class FFmpegConversionTests: XCTestCase {
         XCTAssertFalse(targets.contains(.flac))
     }
 
+    func testVideoPolicyIncludesAudioExtractionTargets() {
+        let source = FileFormat(fileExtension: "mp4", kind: .video)
+        let targets = FFmpegConversionPolicy().targets(for: source)
+
+        XCTAssertTrue(targets.contains(.mp3))
+        XCTAssertTrue(targets.contains(.m4a))
+        XCTAssertTrue(targets.contains(.wav))
+        XCTAssertFalse(targets.contains(.mp4))
+    }
+
+    func testVideoToAudioCommandDisablesVideoStream() {
+        let arguments = FFmpegCommandBuilder.arguments(
+            input: URL(fileURLWithPath: "/input.mp4"),
+            output: URL(fileURLWithPath: "/output.mp3"),
+            target: .mp3
+        )
+
+        XCTAssertTrue(arguments.contains("-vn"))
+        XCTAssertTrue(arguments.contains("-c:a"))
+        XCTAssertTrue(arguments.contains("mp3"))
+        XCTAssertEqual(arguments.last, "/output.mp3")
+    }
+
     func testVideoCommandUsesExpectedCodecAndOutput() {
         let arguments = FFmpegCommandBuilder.arguments(
             input: URL(fileURLWithPath: "/input.mkv"),

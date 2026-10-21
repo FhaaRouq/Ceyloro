@@ -11,7 +11,7 @@ public struct FFmpegConversionPolicy: Sendable {
         case .audio:
             return Self.audioTargets.filter { $0.fileExtension != source.fileExtension }
         case .video:
-            return Self.videoTargets.filter { $0.fileExtension != source.fileExtension }
+            return (Self.videoTargets + Self.audioTargets).filter { $0.fileExtension != source.fileExtension }
         default:
             return []
         }

@@ -31,6 +31,8 @@ final class ConversionMatrixTests: XCTestCase {
         XCTAssertTrue(audioTargets.contains(.flac))
         XCTAssertFalse(videoTargets.contains(.mp4))
         XCTAssertTrue(videoTargets.contains(.mov))
+        XCTAssertTrue(videoTargets.contains(.mp3))
+        XCTAssertTrue(videoTargets.contains(.wav))
     }
 
     func testSubtitleAndArchiveTargetsAreCategorized() {
