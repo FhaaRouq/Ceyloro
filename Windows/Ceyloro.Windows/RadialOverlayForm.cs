@@ -171,7 +171,9 @@ public sealed class RadialOverlayForm : Form
 
     private static string[] ReadFiles(IDataObject? data)
     {
-        return data?.GetDataPresent(DataFormats.FileDrop) && data.GetData(DataFormats.FileDrop) is string[] files
+        if (data is null || !data.GetDataPresent(DataFormats.FileDrop))
+            return [];
+        return data.GetData(DataFormats.FileDrop) is string[] files
             ? files.Where(File.Exists).ToArray()
             : [];
     }
