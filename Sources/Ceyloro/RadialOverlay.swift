@@ -94,6 +94,7 @@ final class RadialOverlay: NSPanel {
         self.items = items
         wheelView.items = items
         wheelView.mode = mode
+        wheelView.fileCount = files.count
         wheelView.selectionSummary = Self.summary(for: files)
         let screen = NSScreen.screens.first { $0.frame.contains(point) } ?? NSScreen.main
         let selectedScreenFrame = screen?.frame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
@@ -284,6 +285,7 @@ final class RadialOverlayView: NSView {
         }
     }
     var selectionSummary = "File"
+    var fileCount = 1
     var isHubActive = false
     var dismissCountdownFraction: Double?
     var activeIndex: Int? {
@@ -401,22 +403,36 @@ final class RadialOverlayView: NSView {
 
             let mid = midpoint * .pi / 180
             let item = items[index]
-            let fontSize: CGFloat = count > 10 ? 9.5 : count > 8 ? 10.0 : 11.0
-            let attributes: [NSAttributedString.Key: Any] = [
-                .font: NSFont.systemFont(ofSize: fontSize, weight: isActive ? .bold : .semibold),
+            let baseFontSize: CGFloat = count > 12 ? 8.5 : count > 10 ? 9.0 : count > 8 ? 9.5 : 11.0
+
+            // Available angular width chord at text radius to prevent clipping and overlap
+            let textRadius = count > 8 ? (innerRadius * 0.65 + outerRadius * 0.35) - 3 : (innerRadius + outerRadius) / 2 - 10
+            let sectorChord = 2.0 * textRadius * Darwin.sin((step - CGFloat(geometry.angularGapDegrees)) * .pi / 360.0)
+            let availableTextWidth = max(sectorChord * 0.88, 22.0)
+
+            var chosenFont = NSFont.systemFont(ofSize: baseFontSize, weight: isActive ? .bold : .semibold)
+            var attributes: [NSAttributedString.Key: Any] = [
+                .font: chosenFont,
                 .foregroundColor: NSColor(calibratedWhite: 1, alpha: isActive ? 1.0 : 0.92)
             ]
             let text = NSString(string: item.title.uppercased())
-            let size = text.size(withAttributes: attributes)
+            var size = text.size(withAttributes: attributes)
+
+            // If text exceeds available sector width, scale font size down dynamically
+            if size.width > availableTextWidth && baseFontSize > 7.5 {
+                let scaledSize = max(baseFontSize * (availableTextWidth / size.width), 7.5)
+                chosenFont = NSFont.systemFont(ofSize: scaledSize, weight: isActive ? .bold : .semibold)
+                attributes[.font] = chosenFont
+                size = text.size(withAttributes: attributes)
+            }
 
             // When there are many sectors, stagger the icon outward and text inward along the radial vector
             // to maximize available horizontal width in narrow sectors
             let iconRadius = count > 8 ? (innerRadius * 0.40 + outerRadius * 0.60) + 7 : (innerRadius + outerRadius) / 2 + 10
-            let textRadius = count > 8 ? (innerRadius * 0.65 + outerRadius * 0.35) - 3 : (innerRadius + outerRadius) / 2 - 10
             let iconCenter = NSPoint(x: center.x + Darwin.cos(mid) * iconRadius, y: center.y + Darwin.sin(mid) * iconRadius)
             let textCenter = NSPoint(x: center.x + Darwin.cos(mid) * textRadius, y: center.y + Darwin.sin(mid) * textRadius)
 
-            let iconSize: CGFloat = count > 10 ? 15 : count > 8 ? 16 : 18
+            let iconSize: CGFloat = count > 10 ? 14 : count > 8 ? 16 : 18
             if let icon = NSImage(systemSymbolName: item.symbolName, accessibilityDescription: item.title) {
                 icon.isTemplate = true
                 let iconRect = NSRect(x: iconCenter.x - iconSize / 2, y: iconCenter.y - iconSize / 2, width: iconSize, height: iconSize)
@@ -469,8 +485,29 @@ final class RadialOverlayView: NSView {
         summaryParagraph.lineBreakMode = .byTruncatingMiddle
         var summaryAttributesWithLayout = summaryAttributes
         summaryAttributesWithLayout[.paragraphStyle] = summaryParagraph
-        let summaryRect = NSRect(x: hubRect.minX + 8, y: center.y - 14, width: hubRect.width - 16, height: 20)
-        summary.draw(in: summaryRect, withAttributes: summaryAttributesWithLayout)
+
+        if fileCount > 1, let stackIcon = NSImage(systemSymbolName: "doc.on.doc.fill", accessibilityDescription: "Banyak berkas") {
+            stackIcon.isTemplate = true
+            let iconSize: CGFloat = 11
+            let spacing: CGFloat = 5
+            let measuredTextWidth = summary.size(withAttributes: summaryAttributes).width
+            let maxAvailableWidth = hubRect.width - 16
+            let totalContentWidth = min(iconSize + spacing + measuredTextWidth, maxAvailableWidth)
+            let startX = center.x - totalContentWidth / 2
+            let iconRect = NSRect(x: startX, y: center.y - 9.5, width: iconSize, height: iconSize)
+            stackIcon.draw(in: iconRect, from: .zero, operation: .sourceOver, fraction: 0.95)
+
+            let textRect = NSRect(x: startX + iconSize + spacing, y: center.y - 14, width: totalContentWidth - iconSize - spacing, height: 20)
+            let leftAlignedParagraph = NSMutableParagraphStyle()
+            leftAlignedParagraph.alignment = .left
+            leftAlignedParagraph.lineBreakMode = .byTruncatingMiddle
+            var leftAttributes = summaryAttributes
+            leftAttributes[.paragraphStyle] = leftAlignedParagraph
+            summary.draw(in: textRect, withAttributes: leftAttributes)
+        } else {
+            let summaryRect = NSRect(x: hubRect.minX + 8, y: center.y - 14, width: hubRect.width - 16, height: 20)
+            summary.draw(in: summaryRect, withAttributes: summaryAttributesWithLayout)
+        }
 
         let hint = NSString(string: "LEPAS  •  1–9 PILIH  •  ESC BATAL")
         let hintAttributes: [NSAttributedString.Key: Any] = [
