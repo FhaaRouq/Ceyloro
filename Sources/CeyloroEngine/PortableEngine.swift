@@ -29,14 +29,21 @@ public struct PortableFileFormat: Hashable, Codable, Sendable {
     public let kind: PortableMediaKind
 
     public init(fileExtension: String, kind: PortableMediaKind) {
-        self.fileExtension = fileExtension
+        let normalized = fileExtension
             .lowercased()
             .trimmingCharacters(in: CharacterSet(charactersIn: "."))
+        switch normalized {
+        case "jpeg", "jfif": self.fileExtension = "jpg"
+        case "tif": self.fileExtension = "tiff"
+        case "heif": self.fileExtension = "heic"
+        case "tgz": self.fileExtension = "gz"
+        default: self.fileExtension = normalized
+        }
         self.kind = kind
     }
 
     public static func detect(url: URL) -> Self {
-        let ext = url.pathExtension.lowercased()
+        let ext = Self(fileExtension: url.pathExtension, kind: .unknown).fileExtension
         let image = ["jpg", "jpeg", "png", "webp", "heic", "heif", "tif", "tiff", "bmp", "gif", "avif", "jfif"]
         let audio = ["mp3", "m4a", "wav", "flac", "ogg", "opus", "aiff", "wma"]
         let video = ["mp4", "mov", "mkv", "webm", "avi", "wmv"]
@@ -60,7 +67,9 @@ public enum PortableTargetFormat: String, Codable, CaseIterable, Sendable {
     case mp4, mov, mkv, webm, avi, wmv, gif
     case srt, vtt, zip, tar, gzip
 
-    public var fileExtension: String { rawValue }
+    public var fileExtension: String {
+        self == .gzip ? "tar.gz" : rawValue
+    }
 }
 
 public struct EngineCapabilities: Equatable, Codable, Sendable {

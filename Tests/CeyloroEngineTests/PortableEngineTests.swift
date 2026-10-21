@@ -10,6 +10,13 @@ final class PortableEngineTests: XCTestCase {
         XCTAssertEqual(PortableFileFormat.detect(url: URL(fileURLWithPath: "/tmp/report.pdf")).kind, .pdf)
     }
 
+    func testDetectionNormalizesEquivalentExtensions() {
+        XCTAssertEqual(PortableFileFormat.detect(url: URL(fileURLWithPath: "/tmp/photo.JPEG")).fileExtension, "jpg")
+        XCTAssertEqual(PortableFileFormat.detect(url: URL(fileURLWithPath: "/tmp/photo.heif")).fileExtension, "heic")
+        XCTAssertEqual(PortableFileFormat.detect(url: URL(fileURLWithPath: "/tmp/photo.tif")).fileExtension, "tiff")
+        XCTAssertEqual(PortableTargetFormat.gzip.fileExtension, "tar.gz")
+    }
+
     func testWindowsFFmpegCapabilitiesPlanMediaConversion() throws {
         let capabilities = EngineCapabilities(platform: .windows, backends: [.ffmpeg], supportedTargets: allTargets)
         let request = ConversionRequest(input: URL(fileURLWithPath: "/tmp/clip.mkv"), target: .webm)
