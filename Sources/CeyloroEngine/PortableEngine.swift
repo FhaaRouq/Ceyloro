@@ -181,12 +181,16 @@ public actor ConversionCoordinator {
         isCancelled: @escaping ConversionCancellationHandler = { false }
     ) async throws -> URL {
         let plan = try ConversionPlanner.plan(request, capabilities: capabilities)
-        guard let adapter = adapters.first(where: { $0.backend == plan.backend }) else {
+        let primaryAdapter = adapters.first(where: { $0.backend == plan.backend })
+        if let primaryAdapter, primaryAdapter.supports(request) {
+            return try await primaryAdapter.convert(request, progress: progress, isCancelled: isCancelled)
+        }
+        if let fallbackAdapter = adapters.first(where: { $0.backend != plan.backend && $0.supports(request) }) {
+            return try await fallbackAdapter.convert(request, progress: progress, isCancelled: isCancelled)
+        }
+        guard let primary = primaryAdapter else {
             throw ConversionExecutionError.backendUnavailable(plan.backend)
         }
-        guard adapter.supports(request) else {
-            throw ConversionExecutionError.backendRejected(plan.backend)
-        }
-        return try await adapter.convert(request, progress: progress, isCancelled: isCancelled)
+        throw ConversionExecutionError.backendRejected(primary.backend)
     }
 }

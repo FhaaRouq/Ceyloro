@@ -242,7 +242,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
         }
     }
 
-    private func wheelItems(for files: [URL], mode: WheelMode) -> [WheelItem] {
+    func wheelItems(for files: [URL], mode: WheelMode) -> [WheelItem] {
         switch mode {
         case .convert:
             let detected = files.map(FileFormat.detect(url:))
