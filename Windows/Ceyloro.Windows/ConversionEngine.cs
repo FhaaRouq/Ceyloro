@@ -32,6 +32,9 @@ public sealed class ConversionEngine
         if (formats.All(format => format.Kind is PortableMediaKind.Pdf or PortableMediaKind.Subtitle or PortableMediaKind.Archive))
             return targets;
 
+        if (formats.Any(format => format.Kind == PortableMediaKind.Image && !PdfConversion.CanCreatePdfFromImage(format.Extension)))
+            targets.Remove("pdf");
+
         var capabilities = TryGetCapabilities();
         var hasAnimatedGif = formats.All(format => format.Extension == "gif") && files.Any(IsAnimatedGif);
         if (hasAnimatedGif)
@@ -406,3 +409,4 @@ public sealed class ConversionEngine
         }
     }
 }
+
