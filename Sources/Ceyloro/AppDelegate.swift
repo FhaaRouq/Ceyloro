@@ -192,18 +192,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
     private func wheelItems(for files: [URL], mode: WheelMode) -> [WheelItem] {
         switch mode {
         case .convert:
-            let formats = matrix.commonTargets(for: files.map(FileFormat.detect(url:)))
-            if files.allSatisfy({ FileFormat.detect(url: $0).kind == .audio }) {
+            let detected = files.map(FileFormat.detect(url:))
+            let formats = matrix.commonTargets(for: detected)
+            if detected.allSatisfy({ $0.kind == .audio }) {
                 let native = Set(audioConverter.supportedTargets(for: files, candidates: formats))
                 let ffmpeg = Set(ffmpegConverter.supportedTargets(for: files, candidates: formats, ffmpegURL: ffmpegURL, encoders: ffmpegEncoders))
                 return formats.filter { native.contains($0) || ffmpeg.contains($0) }.map { WheelItem(title: $0.title, target: $0, action: nil) }
             }
-            if files.allSatisfy({ FileFormat.detect(url: $0).kind == .video }) {
+            if detected.allSatisfy({ $0.kind == .video }) {
                 let native = Set(videoConverter.supportedTargets(for: files, candidates: formats))
                 let ffmpeg = Set(ffmpegConverter.supportedTargets(for: files, candidates: formats, ffmpegURL: ffmpegURL, encoders: ffmpegEncoders))
                 return formats.filter { native.contains($0) || ffmpeg.contains($0) }.map { WheelItem(title: $0.title, target: $0, action: nil) }
             }
-            if files.allSatisfy({ FileFormat.detect(url: $0).fileExtension == "gif" }) {
+            if detected.allSatisfy({ $0.fileExtension == "gif" }) {
                 let hasAnimated = files.contains { ImageConverter.isAnimatedGIF(at: $0) }
                 if hasAnimated {
                     let videoTargets = ffmpegConverter.supportedTargets(for: files, candidates: FFmpegConversionPolicy.videoTargets, ffmpegURL: ffmpegURL, encoders: ffmpegEncoders)
@@ -214,10 +215,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
                         .map { WheelItem(title: $0.title, target: $0, action: nil) }
                 }
             }
-            if files.allSatisfy({ FileFormat.detect(url: $0).kind == .subtitle }) {
+            if detected.allSatisfy({ $0.kind == .subtitle }) {
                 return subtitleConverter.supportedTargets(for: files, candidates: formats).map { WheelItem(title: $0.title, target: $0, action: nil) }
             }
-            if files.allSatisfy({ FileFormat.detect(url: $0).kind == .archive }) {
+            if detected.allSatisfy({ $0.kind == .archive }) {
                 return archiveConverter.supportedTargets(for: files, candidates: formats).map { WheelItem(title: $0.title, target: $0, action: nil) }
             }
             return converter.supportedTargets(for: files, candidates: formats).map { WheelItem(title: $0.title, target: $0, action: nil) }
