@@ -228,6 +228,8 @@ enum ConversionError: LocalizedError {
     case encodingFailed
     case audioEngineUnavailable
     case videoEngineUnavailable
+    case archiveEngineUnavailable
+    case archiveConversionFailed
     case unsupportedConversion
 
     var errorDescription: String? {
@@ -237,6 +239,8 @@ enum ConversionError: LocalizedError {
         case .encodingFailed: return "Ceyloro tidak dapat menulis hasil konversi."
         case .audioEngineUnavailable: return "Mesin audio macOS tidak mendukung format ini."
         case .videoEngineUnavailable: return "Mesin video macOS tidak mendukung format ini."
+        case .archiveEngineUnavailable: return "Mesin arsip macOS tidak tersedia untuk format ini."
+        case .archiveConversionFailed: return "Ceyloro tidak dapat membuat arsip hasil."
         case .unsupportedConversion: return "Format ini belum didukung di MVP."
         }
     }

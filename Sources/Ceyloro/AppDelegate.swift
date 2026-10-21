@@ -13,6 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
     private let audioConverter = AudioConverter()
     private let videoConverter = VideoConverter()
     private let subtitleConverter = SubtitleConverter()
+    private let archiveConverter = ArchiveConverter()
     private let engineProbe = RuntimeEngineProbe()
     private var progressWindows: [UUID: ProgressWindowController] = [:]
     private var settingsWindow: SettingsWindowController?
@@ -120,6 +121,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
             if files.allSatisfy({ FileFormat.detect(url: $0).kind == .subtitle }) {
                 return subtitleConverter.supportedTargets(for: files, candidates: formats).map { WheelItem(title: $0.title, target: $0, action: nil) }
             }
+            if files.allSatisfy({ FileFormat.detect(url: $0).kind == .archive }) {
+                return archiveConverter.supportedTargets(for: files, candidates: formats).map { WheelItem(title: $0.title, target: $0, action: nil) }
+            }
             return converter.supportedTargets(for: files, candidates: formats).map { WheelItem(title: $0.title, target: $0, action: nil) }
         case .tools:
             return []
@@ -161,6 +165,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
                 }
                 if FileFormat.detect(url: input).kind == .subtitle {
                     return try SubtitleConverter().convert(input: input, target: target, temporaryDirectory: temp.appendingPathComponent(UUID().uuidString), progress: progress, isCancelled: cancelled)
+                }
+                if FileFormat.detect(url: input).kind == .archive {
+                    return try ArchiveConverter().convert(input: input, target: target, temporaryDirectory: temp.appendingPathComponent(UUID().uuidString), progress: progress, isCancelled: cancelled)
                 }
                 return try converter.convert(input: input, target: target, temporaryDirectory: temp.appendingPathComponent(UUID().uuidString), progress: progress, isCancelled: cancelled, options: imageOptions)
             }) { [weak self] snapshot in
