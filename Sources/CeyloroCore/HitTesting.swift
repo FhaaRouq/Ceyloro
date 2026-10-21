@@ -7,7 +7,7 @@ public struct RadialGeometry: Equatable, Sendable {
     public let outsideMultiplier: Double
     public let angularGapDegrees: Double
 
-    public init(innerRadius: Double = 54, outerRadius: Double = 128, outsideMultiplier: Double = 1.12, angularGapDegrees: Double = 5, discRadius: Double = 137) {
+    public init(innerRadius: Double = 54, outerRadius: Double = 128, outsideMultiplier: Double = 1.12, angularGapDegrees: Double = 1.5, discRadius: Double = 137) {
         self.innerRadius = innerRadius
         self.outerRadius = outerRadius
         self.discRadius = discRadius
@@ -38,7 +38,8 @@ public enum RadialHitTesting {
         let midpoint = Double(index) * step
         let angularDistance = abs(atan2(sin(theta - midpoint), cos(theta - midpoint)))
         let allowedHalfWidth = step / 2 - geometry.angularGapDegrees * Double.pi / 180
-        if angularDistance > allowedHalfWidth { return .outside }
+        let snapTolerance = 2.0 * Double.pi / 180
+        if angularDistance > (allowedHalfWidth + snapTolerance) { return .outside }
         return .sector(index)
     }
 }
