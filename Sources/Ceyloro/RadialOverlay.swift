@@ -215,12 +215,22 @@ final class RadialOverlay: NSPanel {
     }
 
     func activateKeyboardSelection() {
-        guard let index = wheelView.activeIndex, items.indices.contains(index) else { return }
+        guard let index = wheelView.activeIndex else { return }
+        selectItem(at: index)
+    }
+
+    func selectItem(at index: Int) {
+        guard items.indices.contains(index) else { return }
         let item = items[index]
         let selectedFiles = files
         let selectedMode = mode
         dismiss()
         overlayDelegate?.radialOverlay(self, didDrop: selectedFiles, item: item, mode: selectedMode)
+    }
+
+    func dismissAndCancel() {
+        dismiss()
+        overlayDelegate?.radialOverlayDidCancel(self)
     }
 
     private func selectedItem(at point: NSPoint) -> WheelItem? {
@@ -350,6 +360,41 @@ final class RadialOverlayView: NSView {
             }
         }
         return accessibilityChildrenCache
+    }
+
+    private var trackingArea: NSTrackingArea?
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let trackingArea {
+            removeTrackingArea(trackingArea)
+        }
+        let options: NSTrackingArea.Options = [.activeAlways, .mouseMoved, .mouseEnteredAndExited]
+        let area = NSTrackingArea(rect: bounds, options: options, owner: self, userInfo: nil)
+        addTrackingArea(area)
+        trackingArea = area
+    }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        return true
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        let location = convert(event.locationInWindow, from: nil)
+        update(point: location)
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        let location = convert(event.locationInWindow, from: nil)
+        let hit = RadialHitTesting.hit(point: location, center: centerPoint, sectorCount: items.count, geometry: geometry)
+        switch hit {
+        case .sector(let index):
+            activeIndex = index
+            needsDisplay = true
+            delegate?.selectItem(at: index)
+        case .outside, .hub:
+            delegate?.dismissAndCancel()
+        }
     }
 
     func update(point: NSPoint) {
