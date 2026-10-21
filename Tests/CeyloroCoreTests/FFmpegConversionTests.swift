@@ -17,7 +17,8 @@ final class FFmpegConversionTests: XCTestCase {
             target: .mp4
         )
 
-        XCTAssertTrue(arguments.contains("libx264"))
+        XCTAssertTrue(arguments.contains("mpeg4"))
+        XCTAssertFalse(arguments.contains("libx264"))
         XCTAssertTrue(arguments.contains("+faststart"))
         XCTAssertEqual(arguments.last, "/output.mp4")
     }

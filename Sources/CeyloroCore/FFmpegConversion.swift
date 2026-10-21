@@ -23,7 +23,7 @@ public enum FFmpegCommandBuilder {
         var arguments = ["-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-i", input.path]
         switch target {
         case .mp3:
-            arguments += ["-vn", "-c:a", "libmp3lame", "-q:a", "2"]
+            arguments += ["-vn", "-c:a", "mp3", "-q:a", "2"]
         case .m4a:
             arguments += ["-vn", "-c:a", "aac", "-b:a", "192k"]
         case .wav:
@@ -31,21 +31,21 @@ public enum FFmpegCommandBuilder {
         case .flac:
             arguments += ["-vn", "-c:a", "flac"]
         case .ogg:
-            arguments += ["-vn", "-c:a", "libvorbis", "-q:a", "5"]
+            arguments += ["-vn", "-c:a", "vorbis", "-q:a", "5"]
         case .opus:
-            arguments += ["-vn", "-c:a", "libopus", "-b:a", "128k"]
+            arguments += ["-vn", "-c:a", "opus", "-b:a", "128k"]
         case .aiff:
             arguments += ["-vn", "-c:a", "pcm_s16be"]
         case .mp4:
-            arguments += ["-c:v", "libx264", "-preset", "medium", "-crf", "23", "-c:a", "aac", "-movflags", "+faststart"]
+            arguments += ["-c:v", "mpeg4", "-q:v", "3", "-c:a", "aac", "-movflags", "+faststart"]
         case .mov:
-            arguments += ["-c:v", "libx264", "-preset", "medium", "-crf", "23", "-c:a", "aac"]
+            arguments += ["-c:v", "mpeg4", "-q:v", "3", "-c:a", "aac"]
         case .mkv:
-            arguments += ["-c:v", "libx264", "-c:a", "aac"]
+            arguments += ["-c:v", "mpeg4", "-q:v", "3", "-c:a", "aac"]
         case .webm:
-            arguments += ["-c:v", "libvpx-vp9", "-c:a", "libopus"]
+            arguments += ["-c:v", "vp9", "-crf", "32", "-b:v", "0", "-c:a", "opus"]
         case .avi:
-            arguments += ["-c:v", "libx264", "-c:a", "libmp3lame"]
+            arguments += ["-c:v", "mpeg4", "-q:v", "3", "-c:a", "mp3"]
         case .wmv:
             arguments += ["-c:v", "wmv2", "-c:a", "wmav2"]
         case .gif:
