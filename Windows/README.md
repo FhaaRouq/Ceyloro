@@ -61,6 +61,33 @@ menghasilkan satu file per halaman, seperti alur macOS. WEBP, HEIC, dan AVIF mem
 untuk membuat PNG perantara; ini menjaga transparansi saat target akhirnya JPG, PNG, TIFF,
 atau PDF.
 
+## Distribusi & Code Signing (Authenticode)
+
+Paket rilis resmi didistribusikan sebagai arsip ZIP mandiri per arsitektur (`win-x64` dan `win-arm64`). Untuk rilis publik produksi:
+
+1. **Authenticode Signing**:
+   Gunakan sertifikat penandatanganan kode yang valid dengan `signtool.exe`:
+   ```powershell
+   signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /f "SertifikatCeyloro.pfx" /p "Password" "bin\Release\net8.0-windows10.0.19041.0\win-x64\publish\Ceyloro.exe"
+   ```
+2. **SmartScreen & Reputasi**:
+   Build rilis preview tanpa sertifikat EV berpotensi memicu peringatan Windows Defender SmartScreen. Pengguna dapat memilih **More info** -> **Run anyway** untuk file yang diunduh dari rilis resmi GitHub.
+3. **Verifikasi Checksum**:
+   Setiap rilis GitHub menyertakan `SHA256SUMS.txt` untuk memastikan integritas biner sebelum dijalankan:
+   ```powershell
+   Get-FileHash -Algorithm SHA256 .\Ceyloro-win-x64.zip
+   ```
+
+## Verifikasi Perangkat Nyata Windows ARM64
+
+Build target `win-arm64` dikompilasi secara cross-compile via .NET SDK pada GitHub Actions. Untuk validasi perangkat fisik Windows on ARM (seperti Snapdragon X Elite/Copilot+ PC):
+
+- [ ] **Overlay Launch**: Hotkey `Ctrl+Alt+Space` membuka roda radial tanpa artefak grafis GDI+/WinForms.
+- [ ] **Radial Hit-Testing**: Verifikasi `RadialGeometry.HitTest` pada layar sentuh dan mouse/trackpad presisi tinggi.
+- [ ] **FFmpeg Native ARM64**: Pastikan biner `ffmpeg.exe` arm64 yang dibundel mengeksekusi kompresi video/audio tanpa emulasi x64.
+- [ ] **PDF Rendering**: Uji konversi halaman PDF via WinRT API pada Windows 11 ARM64.
+- [ ] **Archive & Temp**: Pastikan ekstraksi ZIP/TAR dan pembersihan temp folder berjalan normal.
+
 Jika Windows SmartScreen muncul saat pertama kali membuka aplikasi, pilih
 **More info**, lalu **Run anyway** hanya untuk paket yang diunduh dari GitHub
 Release resmi Ceyloro.
