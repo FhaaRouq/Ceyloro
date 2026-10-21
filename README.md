@@ -15,8 +15,7 @@ Semua pemrosesan berjalan lokal. File asli tidak diubah, ditimpa, atau diunggah 
 | Platform | Paket |
 | --- | --- |
 | macOS Intel + Apple Silicon | [Download Ceyloro untuk macOS](https://github.com/neuraldigital/Ceyloro/releases/download/v0.1.0-preview.4/Ceyloro-macOS-universal.zip) |
-| Windows x64 | [Download Ceyloro untuk Windows x64](https://github.com/neuraldigital/Ceyloro/releases/download/v0.1.0-preview.4/Ceyloro-Windows-x64.zip) |
-| Windows ARM64 | Paket ARM64 akan disertakan pada release Windows berikutnya. |
+| Windows x64 | [Download Ceyloro untuk Windows](https://github.com/Neural-Operations-Digital-Engineering/Ceyloro/releases/download/v0.1.0-preview.5/Ceyloro-Windows-x64.zip) |
 
 Paket di atas adalah preview release. Build macOS sudah universal (`x86_64` + `arm64`). Paket Windows bersifat self-contained dan tidak memerlukan instalasi .NET. Preview yang sudah terbit masih hanya menyediakan Windows x64; workflow rilis berikutnya sedang disiapkan untuk menghasilkan paket Windows x64 dan ARM64.
 
@@ -41,7 +40,11 @@ Paket preview belum ditandatangani secara resmi.
 4. Di Finder, tahan `Shift` lalu tarik satu atau beberapa file.
 5. Lepaskan file pada format tujuan di roda.
 
-Untuk membuka roda tanpa drag, gunakan hotkey cadangan yang dikonfigurasi di aplikasi. Tekan `Esc` atau lepaskan file di luar area target untuk membatalkan.
+Untuk membuka roda tanpa drag (fallback), pilih satu atau beberapa file di Finder lalu tekan **`Shift + Spasi`**. Tekan `Esc` atau lepaskan file di luar area target untuk membatalkan.
+
+#### Izin macOS (First-Run)
+- **Aksesibilitas (Accessibility)**: Diperlukan agar Ceyloro dapat mendeteksi gestur kursor Shift-drag global dan hotkey `Shift + Spasi`. Prompt sistem akan muncul otomatis saat pertama kali dibuka.
+- **Otomatisasi (Automation)**: Diperlukan saat menggunakan shortcut `Shift + Spasi` agar Ceyloro dapat membaca file yang sedang dipilih di Finder melalui Apple Events. Jika belum diizinkan, Ceyloro akan menampilkan notifikasi pengingat dengan tombol langsung ke Pengaturan Sistem.
 
 ### Windows
 
@@ -82,11 +85,12 @@ Fitur lain yang tersedia:
 
 ## Privasi dan keamanan file
 
-- Pemrosesan dilakukan secara offline di perangkat pengguna.
-- File sumber tidak pernah diubah, dihapus, atau ditimpa.
-- File hasil diberi nama unik jika nama tujuan sudah ada.
-- Konversi batch melaporkan keberhasilan dan kegagalan secara terpisah.
-- File sementara dibersihkan setelah pekerjaan selesai atau dibatalkan.
+- **Pemrosesan Offline Penuh**: Semua konversi diproses secara lokal di perangkat Anda tanpa transmisi jaringan atau telemetri.
+- **Integritas File Sumber**: File sumber tidak pernah diubah, dihapus, atau ditimpa.
+- **Proteksi Penamaan Anti-Timpa**: File tujuan diberi nama unik menggunakan reservasi atomik tingkat kernel (`O_CREAT | O_EXCL`) untuk mencegah tabrakan berkas antar-proses.
+- **Pembersihan File Sementara**: Seluruh staging konversi diisolasi dalam subdirektori sementara (`Ceyloro-...`) dan langsung dihapus saat konversi berhasil, dibatalkan, gagal, atau saat aplikasi ditutup.
+- **Sanitasi Log**: Log aplikasi hanya disimpan lokal di `~/Library/Logs/Ceyloro/app.log`, path pengguna disamarkan (`~`), dan berkas log dirotasi otomatis saat mencapai 1 MB.
+- **Pelaporan Batch Transparan**: Konversi banyak file melaporkan status keberhasilan dan kegagalan per file secara independen tanpa menghentikan berkas lainnya.
 
 ## Status platform
 

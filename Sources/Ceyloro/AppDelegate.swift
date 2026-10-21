@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
     private let archiveConverter = ArchiveConverter()
     private let ffmpegConverter = FFmpegConverter()
     private var ffmpegURL: URL?
+    private var ffmpegEncoders: Set<String> = []
     private let engineProbe = RuntimeEngineProbe()
     private var progressWindows: [UUID: ProgressWindowController] = [:]
     private var settingsWindow: SettingsWindowController?
@@ -38,8 +39,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
         rotateLogIfNeeded()
         NSApp.setActivationPolicy(.accessory)
         setupStatusItem()
+        checkPermissionsOnLaunch()
         overlay.overlayDelegate = self
         monitor.onWheelChange = { [weak self] files, point, flags in self?.showWheel(files: files, at: point, flags: flags) }
+        monitor.onDiagnostic = { [weak self] message in self?.log("[DragMonitor] \(message)") }
         monitor.onDragEnd = { [weak self] in
             guard let self, self.overlay.isVisible else { return }
             // Give AppKit's dragging destination callback a turn to receive a valid drop.
@@ -62,6 +65,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
     func applicationWillTerminate(_ notification: Notification) {
         monitor.stop()
         hotKeyMonitor.stop()
+        runner.cancelAll()
+        cleanupOldTemporaryDirectories(cutoffInterval: 0)
     }
 
     private func setupStatusItem() {
@@ -89,7 +94,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
         let customPath = UserDefaults.standard.string(forKey: "ffmpegPath")
         let engineStatus = engineProbe.inspect(customFFmpegPath: customPath)
         ffmpegURL = engineStatus.ffmpegURL
-        log("Engine AVFoundation: tersedia; FFmpeg: \(engineStatus.ffmpegURL?.path ?? "tidak ditemukan")")
+        ffmpegEncoders = engineStatus.encoders
+        log("Engine AVFoundation: \(engineStatus.avFoundation ? "tersedia" : "tidak tersedia"); FFmpeg: \(engineStatus.ffmpegURL?.path ?? "tidak ditemukan") (encoders: \(engineStatus.encoders.count))")
     }
 
     private func showWheel(files: [URL], at point: NSPoint, flags: NSEvent.ModifierFlags) {
@@ -139,13 +145,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
         return "Tidak ada target konversi yang tersedia untuk file ini."
     }
 
+    private func checkPermissionsOnLaunch() {
+        let isAccessibilityTrusted = HotKeyMonitor.isAccessibilityGranted
+        log("Accessibility permission status: \(isAccessibilityTrusted ? "Granted" : "Not granted / Pending prompt")")
+    }
+
     private func showWheelFromHotKey() {
-        let files = finderSelectionReader.selectedFiles()
-        guard !files.isEmpty else {
+        switch finderSelectionReader.readSelection() {
+        case .success(let files):
+            guard !files.isEmpty else {
+                showError("Pilih satu atau beberapa file di Finder terlebih dahulu.")
+                return
+            }
+            showWheel(files: files, at: NSEvent.mouseLocation, flags: [.shift])
+        case .noSelection:
             showError("Pilih satu atau beberapa file di Finder terlebih dahulu.")
-            return
+        case .permissionDenied(let reason):
+            showPermissionAlert(
+                title: "Izin Otomatisasi Diperlukan",
+                message: "\(reason)\n\nBuka Pengaturan Sistem > Privasi & Keamanan > Otomatisasi, lalu izinkan Ceyloro mengontrol Finder.",
+                settingsURL: URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation")
+            )
+        case .scriptError(let details):
+            showError("Gagal membaca pilihan Finder: \(details)")
         }
-        showWheel(files: files, at: NSEvent.mouseLocation, flags: [.shift])
+    }
+
+    private func showPermissionAlert(title: String, message: String, settingsURL: URL?) {
+        log("[Permission] \(title): \(message)")
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = message
+        alert.alertStyle = .warning
+        if let settingsURL {
+            alert.addButton(withTitle: "Buka Pengaturan Sistem")
+            alert.addButton(withTitle: "Tutup")
+            if alert.runModal() == .alertFirstButtonReturn {
+                NSWorkspace.shared.open(settingsURL)
+            }
+        } else {
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+        }
     }
 
     private func wheelItems(for files: [URL], mode: WheelMode) -> [WheelItem] {
@@ -154,18 +195,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
             let formats = matrix.commonTargets(for: files.map(FileFormat.detect(url:)))
             if files.allSatisfy({ FileFormat.detect(url: $0).kind == .audio }) {
                 let native = Set(audioConverter.supportedTargets(for: files, candidates: formats))
-                let ffmpeg = Set(ffmpegConverter.supportedTargets(for: files, candidates: formats, ffmpegURL: ffmpegURL))
+                let ffmpeg = Set(ffmpegConverter.supportedTargets(for: files, candidates: formats, ffmpegURL: ffmpegURL, encoders: ffmpegEncoders))
                 return formats.filter { native.contains($0) || ffmpeg.contains($0) }.map { WheelItem(title: $0.title, target: $0, action: nil) }
             }
             if files.allSatisfy({ FileFormat.detect(url: $0).kind == .video }) {
                 let native = Set(videoConverter.supportedTargets(for: files, candidates: formats))
-                let ffmpeg = Set(ffmpegConverter.supportedTargets(for: files, candidates: formats, ffmpegURL: ffmpegURL))
+                let ffmpeg = Set(ffmpegConverter.supportedTargets(for: files, candidates: formats, ffmpegURL: ffmpegURL, encoders: ffmpegEncoders))
                 return formats.filter { native.contains($0) || ffmpeg.contains($0) }.map { WheelItem(title: $0.title, target: $0, action: nil) }
             }
             if files.allSatisfy({ FileFormat.detect(url: $0).fileExtension == "gif" }) {
                 let hasAnimated = files.contains { ImageConverter.isAnimatedGIF(at: $0) }
                 if hasAnimated {
-                    let videoTargets = ffmpegConverter.supportedTargets(for: files, candidates: FFmpegConversionPolicy.videoTargets, ffmpegURL: ffmpegURL)
+                    let videoTargets = ffmpegConverter.supportedTargets(for: files, candidates: FFmpegConversionPolicy.videoTargets, ffmpegURL: ffmpegURL, encoders: ffmpegEncoders)
                     let imageTargets = converter.supportedTargets(for: files, candidates: [.png, .pdf])
                     return (videoTargets + imageTargets).map { WheelItem(title: $0.title, target: $0, action: nil) }
                 } else {
@@ -215,24 +256,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
             let videoConverter = self.videoConverter
             let ffmpegConverter = self.ffmpegConverter
             let ffmpegURL = self.ffmpegURL
-            let id = runner.submit(inputs: files, target: target, outputDirectory: outputDirectory, multiPageOutput: multiPageOutput, processor: { [converter, audioConverter, videoConverter, ffmpegConverter, ffmpegURL] input, target, temp, progress, cancelled in
+            let ffmpegEncoders = self.ffmpegEncoders
+            let id = runner.submit(inputs: files, target: target, outputDirectory: outputDirectory, multiPageOutput: multiPageOutput, processor: { [converter, audioConverter, videoConverter, ffmpegConverter, ffmpegURL, ffmpegEncoders] input, target, temp, progress, cancelled in
                 if FileFormat.detect(url: input).kind == .audio {
                     let audioTemp = temp.appendingPathComponent(UUID().uuidString)
                     if audioConverter.supportedTargets(for: [input], candidates: [target]).contains(target) {
                         return try audioConverter.convert(input: input, target: target, temporaryDirectory: audioTemp, progress: progress, isCancelled: cancelled)
                     }
-                    return try ffmpegConverter.convert(input: input, target: target, temporaryDirectory: audioTemp, ffmpegURL: ffmpegURL, progress: progress, isCancelled: cancelled)
+                    return try ffmpegConverter.convert(input: input, target: target, temporaryDirectory: audioTemp, ffmpegURL: ffmpegURL, encoders: ffmpegEncoders, progress: progress, isCancelled: cancelled)
                 }
                 if FileFormat.detect(url: input).kind == .video {
                     let videoTemp = temp.appendingPathComponent(UUID().uuidString)
                     if videoConverter.supportedTargets(for: [input], candidates: [target]).contains(target) {
                         return try videoConverter.convert(input: input, target: target, temporaryDirectory: videoTemp, progress: progress, isCancelled: cancelled)
                     }
-                    return try ffmpegConverter.convert(input: input, target: target, temporaryDirectory: videoTemp, ffmpegURL: ffmpegURL, progress: progress, isCancelled: cancelled)
+                    return try ffmpegConverter.convert(input: input, target: target, temporaryDirectory: videoTemp, ffmpegURL: ffmpegURL, encoders: ffmpegEncoders, progress: progress, isCancelled: cancelled)
                 }
                 if FileFormat.detect(url: input).fileExtension == "gif" {
                     if FFmpegConversionPolicy.videoTargets.contains(target) {
-                        return try ffmpegConverter.convert(input: input, target: target, temporaryDirectory: temp.appendingPathComponent(UUID().uuidString), ffmpegURL: ffmpegURL, progress: progress, isCancelled: cancelled)
+                        return try ffmpegConverter.convert(input: input, target: target, temporaryDirectory: temp.appendingPathComponent(UUID().uuidString), ffmpegURL: ffmpegURL, encoders: ffmpegEncoders, progress: progress, isCancelled: cancelled)
                     }
                     return try converter.convert(input: input, target: target, temporaryDirectory: temp.appendingPathComponent(UUID().uuidString), progress: progress, isCancelled: cancelled, options: imageOptions)
                 }
@@ -412,8 +454,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
         alert.runModal()
     }
 
+    static func sanitizeLogMessage(_ message: String, homeDirectory: String = FileManager.default.homeDirectoryForCurrentUser.path) -> String {
+        guard !homeDirectory.isEmpty && homeDirectory != "/" else { return message }
+        return message.replacingOccurrences(of: homeDirectory, with: "~")
+    }
+
     private func log(_ message: String) {
-        let line = "[\(ISO8601DateFormatter().string(from: Date()))] \(message)\n"
+        let sanitized = Self.sanitizeLogMessage(message)
+        let line = "[\(ISO8601DateFormatter().string(from: Date()))] \(sanitized)\n"
         if let data = line.data(using: .utf8), let handle = try? FileHandle(forWritingTo: logURL) {
             handle.seekToEndOfFile()
             handle.write(data)
@@ -423,15 +471,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
         }
     }
 
-    private func cleanupOldTemporaryDirectories() {
+    private func cleanupOldTemporaryDirectories(cutoffInterval: TimeInterval = 24 * 60 * 60) {
         let fileManager = FileManager.default
         let temporaryDirectory = fileManager.temporaryDirectory
         guard let urls = try? fileManager.contentsOfDirectory(at: temporaryDirectory, includingPropertiesForKeys: [.contentModificationDateKey], options: [.skipsHiddenFiles]) else { return }
-        let cutoff = Date().addingTimeInterval(-24 * 60 * 60)
+        let cutoff = Date().addingTimeInterval(-cutoffInterval)
         for url in urls where url.lastPathComponent.hasPrefix("Ceyloro-") {
             guard let values = try? url.resourceValues(forKeys: [.contentModificationDateKey]),
                   let date = values.contentModificationDate,
-                  date < cutoff else { continue }
+                  date <= cutoff else { continue }
             try? fileManager.removeItem(at: url)
         }
     }

@@ -54,19 +54,25 @@ final class AudioConverter {
             completion.signal()
         }
 
+        var lastProgress = 0.0
         while completion.wait(timeout: .now() + 0.05) == .timedOut {
             if isCancelled() {
                 session.cancelExport()
                 completion.wait()
+                try? FileManager.default.removeItem(at: output)
                 throw CancellationError()
             }
-            progress(Double(session.progress))
+            let raw = min(max(Double(session.progress), 0), 0.99)
+            lastProgress = max(lastProgress, raw)
+            progress(lastProgress)
         }
 
         if isCancelled() || session.status == .cancelled {
+            try? FileManager.default.removeItem(at: output)
             throw CancellationError()
         }
         guard session.status == .completed else {
+            try? FileManager.default.removeItem(at: output)
             throw session.error ?? ConversionError.encodingFailed
         }
         progress(1)
@@ -129,6 +135,7 @@ final class AudioConverter {
         let duration = asset.duration.seconds
         progress(0)
 
+        var lastProgress = 0.0
         while reader.status == .reading {
             if isCancelled() {
                 reader.cancelReading()
@@ -140,11 +147,14 @@ final class AudioConverter {
                 guard let sample = readerOutput.copyNextSampleBuffer() else { break }
                 guard writerInput.append(sample) else {
                     writer.cancelWriting()
+                    try? FileManager.default.removeItem(at: output)
                     throw writer.error ?? ConversionError.encodingFailed
                 }
                 if duration.isFinite, duration > 0 {
                     let timestamp = CMSampleBufferGetPresentationTimeStamp(sample).seconds
-                    progress(min(max(timestamp / duration, 0), 0.99))
+                    let raw = min(max(timestamp / duration, 0), 0.99)
+                    lastProgress = max(lastProgress, raw)
+                    progress(lastProgress)
                 }
             } else {
                 Thread.sleep(forTimeInterval: 0.01)
@@ -152,6 +162,7 @@ final class AudioConverter {
         }
         guard reader.status == .completed else {
             writer.cancelWriting()
+            try? FileManager.default.removeItem(at: output)
             throw reader.error ?? ConversionError.encodingFailed
         }
         writerInput.markAsFinished()

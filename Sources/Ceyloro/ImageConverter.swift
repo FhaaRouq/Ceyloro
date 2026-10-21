@@ -71,18 +71,23 @@ final class ImageConverter {
             var outputs: [URL] = []
             let pageCount = document.pageCount
             let width = max(String(pageCount).count, 2)
-            for index in 0..<pageCount {
-                if isCancelled() { throw CancellationError() }
-                var rendered: CGImage?
-                autoreleasepool {
-                    rendered = document.page(at: index).flatMap(render(page:))
+            do {
+                for index in 0..<pageCount {
+                    if isCancelled() { throw CancellationError() }
+                    var rendered: CGImage?
+                    autoreleasepool {
+                        rendered = document.page(at: index).flatMap(render(page:))
+                    }
+                    guard let image = rendered else { throw ConversionError.encodingFailed }
+                    let suffix = String(format: "%0*d", width, index + 1)
+                    let output = temporaryDirectory.appendingPathComponent("page-\(suffix).\(target.fileExtension)")
+                    try write(image: image, to: output, target: target, options: options)
+                    outputs.append(output)
+                    progress(Double(index + 1) / Double(pageCount))
                 }
-                guard let image = rendered else { throw ConversionError.encodingFailed }
-                let suffix = String(format: "%0*d", width, index + 1)
-                let output = temporaryDirectory.appendingPathComponent("page-\(suffix).\(target.fileExtension)")
-                try write(image: image, to: output, target: target, options: options)
-                outputs.append(output)
-                progress(Double(index + 1) / Double(pageCount))
+            } catch {
+                outputs.forEach { try? FileManager.default.removeItem(at: $0) }
+                throw error
             }
             return pageResult(input: input, outputs: outputs)
 
@@ -93,20 +98,25 @@ final class ImageConverter {
             let sourceCount = FileFormat.detect(url: input).fileExtension == "tiff" ? CGImageSourceGetCount(sourceImage) : 1
             let frameCount = max(sourceCount, 1)
             var outputs: [URL] = []
-            for index in 0..<frameCount {
-                if isCancelled() { throw CancellationError() }
-                guard let image = orientedImage(from: sourceImage, index: index) else { throw ConversionError.encodingFailed }
-                let filename: String
-                if frameCount == 1 {
-                    filename = "output.\(target.fileExtension)"
-                } else {
-                    filename = "page-\(String(format: "%0*d", max(String(frameCount).count, 2), index + 1)).\(target.fileExtension)"
+            do {
+                for index in 0..<frameCount {
+                    if isCancelled() { throw CancellationError() }
+                    guard let image = orientedImage(from: sourceImage, index: index) else { throw ConversionError.encodingFailed }
+                    let filename: String
+                    if frameCount == 1 {
+                        filename = "output.\(target.fileExtension)"
+                    } else {
+                        filename = "page-\(String(format: "%0*d", max(String(frameCount).count, 2), index + 1)).\(target.fileExtension)"
+                    }
+                    let output = temporaryDirectory.appendingPathComponent(filename)
+                    let properties = normalizedProperties(from: sourceImage, index: index)
+                    try write(image: image, to: output, target: target, options: options, metadata: properties)
+                    outputs.append(output)
+                    progress(Double(index + 1) / Double(frameCount))
                 }
-                let output = temporaryDirectory.appendingPathComponent(filename)
-                let properties = normalizedProperties(from: sourceImage, index: index)
-                try write(image: image, to: output, target: target, options: options, metadata: properties)
-                outputs.append(output)
-                progress(Double(index + 1) / Double(frameCount))
+            } catch {
+                outputs.forEach { try? FileManager.default.removeItem(at: $0) }
+                throw error
             }
             return frameCount > 1 ? .collection(name: input.deletingPathExtension().lastPathComponent, files: outputs) : .files(outputs)
 

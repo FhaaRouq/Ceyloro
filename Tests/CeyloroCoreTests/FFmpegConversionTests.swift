@@ -78,4 +78,31 @@ final class FFmpegConversionTests: XCTestCase {
     func testUnsupportedSourceHasNoFFmpegTargets() {
         XCTAssertTrue(FFmpegConversionPolicy().targets(for: FileFormat(fileExtension: "srt", kind: .subtitle)).isEmpty)
     }
+
+    func testPolicyValidatesEncodersWhenProvided() {
+        let encoders: Set<String> = ["libmp3lame", "aac", "mpeg4"]
+        XCTAssertTrue(FFmpegConversionPolicy.supports(target: .mp3, encoders: encoders))
+        XCTAssertTrue(FFmpegConversionPolicy.supports(target: .m4a, encoders: encoders))
+        XCTAssertTrue(FFmpegConversionPolicy.supports(target: .mp4, encoders: encoders))
+        // WebM needs vp9/vp8 and opus/vorbis
+        XCTAssertFalse(FFmpegConversionPolicy.supports(target: .webm, encoders: encoders))
+    }
+
+    func testAdaptiveArgumentsPreferAvailableEncoders() {
+        let lameArgs = FFmpegCommandBuilder.arguments(
+            input: URL(fileURLWithPath: "/input.wav"),
+            output: URL(fileURLWithPath: "/output.mp3"),
+            target: .mp3,
+            encoders: ["libmp3lame"]
+        )
+        XCTAssertTrue(lameArgs.contains("libmp3lame"))
+
+        let webmArgs = FFmpegCommandBuilder.arguments(
+            input: URL(fileURLWithPath: "/input.mp4"),
+            output: URL(fileURLWithPath: "/output.webm"),
+            target: .webm,
+            encoders: ["libvpx-vp9", "opus"]
+        )
+        XCTAssertTrue(webmArgs.contains("libvpx-vp9"))
+    }
 }

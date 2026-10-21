@@ -3,14 +3,20 @@ import Foundation
 public struct EngineAvailability: Equatable, Sendable {
     public let avFoundation: Bool
     public let ffmpegURL: URL?
+    public let encoders: Set<String>
 
-    public init(avFoundation: Bool, ffmpegURL: URL? = nil) {
+    public init(avFoundation: Bool, ffmpegURL: URL? = nil, encoders: Set<String> = []) {
         self.avFoundation = avFoundation
         self.ffmpegURL = ffmpegURL
+        self.encoders = encoders
     }
 
     public var hasAudioVideoEngine: Bool {
         avFoundation || ffmpegURL != nil
+    }
+
+    public func hasEncoder(_ name: String) -> Bool {
+        encoders.contains(name.lowercased())
     }
 }
 

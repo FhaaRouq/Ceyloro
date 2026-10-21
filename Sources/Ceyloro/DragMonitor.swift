@@ -3,10 +3,13 @@ import AppKit
 final class DragMonitor {
     var onWheelChange: (([URL], NSPoint, NSEvent.ModifierFlags) -> Void)?
     var onDragEnd: (() -> Void)?
+    var onDiagnostic: ((String) -> Void)?
     private let pasteboard = NSPasteboard(name: .drag)
     private var timer: Timer?
     private var wasDragging = false
     private var mouseWasDown = false
+    private var hasLoggedDragCandidate = false
+    private var hasLoggedShiftWait = false
     private var baselineChangeCount = -1
     private var downPoint = NSPoint.zero
     private var lastChangeCount = -1
@@ -49,6 +52,8 @@ final class DragMonitor {
     private func recordMouseDown() {
         mouseWasDown = true
         wasDragging = false
+        hasLoggedDragCandidate = false
+        hasLoggedShiftWait = false
         baselineChangeCount = pasteboard.changeCount
         lastChangeCount = -1
         lastFlags = []
@@ -68,6 +73,8 @@ final class DragMonitor {
         guard mouseDown else {
             if mouseWasDown {
                 mouseWasDown = false
+                hasLoggedDragCandidate = false
+                hasLoggedShiftWait = false
                 baselineChangeCount = -1
                 lastChangeCount = -1
                 endDragActivity()
@@ -88,12 +95,26 @@ final class DragMonitor {
         }
 
         let point = NSEvent.mouseLocation
+        let distance = hypot(point.x - downPoint.x, point.y - downPoint.y)
+        guard distance > 6 else { return }
+
         let changeCount = pasteboard.changeCount
-        guard hypot(point.x - downPoint.x, point.y - downPoint.y) > 6,
-              changeCount != baselineChangeCount else { return }
+        guard changeCount != baselineChangeCount else {
+            if !hasLoggedDragCandidate {
+                hasLoggedDragCandidate = true
+                onDiagnostic?("Mouse drag motion detected (\(Int(distance))pt), waiting for drag pasteboard changeCount.")
+            }
+            return
+        }
 
         let flags = NSEvent.modifierFlags
-        guard flags.contains(.shift) else { return }
+        guard flags.contains(.shift) else {
+            if !hasLoggedShiftWait {
+                hasLoggedShiftWait = true
+                onDiagnostic?("Drag pasteboard active with changed count (\(changeCount)), waiting for Shift key to reveal wheel.")
+            }
+            return
+        }
         let previousURLs = lastURLs
         if changeCount != lastChangeCount {
             lastChangeCount = changeCount
@@ -106,6 +127,7 @@ final class DragMonitor {
             wasDragging = true
             lastFlags = flags
             lastURLs = urls
+            onDiagnostic?("Shift-drag triggered with \(urls.count) file(s).")
             onWheelChange?(urls, NSEvent.mouseLocation, flags)
         }
     }
