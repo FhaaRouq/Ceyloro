@@ -14,6 +14,8 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
+      - name: Run test suite
+        run: swift test
       - name: Build LGPL FFmpeg universal
         run: ./scripts/build-ffmpeg-universal.sh
       - name: Build universal macOS app
