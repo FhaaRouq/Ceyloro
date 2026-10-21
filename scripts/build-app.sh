@@ -43,6 +43,17 @@ fi
 if [ -f "$ROOT/Sources/Ceyloro/Resources/CeyloroMenuTemplate.png" ]; then
     cp "$ROOT/Sources/Ceyloro/Resources/CeyloroMenuTemplate.png" "$APP/Contents/Resources/CeyloroMenuTemplate.png"
 fi
+FFMPEG_SOURCE="${CEYLORO_FFMPEG_PATH:-$ROOT/Sources/Ceyloro/Resources/ffmpeg}"
+if [ -e "$FFMPEG_SOURCE" ] && [ ! -x "$FFMPEG_SOURCE" ]; then
+    echo "FFmpeg ditemukan tetapi tidak executable: $FFMPEG_SOURCE" >&2
+    exit 1
+fi
+if [ -x "$FFMPEG_SOURCE" ]; then
+    cp "$FFMPEG_SOURCE" "$APP/Contents/Resources/ffmpeg"
+    chmod +x "$APP/Contents/Resources/ffmpeg"
+else
+    echo "FFmpeg tidak dibundel; target yang memerlukannya akan disembunyikan."
+fi
 chmod +x "$APP/Contents/MacOS/Ceyloro"
 codesign --force --deep --sign - "$APP" >/dev/null
 echo "Built $APP ($(lipo -archs "$APP/Contents/MacOS/Ceyloro"))"

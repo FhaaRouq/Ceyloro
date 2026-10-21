@@ -3,6 +3,16 @@
 Fase 1 dianggap selesai dari sisi implementasi dan automated test. Gate manual PRD
 tetap perlu dijalankan di Finder pada macOS 13–15, Intel, dan Apple Silicon.
 
+## Status implementasi
+
+- [x] Capability probe AVFoundation dan FFmpeg tanpa jaringan.
+- [x] Audio native: M4A, WAV, AIFF bila didukung macOS.
+- [x] Video native: MP4 dan MOV bila didukung macOS.
+- [x] Bridge FFmpeg dengan fallback, pembatalan, dan target dinamis.
+- [x] Subtitle SRT ↔ VTT.
+- [x] Arsip ZIP/TAR/GZIP dengan tool bawaan macOS.
+- [ ] Binary FFmpeg LGPL universal perlu disediakan untuk release; mesin pengembangan saat ini belum memilikinya.
+
 ## Ruang lingkup
 
 - Konversi audio dengan AVFoundation sebagai engine native.

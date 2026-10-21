@@ -1,6 +1,7 @@
 .build/
 DerivedData/
 Ceyloro.app/
+Sources/Ceyloro/Resources/ffmpeg
 .DS_Store
 *.xcuserstate
 xcuserdata/
