@@ -3,6 +3,7 @@ using System.Formats.Tar;
 using System.IO.Compression;
 using System.Text;
 using Ceyloro.Windows;
+using DrawingEncoder = System.Drawing.Imaging.Encoder;
 
 var tests = new (string Name, Action Run)[]
 {
@@ -99,8 +100,8 @@ static void MultiPageTiffConversion()
     var second = Path.Combine(temp.Path, "page-02.png");
     var outputs = WindowsImageConverter.Convert(input, "png", [first, second], new AppSettings(), CancellationToken.None, _ => { });
     Ensure(outputs.Count == 2, "Both TIFF pages should be exported.");
-    using var firstPage = Image.FromFile(first);
-    using var secondPage = Image.FromFile(second);
+    using var firstPage = (Bitmap)Image.FromFile(first);
+    using var secondPage = (Bitmap)Image.FromFile(second);
     Ensure(firstPage.GetPixel(0, 0).R > 200, "The first TIFF page content was not retained.");
     Ensure(secondPage.GetPixel(0, 0).B > 200, "The second TIFF page content was not retained.");
 
@@ -112,7 +113,7 @@ static void MultiPageTiffConversion()
     }
     var alphaOutput = Path.Combine(temp.Path, "alpha-output.png");
     WindowsImageConverter.Convert(alphaInput, "png", [alphaOutput], new AppSettings(), CancellationToken.None, _ => { });
-    using var alphaResult = Image.FromFile(alphaOutput);
+    using var alphaResult = (Bitmap)Image.FromFile(alphaOutput);
     Ensure(alphaResult.GetPixel(1, 1).A == 0, "PNG conversion should preserve transparency.");
 }
 
@@ -127,7 +128,7 @@ static void JpegTransparencyFlattening()
     }
     var output = Path.Combine(temp.Path, "flattened.jpg");
     WindowsImageConverter.Convert(input, "jpg", [output], new AppSettings(), CancellationToken.None, _ => { });
-    using var result = Image.FromFile(output);
+    using var result = (Bitmap)Image.FromFile(output);
     var pixel = result.GetPixel(8, 8);
     Ensure(pixel.R > 220 && pixel.G > 220 && pixel.B > 220, "Transparent pixels should be flattened onto white.");
 }
@@ -165,13 +166,13 @@ static void CreateMultiPageTiff(string path)
     second.SetPixel(0, 0, Color.Blue);
     var codec = ImageCodecInfo.GetImageEncoders().Single(encoder => encoder.MimeType == "image/tiff");
     using var parameters = new EncoderParameters(1);
-    parameters.Param[0] = new EncoderParameter(Encoder.SaveFlag, (long)EncoderValue.MultiFrame);
+    parameters.Param[0] = new EncoderParameter(DrawingEncoder.SaveFlag, (long)EncoderValue.MultiFrame);
     first.Save(path, codec, parameters);
     parameters.Param[0].Dispose();
-    parameters.Param[0] = new EncoderParameter(Encoder.SaveFlag, (long)EncoderValue.FrameDimensionPage);
+    parameters.Param[0] = new EncoderParameter(DrawingEncoder.SaveFlag, (long)EncoderValue.FrameDimensionPage);
     first.SaveAdd(second, parameters);
     parameters.Param[0].Dispose();
-    parameters.Param[0] = new EncoderParameter(Encoder.SaveFlag, (long)EncoderValue.Flush);
+    parameters.Param[0] = new EncoderParameter(DrawingEncoder.SaveFlag, (long)EncoderValue.Flush);
     first.SaveAdd(parameters);
 }
 
