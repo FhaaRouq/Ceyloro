@@ -15,9 +15,10 @@ Semua pemrosesan berjalan lokal. File asli tidak diubah, ditimpa, atau diunggah 
 | Platform | Paket |
 | --- | --- |
 | macOS Intel + Apple Silicon | [Download Ceyloro untuk macOS](https://github.com/neuraldigital/Ceyloro/releases/download/v0.1.0-preview.4/Ceyloro-macOS-universal.zip) |
-| Windows x64 | [Download Ceyloro untuk Windows](https://github.com/neuraldigital/Ceyloro/releases/download/v0.1.0-preview.4/Ceyloro-Windows-x64.zip) |
+| Windows x64 | [Download Ceyloro untuk Windows x64](https://github.com/neuraldigital/Ceyloro/releases/download/v0.1.0-preview.4/Ceyloro-Windows-x64.zip) |
+| Windows ARM64 | Paket ARM64 akan disertakan pada release Windows berikutnya. |
 
-Paket di atas adalah preview release. Build macOS sudah universal (`x86_64` + `arm64`), sedangkan paket Windows bersifat self-contained dan tidak memerlukan instalasi .NET.
+Paket di atas adalah preview release. Build macOS sudah universal (`x86_64` + `arm64`). Paket Windows bersifat self-contained dan tidak memerlukan instalasi .NET. Preview yang sudah terbit masih hanya menyediakan Windows x64; workflow rilis berikutnya sedang disiapkan untuk menghasilkan paket Windows x64 dan ARM64.
 
 ### Membuka aplikasi preview
 
@@ -49,10 +50,10 @@ Untuk membuka roda tanpa drag, gunakan hotkey cadangan yang dikonfigurasi di apl
 3. Tekan `Ctrl + Alt + Space` untuk membuka roda.
 4. Tarik file dari Explorer ke roda, lalu lepaskan pada format tujuan.
 
-Windows saat ini adalah shell preview x64. Gestur inti macOS—menahan `Shift`
-sambil menarik file dari Finder—belum tersedia di Windows; alur Windows masih
-menggunakan hotkey untuk membuka roda terlebih dahulu. Windows ARM64 juga belum
-didukung.
+Paket Windows yang sudah terbit adalah preview x64. Shell Windows menggunakan
+hotkey untuk membuka roda terlebih dahulu; gestur menahan `Shift` sambil
+menarik file dari Finder belum tersedia di Windows. Build x64 dan ARM64 sedang
+disiapkan untuk rilis berikutnya.
 
 Paket release Windows sudah membawa FFmpeg LGPL yang sudah diverifikasi. Untuk build dari source, letakkan `ffmpeg.exe` LGPL di samping `Ceyloro.exe` atau pilih lokasinya melalui menu **Pengaturan**.
 
@@ -93,7 +94,7 @@ Fitur lain yang tersedia:
 | --- | --- | --- |
 | macOS Intel | Preview | App universal, target macOS 13+ |
 | macOS Apple Silicon | Preview | App universal, target macOS 13+ |
-| Windows x64 | Preview | Shell tray + hotkey + radial drag-and-drop; belum setara dengan macOS |
+| Windows x64 + ARM64 | Preview | Build dan paket per arsitektur sedang disiapkan; paket ARM64 belum dipublikasikan |
 
 Paket preview belum melalui Apple notarization atau Windows code signing. Sistem operasi dapat menampilkan peringatan keamanan saat pertama kali aplikasi dibuka.
 

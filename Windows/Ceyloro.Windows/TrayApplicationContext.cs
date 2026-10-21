@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Drawing.Drawing2D;
 
 namespace Ceyloro.Windows;
 
@@ -8,16 +9,18 @@ public sealed class TrayApplicationContext : ApplicationContext
     private readonly ConversionEngine engine;
     private readonly NotifyIcon trayIcon;
     private readonly HotKeyWindow hotKeyWindow;
+    private readonly Icon brandedIcon;
     private RadialOverlayForm? overlay;
     private SettingsForm? settingsForm;
 
     public TrayApplicationContext()
     {
         engine = new ConversionEngine(settings);
+        brandedIcon = CreateTrayIcon();
         trayIcon = new NotifyIcon
         {
-            Icon = SystemIcons.Application,
-            Text = "Ceyloro",
+            Icon = brandedIcon,
+            Text = "Ceyloro — Ctrl+Alt+Space untuk membuka roda",
             Visible = true,
             ContextMenuStrip = BuildMenu()
         };
@@ -25,6 +28,11 @@ public sealed class TrayApplicationContext : ApplicationContext
         hotKeyWindow = new HotKeyWindow(OpenOverlay);
         if (!hotKeyWindow.Register())
             trayIcon.ShowBalloonTip(3000, "Ceyloro", "Hotkey Ctrl+Alt+Space tidak tersedia.", ToolTipIcon.Warning);
+        if (settings.LoadWarning is not null)
+        {
+            AppLog.Write(settings.LoadWarning);
+            trayIcon.ShowBalloonTip(6000, "Ceyloro", settings.LoadWarning, ToolTipIcon.Warning);
+        }
     }
 
     private ContextMenuStrip BuildMenu()
@@ -72,10 +80,41 @@ public sealed class TrayApplicationContext : ApplicationContext
         hotKeyWindow.Dispose();
         trayIcon.Visible = false;
         trayIcon.Dispose();
+        brandedIcon.Dispose();
         overlay?.Close();
         settingsForm?.Close();
         base.ExitThreadCore();
     }
+
+    private static Icon CreateTrayIcon()
+    {
+        using var bitmap = new Bitmap(32, 32);
+        using (var graphics = Graphics.FromImage(bitmap))
+        using (var outline = new Pen(Color.FromArgb(180, 224, 92), 2.4f))
+        using (var ray = new Pen(Color.White, 1.8f))
+        using (var centerBrush = new SolidBrush(Color.FromArgb(180, 224, 92)))
+        {
+            graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            graphics.Clear(Color.Transparent);
+            graphics.DrawEllipse(outline, 5, 5, 22, 22);
+            for (var index = 0; index < 8; index++)
+            {
+                var angle = index * Math.PI / 4;
+                var x = 16 + (float)Math.Cos(angle) * 4.5f;
+                var y = 16 + (float)Math.Sin(angle) * 4.5f;
+                var outerX = 16 + (float)Math.Cos(angle) * 10.2f;
+                var outerY = 16 + (float)Math.Sin(angle) * 10.2f;
+                graphics.DrawLine(ray, x, y, outerX, outerY);
+            }
+            graphics.FillEllipse(centerBrush, 12.5f, 12.5f, 7, 7);
+        }
+        var handle = bitmap.GetHicon();
+        try { return (Icon)Icon.FromHandle(handle).Clone(); }
+        finally { DestroyIcon(handle); }
+    }
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool DestroyIcon(IntPtr hIcon);
 }
 
 internal sealed class HotKeyWindow : NativeWindow, IDisposable
@@ -119,4 +158,5 @@ internal sealed class HotKeyWindow : NativeWindow, IDisposable
 
     [DllImport("user32.dll")]
     private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
+
 }

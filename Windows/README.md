@@ -1,7 +1,8 @@
 # Ceyloro Windows shell
 
-Shell Windows pertama Ceyloro memakai WinForms bawaan .NET 8, sehingga tidak
-memerlukan paket NuGet tambahan. Shell ini menyediakan:
+Shell Windows Ceyloro memakai WinForms .NET 8 dan PdfPig untuk membaca teks PDF.
+Paket release resmi menyertakan dependensi aplikasi dan binary media yang
+sesuai arsitektur. Shell ini menyediakan:
 
 - ikon system tray;
 - hotkey `Ctrl+Alt+Space` untuk membuka roda;
@@ -16,7 +17,8 @@ memerlukan paket NuGet tambahan. Shell ini menyediakan:
 Pasang Visual Studio 2022 dengan workload **.NET desktop development**, lalu:
 
 ```powershell
-dotnet build .\Windows\Ceyloro.Windows\Ceyloro.Windows.csproj -c Release
+dotnet build .\Windows\Ceyloro.Windows\Ceyloro.Windows.csproj -c Release -r win-x64
+dotnet build .\Windows\Ceyloro.Windows\Ceyloro.Windows.csproj -c Release -r win-arm64
 ```
 
 Paket release resmi sudah membawa `ffmpeg.exe` build LGPL di samping `Ceyloro.exe`.
@@ -27,13 +29,29 @@ Alur penggunaan saat ini: jalankan Ceyloro, tekan `Ctrl+Alt+Space`, lalu tarik
 file dari Explorer ke roda dan lepaskan pada target yang diinginkan. `Esc`
 membatalkan overlay.
 
-Shell Windows ini masih preview x64 dan belum setara dengan shell macOS.
-Gestur `Shift` sambil menarik file belum tersedia, dan Windows ARM64 belum
-didukung.
+Shell Windows ditargetkan untuk x64 dan ARM64. Paket release dibuat terpisah
+untuk tiap arsitektur dan menyertakan FFmpeg serta FFprobe yang sesuai.
+Gestur `Shift` sambil menarik file belum tersedia di Windows; alur Windows
+menggunakan hotkey untuk membuka roda terlebih dahulu.
 
-Target Windows yang tersedia saat ini: gambar ke JPG/PNG/HEIC/TIFF, audio dan
-video ke format media yang tercantum pada roda, serta subtitle SRT/VTT. PDF,
-arsip, dan konversi PDF tidak ditawarkan oleh shell Windows.
+## Format Windows
+
+Roda hanya menampilkan target yang didukung encoder/muxer FFmpeg yang dipilih
+atau dibundel.
+
+| Sumber | Target Windows |
+| --- | --- |
+| JPG, PNG, WEBP, HEIC, TIFF, BMP, GIF, AVIF | JPG, PNG, HEIC, TIFF, PDF |
+| PDF | JPG, PNG, TXT untuk PDF yang memiliki teks |
+| MP3, M4A, WAV, FLAC, OGG, OPUS, AIFF, WMA | MP3, M4A, WAV, FLAC, OGG, OPUS, AIFF |
+| MP4, MOV, MKV, WEBM, AVI, WMV | MP4, MOV, MKV, WEBM, AVI, WMV, GIF, serta target audio yang tersedia |
+| GIF animasi | Target video dan audio yang tersedia |
+| SRT, VTT | SRT, VTT, TXT |
+| ZIP, TAR, TAR.GZ | ZIP, TAR, TAR.GZ |
+
+Selain itu, satu atau beberapa gambar dapat digabung menjadi PDF. PDF multi-
+halaman dapat disimpan sebagai folder atau ZIP. RAR/7Z, OCR untuk PDF hasil
+scan, serta format yang tidak didukung encoder lokal tidak ditawarkan.
 
 Jika Windows SmartScreen muncul saat pertama kali membuka aplikasi, pilih
 **More info**, lalu **Run anyway** hanya untuk paket yang diunduh dari GitHub

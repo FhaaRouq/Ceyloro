@@ -30,29 +30,34 @@ jobs:
 
   windows:
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        architecture: [x64, arm64]
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@v4
       - name: Fetch and verify LGPL FFmpeg
         shell: pwsh
-        run: ./scripts/fetch-ffmpeg-windows.ps1 -Destination ffmpeg-package
+        run: ./scripts/fetch-ffmpeg-windows.ps1 -Destination ffmpeg-package -Architecture ${{ matrix.architecture }}
       - name: Publish self-contained Windows app
-        run: dotnet publish Windows/Ceyloro.Windows/Ceyloro.Windows.csproj --configuration Release --runtime win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true --output publish
+        run: dotnet publish Windows/Ceyloro.Windows/Ceyloro.Windows.csproj --configuration Release --runtime win-${{ matrix.architecture }} --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true --output publish
       - name: Package Windows app
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path package/Ceyloro | Out-Null
           Copy-Item publish/* package/Ceyloro/ -Recurse -Force
           Copy-Item ffmpeg-package/ffmpeg.exe package/Ceyloro/ffmpeg.exe -Force
+          Copy-Item ffmpeg-package/ffprobe.exe package/Ceyloro/ffprobe.exe -Force
           Copy-Item ffmpeg-package/FFmpeg-LICENSE.txt package/Ceyloro/FFmpeg-LICENSE.txt -Force
           Copy-Item Windows/README.md package/Ceyloro/README.md -Force
-          Compress-Archive -Path package/Ceyloro -DestinationPath Ceyloro-Windows-x64.zip -Force
+          Compress-Archive -Path package/Ceyloro -DestinationPath Ceyloro-Windows-${{ matrix.architecture }}.zip -Force
       - name: Upload Windows package
         uses: actions/upload-artifact@v4
         with:
-          name: Ceyloro-Windows-x64
-          path: Ceyloro-Windows-x64.zip
+          name: Ceyloro-Windows-${{ matrix.architecture }}
+          path: Ceyloro-Windows-${{ matrix.architecture }}.zip
 
   release:
     needs: [macos, windows]
@@ -71,7 +76,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          release_args=("$GITHUB_REF_NAME" "dist/Ceyloro-macOS-universal.zip" "dist/Ceyloro-Windows-x64.zip" "--repo" "$GITHUB_REPOSITORY" "--title" "Ceyloro $GITHUB_REF_NAME" "--generate-notes")
+          release_args=("$GITHUB_REF_NAME" "dist/Ceyloro-macOS-universal.zip" "dist/Ceyloro-Windows-x64.zip" "dist/Ceyloro-Windows-arm64.zip" "--repo" "$GITHUB_REPOSITORY" "--title" "Ceyloro $GITHUB_REF_NAME" "--generate-notes")
           case "$GITHUB_REF_NAME" in
             *-*) release_args+=("--prerelease") ;;
           esac

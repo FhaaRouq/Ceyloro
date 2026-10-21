@@ -13,6 +13,8 @@ public sealed class RadialOverlayForm : Form
     private string emptyStateMessage = "Tekan Ctrl+Alt+Space, lalu tarik file dari Explorer.";
     private int selectedIndex = -1;
     private bool isConverting;
+    private bool dragOverLogged;
+    private bool waitingForCapabilities;
 
     public RadialOverlayForm(ConversionEngine engine, Action<string> showMessage)
     {
@@ -41,12 +43,16 @@ public sealed class RadialOverlayForm : Form
     private void OnDragEnter(object? sender, DragEventArgs e)
     {
         draggedFiles = ReadFiles(e.Data);
-        availableTargets = PortablePlanner.TargetsFor(draggedFiles).ToArray();
+        waitingForCapabilities = engine.IsCheckingCapabilities;
+        availableTargets = engine.TargetsFor(draggedFiles).ToArray();
         emptyStateMessage = draggedFiles.Length == 0
-            ? "File tidak dapat dibaca"
+            ? engine.EmptyStateFor(draggedFiles)
             : availableTargets.Length == 0
-                ? "Format file belum didukung"
+                ? engine.EmptyStateFor(draggedFiles)
                 : string.Empty;
+        var extensions = draggedFiles.Select(path => PortableFileFormat.Detect(path).Extension).Distinct(StringComparer.OrdinalIgnoreCase);
+        AppLog.Write($"DragEnter fileDrop={e.Data?.GetDataPresent(DataFormats.FileDrop) == true} files={draggedFiles.Length} extensions={string.Join(",", extensions)} targets={string.Join(",", availableTargets)} state={emptyStateMessage}");
+        dragOverLogged = false;
         e.Effect = draggedFiles.Length > 0 && availableTargets.Length > 0 ? DragDropEffects.Copy : DragDropEffects.None;
         UpdateSelection(Cursor.Position);
         Invalidate();
@@ -54,13 +60,26 @@ public sealed class RadialOverlayForm : Form
 
     private void OnDragOver(object? sender, DragEventArgs e)
     {
+        if (waitingForCapabilities && !engine.IsCheckingCapabilities)
+        {
+            availableTargets = engine.TargetsFor(draggedFiles).ToArray();
+            emptyStateMessage = availableTargets.Length == 0 ? engine.EmptyStateFor(draggedFiles) : string.Empty;
+            waitingForCapabilities = false;
+            Invalidate();
+        }
         e.Effect = availableTargets.Length > 0 ? DragDropEffects.Copy : DragDropEffects.None;
+        if (!dragOverLogged)
+        {
+            AppLog.Write($"DragOver effect={e.Effect} targets={availableTargets.Length}");
+            dragOverLogged = true;
+        }
         UpdateSelection(Cursor.Position);
         Invalidate();
     }
 
     private async void OnDragDrop(object? sender, DragEventArgs e)
     {
+        AppLog.Write($"DragDrop files={draggedFiles.Length} target={(selectedIndex >= 0 && selectedIndex < availableTargets.Length ? availableTargets[selectedIndex] : "none")}");
         if (isConverting || selectedIndex < 0 || selectedIndex >= availableTargets.Length)
         {
             Close();
@@ -70,27 +89,81 @@ public sealed class RadialOverlayForm : Form
         isConverting = true;
         var files = ReadFiles(e.Data);
         var target = availableTargets[selectedIndex];
+        var createCombinedPdf = false;
+        var combinedPdfName = "Gabungan";
+        var pdfSettings = engine.Settings.Current;
+        PdfConversionOptions? pdfOptions = null;
+        if (target == "pdf" && files.Length > 1 && files.All(path => PortableFileFormat.Detect(path).Kind == PortableMediaKind.Image))
+        {
+            if (pdfSettings.AskPdfMergeEveryTime)
+            {
+                using var mergeDialog = new PdfMergeForm(files, engine.Settings);
+                if (mergeDialog.ShowDialog(this) != DialogResult.OK)
+                {
+                    Close();
+                    return;
+                }
+                files = mergeDialog.OrderedFiles.ToArray();
+                createCombinedPdf = mergeDialog.CreateCombined;
+                combinedPdfName = mergeDialog.OutputName;
+                pdfOptions = mergeDialog.Options;
+                if (mergeDialog.RememberChoice)
+                {
+                    pdfSettings.PdfPageSize = pdfOptions.PageSize;
+                    pdfSettings.PdfMargin = pdfOptions.Margin;
+                    pdfSettings.PdfQuality = pdfOptions.Quality;
+                    pdfSettings.PdfMergeMode = mergeDialog.MergeMode;
+                    pdfSettings.AskPdfMergeEveryTime = false;
+                    try { engine.Settings.Save(); }
+                    catch (Exception error)
+                    {
+                        MessageBox.Show(this, $"Pilihan disimpan untuk pekerjaan ini, tetapi tidak dapat disimpan sebagai preferensi: {error.Message}", "Pengaturan Ceyloro", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    }
+                }
+            }
+            else
+            {
+                createCombinedPdf = pdfSettings.PdfMergeMode.Equals("single", StringComparison.OrdinalIgnoreCase);
+                pdfOptions = new PdfConversionOptions(pdfSettings.PdfPageSize, pdfSettings.PdfMargin, pdfSettings.PdfQuality, pdfSettings.MultiPageOutput);
+            }
+        }
         Hide();
         using var progress = new ProgressForm();
         progress.Show(this);
         try
         {
             var progressReporter = new Progress<double>(progress.UpdateProgress);
-            var result = await engine.ConvertAsync(files, target, progressReporter, progress.CancellationToken);
+            var result = createCombinedPdf
+                ? new BatchResult([await engine.MergeImagesToPdfAsync(files, combinedPdfName, pdfOptions ?? new PdfConversionOptions(), progressReporter, progress.CancellationToken)], [])
+                : await engine.ConvertAsync(files, target, progressReporter, progress.CancellationToken, pdfOptions, progress.SetCurrentFile);
             progress.Close();
             var summary = $"Selesai: {result.Outputs.Count} file {target.ToUpperInvariant()} dibuat.";
             if (result.Failures.Count > 0)
-                summary += $"\nGagal: {result.Failures.Count} file.";
-            showMessage(summary);
+            {
+                var details = string.Join("\n", result.Failures.Take(5).Select(failure => $"{Path.GetFileName(failure.Input)}: {failure.Message}"));
+                summary += $"\nGagal: {result.Failures.Count} file.\n{details}";
+                if (result.Failures.Count > 5) summary += $"\n… dan {result.Failures.Count - 5} lainnya.";
+                AppLog.Write($"Batch selesai dengan kegagalan: {string.Join(" | ", result.Failures.Select(failure => $"{Path.GetFileName(failure.Input)}: {failure.Message}"))}");
+            }
+            AppLog.Write($"Batch selesai: output={result.Outputs.Count}, failure={result.Failures.Count}");
+            var choice = MessageBox.Show(this, summary + "\n\nBuka folder hasil?", "Ceyloro", MessageBoxButtons.YesNo, result.Failures.Count == 0 ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
+            if (choice == DialogResult.Yes && result.Outputs.Count > 0)
+            {
+                var folder = Directory.Exists(result.Outputs[0]) ? result.Outputs[0] : Path.GetDirectoryName(result.Outputs[0]);
+                if (!string.IsNullOrWhiteSpace(folder))
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe", $"\"{folder}\"") { UseShellExecute = true });
+            }
         }
         catch (OperationCanceledException)
         {
             progress.Close();
+            AppLog.Write("Konversi dibatalkan oleh pengguna.");
             showMessage("Konversi dibatalkan.");
         }
         catch (Exception error)
         {
             progress.Close();
+            AppLog.Write($"Konversi gagal: {error}");
             showMessage(error.Message);
         }
         finally
@@ -109,7 +182,17 @@ public sealed class RadialOverlayForm : Form
         if (availableTargets.Length == 0)
             return;
         if (e.KeyCode >= Keys.D1 && e.KeyCode <= Keys.D9)
-            selectedIndex = Math.Min((int)e.KeyCode - (int)Keys.D1, availableTargets.Length - 1);
+        {
+            var requestedIndex = (int)e.KeyCode - (int)Keys.D1;
+            if (requestedIndex < availableTargets.Length)
+                selectedIndex = requestedIndex;
+        }
+        else if (e.KeyCode >= Keys.NumPad1 && e.KeyCode <= Keys.NumPad9)
+        {
+            var requestedIndex = (int)e.KeyCode - (int)Keys.NumPad1;
+            if (requestedIndex < availableTargets.Length)
+                selectedIndex = requestedIndex;
+        }
         else if (e.KeyCode == Keys.Right || e.KeyCode == Keys.Down)
             selectedIndex = (selectedIndex + 1 + availableTargets.Length) % availableTargets.Length;
         else if (e.KeyCode == Keys.Left || e.KeyCode == Keys.Up)
