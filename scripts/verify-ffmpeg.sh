@@ -11,7 +11,7 @@ fi
 
 ARCHS=$(lipo -archs "$FFMPEG_PATH")
 case " $ARCHS " in
-    *" x86_64 "*" arm64 "*"|*" arm64 "*" x86_64 "*") ;;
+    *x86_64*arm64*|*arm64*x86_64*) ;;
     *)
         echo "FFmpeg harus universal x86_64 + arm64; arsitektur saat ini: $ARCHS" >&2
         exit 1
