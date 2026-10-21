@@ -10,6 +10,7 @@ public sealed class RadialOverlayForm : Form
     private Point center;
     private string[] draggedFiles = [];
     private string[] availableTargets = [];
+    private string emptyStateMessage = "Tekan Ctrl+Alt+Space, lalu tarik file dari Explorer.";
     private int selectedIndex = -1;
     private bool isConverting;
 
@@ -41,6 +42,11 @@ public sealed class RadialOverlayForm : Form
     {
         draggedFiles = ReadFiles(e.Data);
         availableTargets = PortablePlanner.TargetsFor(draggedFiles).ToArray();
+        emptyStateMessage = draggedFiles.Length == 0
+            ? "File tidak dapat dibaca"
+            : availableTargets.Length == 0
+                ? "Format file belum didukung"
+                : string.Empty;
         e.Effect = draggedFiles.Length > 0 && availableTargets.Length > 0 ? DragDropEffects.Copy : DragDropEffects.None;
         UpdateSelection(Cursor.Position);
         Invalidate();
@@ -140,7 +146,9 @@ public sealed class RadialOverlayForm : Form
         {
             using var hubBrush = new SolidBrush(Color.FromArgb(235, 32, 32, 32));
             e.Graphics.FillEllipse(hubBrush, hubRect);
-            DrawCentered(e.Graphics, "Tarik file ke sini", hubRect, Color.White, 13, FontStyle.Bold);
+            DrawCentered(e.Graphics, "Ceyloro", new RectangleF(center.X - 60, center.Y - 43, 120, 25), Color.White, 13, FontStyle.Bold);
+            DrawCentered(e.Graphics, emptyStateMessage, new RectangleF(center.X - 150, center.Y + 47, 300, 42), Color.White, 11, FontStyle.Bold);
+            DrawCentered(e.Graphics, "Format gambar, audio, video, dan subtitle", new RectangleF(center.X - 165, center.Y + 87, 330, 28), Color.Gainsboro, 9, FontStyle.Regular);
             return;
         }
 

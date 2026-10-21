@@ -84,46 +84,65 @@ public sealed class ConversionEngine
         process.StartInfo.ArgumentList.Add("-nostats");
         process.StartInfo.ArgumentList.Add(output);
 
-        using var cancellationRegistration = cancellationToken.Register(() =>
-        {
-            try
-            {
-                if (!process.HasExited)
-                    process.Kill(entireProcessTree: true);
-            }
-            catch
-            {
-                // The process may already have exited between HasExited and Kill.
-            }
-        });
-
         if (!process.Start())
             throw new InvalidOperationException("FFmpeg tidak dapat dijalankan.");
 
-        var errorTask = process.StandardError.ReadToEndAsync();
-        while (!process.HasExited)
+        var completed = false;
+        try
         {
-            var line = await process.StandardOutput.ReadLineAsync(cancellationToken);
-            if (line is null)
-                break;
-            if (line.Equals("progress=end", StringComparison.OrdinalIgnoreCase))
-                reportProgress(1);
-        }
+            using var cancellationRegistration = cancellationToken.Register(() =>
+            {
+                try
+                {
+                    if (!process.HasExited)
+                        process.Kill(entireProcessTree: true);
+                }
+                catch
+                {
+                    // The process may already have exited between HasExited and Kill.
+                }
+            });
+            cancellationToken.ThrowIfCancellationRequested();
 
-        await process.WaitForExitAsync(cancellationToken);
-        var errorOutput = await errorTask;
-        if (cancellationToken.IsCancellationRequested)
-            throw new OperationCanceledException(cancellationToken);
-        if (process.ExitCode != 0)
-        {
-            TryDelete(output);
-            throw new InvalidOperationException(string.IsNullOrWhiteSpace(errorOutput)
-                ? "FFmpeg gagal mengonversi file."
-                : errorOutput.Trim());
+            var errorTask = process.StandardError.ReadToEndAsync();
+            while (true)
+            {
+                var line = await process.StandardOutput.ReadLineAsync();
+                if (line is null)
+                    break;
+                if (line.Equals("progress=end", StringComparison.OrdinalIgnoreCase))
+                    reportProgress(1);
+            }
+
+            await process.WaitForExitAsync();
+            var errorOutput = await errorTask;
+            cancellationToken.ThrowIfCancellationRequested();
+            if (process.ExitCode != 0)
+                throw new InvalidOperationException(string.IsNullOrWhiteSpace(errorOutput)
+                    ? "FFmpeg gagal mengonversi file."
+                    : errorOutput.Trim());
+            if (!File.Exists(output))
+                throw new InvalidOperationException("FFmpeg selesai tetapi file hasil tidak ditemukan.");
+            completed = true;
+            return output;
         }
-        if (!File.Exists(output))
-            throw new InvalidOperationException("FFmpeg selesai tetapi file hasil tidak ditemukan.");
-        return output;
+        finally
+        {
+            if (!completed)
+            {
+                try
+                {
+                    if (!process.HasExited)
+                        process.Kill(entireProcessTree: true);
+                    await process.WaitForExitAsync();
+                }
+                catch
+                {
+                    // Preserve the original failure and best-effort cleanup.
+                }
+                TryDelete(output);
+            }
+        }
     }
 
     private string ResolveFfmpegPath()

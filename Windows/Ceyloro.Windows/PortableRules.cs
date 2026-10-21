@@ -5,7 +5,6 @@ public enum PortableMediaKind
     Image,
     Audio,
     Video,
-    Pdf,
     Subtitle,
     Unknown
 }
@@ -29,8 +28,6 @@ public sealed record PortableFileFormat(string Extension, PortableMediaKind Kind
             return new PortableFileFormat(extension, PortableMediaKind.Audio);
         if (new[] { "mp4", "mov", "mkv", "webm", "avi", "wmv" }.Contains(extension))
             return new PortableFileFormat(extension, PortableMediaKind.Video);
-        if (extension == "pdf")
-            return new PortableFileFormat(extension, PortableMediaKind.Pdf);
         if (new[] { "srt", "vtt" }.Contains(extension))
             return new PortableFileFormat(extension, PortableMediaKind.Subtitle);
         return new PortableFileFormat(extension, PortableMediaKind.Unknown);
@@ -42,8 +39,7 @@ public static class PortablePlanner
     private static readonly IReadOnlyDictionary<PortableMediaKind, string[]> targets =
         new Dictionary<PortableMediaKind, string[]>
         {
-            [PortableMediaKind.Image] = ["jpg", "png", "heic", "tiff", "pdf"],
-            [PortableMediaKind.Pdf] = ["jpg", "png"],
+            [PortableMediaKind.Image] = ["jpg", "png", "heic", "tiff"],
             [PortableMediaKind.Audio] = ["mp3", "m4a", "wav", "flac", "ogg", "opus", "aiff"],
             [PortableMediaKind.Video] = ["mp4", "mov", "mkv", "webm", "avi", "wmv", "gif", "mp3", "m4a", "wav", "flac", "ogg", "opus", "aiff"],
             [PortableMediaKind.Subtitle] = ["srt", "vtt"]

@@ -31,6 +31,10 @@ Shell Windows ini masih preview x64 dan belum setara dengan shell macOS.
 Gestur `Shift` sambil menarik file belum tersedia, dan Windows ARM64 belum
 didukung.
 
+Target Windows yang tersedia saat ini: gambar ke JPG/PNG/HEIC/TIFF, audio dan
+video ke format media yang tercantum pada roda, serta subtitle SRT/VTT. PDF,
+arsip, dan konversi PDF tidak ditawarkan oleh shell Windows.
+
 Jika Windows SmartScreen muncul saat pertama kali membuka aplikasi, pilih
 **More info**, lalu **Run anyway** hanya untuk paket yang diunduh dari GitHub
 Release resmi Ceyloro.
