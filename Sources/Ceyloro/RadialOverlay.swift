@@ -375,7 +375,7 @@ final class RadialOverlayView: NSView {
         let summaryRect = NSRect(x: hubRect.minX + 8, y: center.y - 14, width: hubRect.width - 16, height: 20)
         summary.draw(in: summaryRect, withAttributes: summaryAttributesWithLayout)
 
-        let hint = NSString(string: "LEPAS  •  ESC BATAL")
+        let hint = NSString(string: "LEPAS  •  1–9 PILIH  •  ESC BATAL")
         let hintAttributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: 8, weight: .medium),
             .foregroundColor: NSColor(calibratedWhite: 1, alpha: 0.42)
