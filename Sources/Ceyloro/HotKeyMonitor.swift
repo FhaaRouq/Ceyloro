@@ -2,6 +2,10 @@ import AppKit
 import ApplicationServices
 
 final class HotKeyMonitor {
+    static var isAccessibilityGranted: Bool {
+        AXIsProcessTrusted()
+    }
+
     var onTrigger: (() -> Void)?
     private var localMonitor: Any?
     private var globalMonitor: Any?
@@ -47,8 +51,15 @@ final class HotKeyMonitor {
     }
 }
 
+enum FinderSelectionResult: Equatable {
+    case success([URL])
+    case noSelection
+    case permissionDenied(reason: String)
+    case scriptError(String)
+}
+
 final class FinderSelectionReader {
-    func selectedFiles() -> [URL] {
+    func readSelection() -> FinderSelectionResult {
         let source = """
         tell application "Finder"
             set selectedItems to selection
@@ -59,15 +70,32 @@ final class FinderSelectionReader {
             return output
         end tell
         """
-        guard let script = NSAppleScript(source: source) else { return [] }
+        guard let script = NSAppleScript(source: source) else {
+            return .scriptError("Gagal menginisialisasi AppleScript.")
+        }
         var error: NSDictionary?
         let result = script.executeAndReturnError(&error)
-        guard error == nil, result.numberOfItems > 0 else { return [] }
+        if let error {
+            let errorNumber = (error[NSAppleScript.errorNumber] as? NSNumber)?.intValue ?? 0
+            let errorMessage = (error[NSAppleScript.errorMessage] as? String) ?? "Unknown AppleScript error"
+            if errorNumber == -1743 || errorNumber == -10004 || errorMessage.contains("Not authorized") || errorMessage.contains("not permitted") {
+                return .permissionDenied(reason: "Izin Otomatisasi (Apple Events) untuk mengontrol Finder belum diberikan.")
+            }
+            return .scriptError("\(errorMessage) (kode: \(errorNumber))")
+        }
+        guard result.numberOfItems > 0 else { return .noSelection }
         var urls: [URL] = []
         for index in 1...result.numberOfItems {
             guard let path = result.atIndex(index)?.stringValue else { continue }
             urls.append(URL(fileURLWithPath: path))
         }
-        return urls
+        return urls.isEmpty ? .noSelection : .success(urls)
+    }
+
+    func selectedFiles() -> [URL] {
+        if case .success(let files) = readSelection() {
+            return files
+        }
+        return []
     }
 }

@@ -40,7 +40,11 @@ Paket preview belum ditandatangani secara resmi.
 4. Di Finder, tahan `Shift` lalu tarik satu atau beberapa file.
 5. Lepaskan file pada format tujuan di roda.
 
-Untuk membuka roda tanpa drag, gunakan hotkey cadangan yang dikonfigurasi di aplikasi. Tekan `Esc` atau lepaskan file di luar area target untuk membatalkan.
+Untuk membuka roda tanpa drag (fallback), pilih satu atau beberapa file di Finder lalu tekan **`Shift + Spasi`**. Tekan `Esc` atau lepaskan file di luar area target untuk membatalkan.
+
+#### Izin macOS (First-Run)
+- **Aksesibilitas (Accessibility)**: Diperlukan agar Ceyloro dapat mendeteksi gestur kursor Shift-drag global dan hotkey `Shift + Spasi`. Prompt sistem akan muncul otomatis saat pertama kali dibuka.
+- **Otomatisasi (Automation)**: Diperlukan saat menggunakan shortcut `Shift + Spasi` agar Ceyloro dapat membaca file yang sedang dipilih di Finder melalui Apple Events. Jika belum diizinkan, Ceyloro akan menampilkan notifikasi pengingat dengan tombol langsung ke Pengaturan Sistem.
 
 ### Windows
 

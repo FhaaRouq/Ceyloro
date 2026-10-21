@@ -39,8 +39,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
         rotateLogIfNeeded()
         NSApp.setActivationPolicy(.accessory)
         setupStatusItem()
+        checkPermissionsOnLaunch()
         overlay.overlayDelegate = self
         monitor.onWheelChange = { [weak self] files, point, flags in self?.showWheel(files: files, at: point, flags: flags) }
+        monitor.onDiagnostic = { [weak self] message in self?.log("[DragMonitor] \(message)") }
         monitor.onDragEnd = { [weak self] in
             guard let self, self.overlay.isVisible else { return }
             // Give AppKit's dragging destination callback a turn to receive a valid drop.
@@ -141,13 +143,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
         return "Tidak ada target konversi yang tersedia untuk file ini."
     }
 
+    private func checkPermissionsOnLaunch() {
+        let isAccessibilityTrusted = HotKeyMonitor.isAccessibilityGranted
+        log("Accessibility permission status: \(isAccessibilityTrusted ? "Granted" : "Not granted / Pending prompt")")
+    }
+
     private func showWheelFromHotKey() {
-        let files = finderSelectionReader.selectedFiles()
-        guard !files.isEmpty else {
+        switch finderSelectionReader.readSelection() {
+        case .success(let files):
+            guard !files.isEmpty else {
+                showError("Pilih satu atau beberapa file di Finder terlebih dahulu.")
+                return
+            }
+            showWheel(files: files, at: NSEvent.mouseLocation, flags: [.shift])
+        case .noSelection:
             showError("Pilih satu atau beberapa file di Finder terlebih dahulu.")
-            return
+        case .permissionDenied(let reason):
+            showPermissionAlert(
+                title: "Izin Otomatisasi Diperlukan",
+                message: "\(reason)\n\nBuka Pengaturan Sistem > Privasi & Keamanan > Otomatisasi, lalu izinkan Ceyloro mengontrol Finder.",
+                settingsURL: URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation")
+            )
+        case .scriptError(let details):
+            showError("Gagal membaca pilihan Finder: \(details)")
         }
-        showWheel(files: files, at: NSEvent.mouseLocation, flags: [.shift])
+    }
+
+    private func showPermissionAlert(title: String, message: String, settingsURL: URL?) {
+        log("[Permission] \(title): \(message)")
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = message
+        alert.alertStyle = .warning
+        if let settingsURL {
+            alert.addButton(withTitle: "Buka Pengaturan Sistem")
+            alert.addButton(withTitle: "Tutup")
+            if alert.runModal() == .alertFirstButtonReturn {
+                NSWorkspace.shared.open(settingsURL)
+            }
+        } else {
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+        }
     }
 
     private func wheelItems(for files: [URL], mode: WheelMode) -> [WheelItem] {
