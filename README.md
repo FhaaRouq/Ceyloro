@@ -14,8 +14,8 @@ Semua pemrosesan berjalan lokal. File asli tidak diubah, ditimpa, atau diunggah 
 
 | Platform | Paket |
 | --- | --- |
-| macOS Intel + Apple Silicon | [Download Ceyloro untuk macOS](https://github.com/neuraldigital/Ceyloro/releases/download/v0.1.0-preview.4/Ceyloro-macOS-universal.zip) |
-| Windows x64 | [Download Ceyloro untuk Windows](https://github.com/neuraldigital/Ceyloro/releases/download/v0.1.0-preview.4/Ceyloro-Windows-x64.zip) |
+| macOS Intel + Apple Silicon | [Download Ceyloro untuk macOS](https://github.com/Neural-Operations-Digital-Engineering/Ceyloro/releases/download/v0.1.0-preview.5/Ceyloro-macOS-universal.zip) |
+| Windows x64 | [Download Ceyloro untuk Windows](https://github.com/Neural-Operations-Digital-Engineering/Ceyloro/releases/download/v0.1.0-preview.5/Ceyloro-Windows-x64.zip) |
 
 Paket di atas adalah preview release. Build macOS sudah universal (`x86_64` + `arm64`), sedangkan paket Windows bersifat self-contained dan tidak memerlukan instalasi .NET.
 
