@@ -2,13 +2,19 @@
 import PackageDescription
 
 let package = Package(
-    name: "PomeloCore",
+    name: "Pomelo",
     platforms: [.macOS(.v13)],
     products: [
-        .library(name: "PomeloCore", targets: ["PomeloCore"])
+        .executable(name: "Pomelo", targets: ["Pomelo"])
     ],
     targets: [
         .target(name: "PomeloCore"),
-        .testTarget(name: "PomeloCoreTests", dependencies: ["PomeloCore"])
+        .executableTarget(
+            name: "Pomelo",
+            dependencies: ["PomeloCore"],
+            exclude: ["Resources"]
+        ),
+        .testTarget(name: "PomeloCoreTests", dependencies: ["PomeloCore"]),
+        .testTarget(name: "PomeloAppTests", dependencies: ["Pomelo"])
     ]
 )

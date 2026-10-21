@@ -1,4 +1,5 @@
 import Foundation
+import UniformTypeIdentifiers
 
 public enum MediaKind: String, Codable, Sendable {
     case image
@@ -16,13 +17,19 @@ public struct FileFormat: Hashable, Codable, Sendable {
     public let kind: MediaKind
 
     public init(fileExtension: String, kind: MediaKind) {
-        self.fileExtension = fileExtension.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "."))
+        let normalized = fileExtension.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "."))
+        switch normalized {
+        case "jpeg": self.fileExtension = "jpg"
+        case "tif": self.fileExtension = "tiff"
+        case "heif": self.fileExtension = "heic"
+        default: self.fileExtension = normalized
+        }
         self.kind = kind
     }
 
     public static func detect(url: URL) -> FileFormat {
         let ext = url.pathExtension.lowercased()
-        let image = ["jpg", "jpeg", "png", "webp", "heic", "heif", "tif", "tiff", "bmp", "gif", "avif"]
+        let image = ["jpg", "jpeg", "png", "webp", "heic", "heif", "tif", "tiff", "bmp", "gif", "avif", "jfif"]
         let audio = ["mp3", "m4a", "wav", "flac", "ogg", "opus", "aiff", "wma"]
         let video = ["mp4", "mov", "mkv", "webm", "avi", "wmv", "gif"]
         let document = ["doc", "docx", "rtf", "txt", "md", "pages", "xls", "xlsx", "ppt", "pptx"]
@@ -36,6 +43,9 @@ public struct FileFormat: Hashable, Codable, Sendable {
         if document.contains(ext) { return FileFormat(fileExtension: ext, kind: .document) }
         if subtitle.contains(ext) { return FileFormat(fileExtension: ext, kind: .subtitle) }
         if archive.contains(ext) { return FileFormat(fileExtension: ext, kind: .archive) }
+        if let type = UTType(filenameExtension: ext), type.conforms(to: .image) {
+            return FileFormat(fileExtension: ext, kind: .image)
+        }
         return FileFormat(fileExtension: ext, kind: .unknown)
     }
 }

@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>LSUIElement</key>
+    <true/>
+    <key>NSPrincipalClass</key>
+    <string>NSApplication</string>
+    <key>CFBundleSupportedPlatforms</key>
+    <array>
+        <string>MacOSX</string>
+    </array>
+    <key>CFBundleDisplayName</key>
+    <string>Pomelo</string>
+    <key>CFBundleName</key>
+    <string>Pomelo</string>
+    <key>CFBundleExecutable</key>
+    <string>Pomelo</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.node.pomelo</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>0.1.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>CFBundleIconFile</key>
+    <string>Pomelo.icns</string>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.utilities</string>
+    <key>NSHumanReadableCopyright</key>
+    <string>Copyright © 2026 Neural Operations &amp; Digital Engineering</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSDesktopFolderUsageDescription</key>
+    <string>Pomelo memerlukan akses untuk membaca dan mengonversi file yang kamu pilih.</string>
+    <key>NSDocumentsFolderUsageDescription</key>
+    <string>Pomelo memerlukan akses untuk membaca dan menyimpan hasil konversi di Documents.</string>
+    <key>NSDownloadsFolderUsageDescription</key>
+    <string>Pomelo memerlukan akses untuk membaca dan menyimpan hasil konversi di Downloads.</string>
+    <key>NSRemovableVolumesUsageDescription</key>
+    <string>Pomelo memerlukan akses untuk memproses file dari volume yang kamu pilih.</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>13.0</string>
+</dict>
+</plist>

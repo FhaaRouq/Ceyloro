@@ -15,4 +15,31 @@ public struct OutputNaming {
         }
         return candidate
     }
+
+    public func uniqueFolderURL(baseName: String, in directory: URL, fileManager: FileManager = .default) -> URL {
+        var candidate = directory.appendingPathComponent(baseName, isDirectory: true)
+        var number = 2
+        while fileManager.fileExists(atPath: candidate.path) {
+            candidate = directory.appendingPathComponent("\(baseName) \(number)", isDirectory: true)
+            number += 1
+        }
+        return candidate
+    }
+
+    public func uniqueURL(baseName: String, fileExtension: String, in directory: URL, fileManager: FileManager = .default) -> URL {
+        let normalizedExtension = fileExtension.trimmingCharacters(in: CharacterSet(charactersIn: "."))
+        var candidate = directory.appendingPathComponent("\(baseName).\(normalizedExtension)")
+        var number = 2
+        while fileManager.fileExists(atPath: candidate.path) {
+            candidate = directory.appendingPathComponent("\(baseName) \(number).\(normalizedExtension)")
+            number += 1
+        }
+        return candidate
+    }
+
+    public func pageFileName(baseName: String, index: Int, total: Int, fileExtension: String) -> String {
+        let width = max(String(max(total, 1)).count, 2)
+        let normalizedExtension = fileExtension.trimmingCharacters(in: CharacterSet(charactersIn: "."))
+        return String(format: "%@-%0*d.%@", baseName, width, index + 1, normalizedExtension)
+    }
 }

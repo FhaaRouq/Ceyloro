@@ -22,4 +22,10 @@ final class ConversionMatrixTests: XCTestCase {
     func testUnsupportedKindHasNoTargets() {
         XCTAssertTrue(ConversionMatrix().targets(for: FileFormat(fileExtension: "mp4", kind: .video)).isEmpty)
     }
+
+    func testEquivalentImageExtensionsAreCanonicalized() {
+        XCTAssertEqual(FileFormat(fileExtension: ".jpeg", kind: .image).fileExtension, "jpg")
+        XCTAssertEqual(FileFormat(fileExtension: "tif", kind: .image).fileExtension, "tiff")
+        XCTAssertEqual(FileFormat(fileExtension: "heif", kind: .image).fileExtension, "heic")
+    }
 }
