@@ -53,11 +53,19 @@ jobs:
           Copy-Item ffmpeg-package/FFmpeg-LICENSE.txt package/Ceyloro/FFmpeg-LICENSE.txt -Force
           Copy-Item Windows/README.md package/Ceyloro/README.md -Force
           Compress-Archive -Path package/Ceyloro -DestinationPath Ceyloro-Windows-${{ matrix.architecture }}.zip -Force
+      - name: Create Windows package checksum
+        shell: pwsh
+        run: |
+          $package = "Ceyloro-Windows-${{ matrix.architecture }}.zip"
+          $hash = (Get-FileHash -Algorithm SHA256 $package).Hash.ToLowerInvariant()
+          "$hash  $package" | Set-Content -Encoding ascii "$package.sha256"
       - name: Upload Windows package
         uses: actions/upload-artifact@v4
         with:
           name: Ceyloro-Windows-${{ matrix.architecture }}
-          path: Ceyloro-Windows-${{ matrix.architecture }}.zip
+          path: |
+            Ceyloro-Windows-${{ matrix.architecture }}.zip
+            Ceyloro-Windows-${{ matrix.architecture }}.zip.sha256
 
   release:
     needs: [macos, windows]
@@ -76,8 +84,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          release_args=("$GITHUB_REF_NAME" "dist/Ceyloro-macOS-universal.zip" "dist/Ceyloro-Windows-x64.zip" "dist/Ceyloro-Windows-arm64.zip" "--repo" "$GITHUB_REPOSITORY" "--title" "Ceyloro $GITHUB_REF_NAME" "--generate-notes")
+          release_args=("$GITHUB_REF_NAME" "dist/Ceyloro-macOS-universal.zip" "dist/Ceyloro-Windows-x64.zip" "dist/Ceyloro-Windows-x64.zip.sha256" "dist/Ceyloro-Windows-arm64.zip" "dist/Ceyloro-Windows-arm64.zip.sha256" "--repo" "$GITHUB_REPOSITORY" "--title" "Ceyloro $GITHUB_REF_NAME" "--generate-notes")
           case "$GITHUB_REF_NAME" in
             *-*) release_args+=("--prerelease") ;;
           esac
           gh release create "${release_args[@]}"
+
