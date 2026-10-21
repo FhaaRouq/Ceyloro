@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
     private let matrix = ConversionMatrix()
     private let runner = JobRunner()
     private let converter = ImageConverter()
+    private let engineProbe = RuntimeEngineProbe()
     private var progressWindows: [UUID: ProgressWindowController] = [:]
     private var settingsWindow: SettingsWindowController?
     private var pdfMergeWindow: PDFMergeWindowController?
@@ -47,6 +48,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
         monitor.start()
         hotKeyMonitor.onTrigger = { [weak self] in self?.showWheelFromHotKey() }
         hotKeyMonitor.start()
+        let engineStatus = engineProbe.inspect()
+        log("Engine AVFoundation: tersedia; FFmpeg: \(engineStatus.ffmpegURL?.path ?? "tidak ditemukan")")
         log("Ceyloro started")
     }
 
