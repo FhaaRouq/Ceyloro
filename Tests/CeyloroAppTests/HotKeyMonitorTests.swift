@@ -15,4 +15,11 @@ final class HotKeyMonitorTests: XCTestCase {
         // HotKeyMonitor.isAccessibilityGranted should return a boolean without crashing
         _ = HotKeyMonitor.isAccessibilityGranted
     }
+
+    func testLogSanitizationReplacesHomeDirectory() {
+        let home = "/Users/testuser"
+        let rawMessage = "Job submitted for /Users/testuser/Documents/secret.png"
+        let sanitized = AppDelegate.sanitizeLogMessage(rawMessage, homeDirectory: home)
+        XCTAssertEqual(sanitized, "Job submitted for ~/Documents/secret.png")
+    }
 }

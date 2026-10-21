@@ -65,6 +65,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
     func applicationWillTerminate(_ notification: Notification) {
         monitor.stop()
         hotKeyMonitor.stop()
+        runner.cancelAll()
+        cleanupOldTemporaryDirectories(cutoffInterval: 0)
     }
 
     private func setupStatusItem() {
@@ -452,8 +454,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
         alert.runModal()
     }
 
+    static func sanitizeLogMessage(_ message: String, homeDirectory: String = FileManager.default.homeDirectoryForCurrentUser.path) -> String {
+        guard !homeDirectory.isEmpty && homeDirectory != "/" else { return message }
+        return message.replacingOccurrences(of: homeDirectory, with: "~")
+    }
+
     private func log(_ message: String) {
-        let line = "[\(ISO8601DateFormatter().string(from: Date()))] \(message)\n"
+        let sanitized = Self.sanitizeLogMessage(message)
+        let line = "[\(ISO8601DateFormatter().string(from: Date()))] \(sanitized)\n"
         if let data = line.data(using: .utf8), let handle = try? FileHandle(forWritingTo: logURL) {
             handle.seekToEndOfFile()
             handle.write(data)
@@ -463,15 +471,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
         }
     }
 
-    private func cleanupOldTemporaryDirectories() {
+    private func cleanupOldTemporaryDirectories(cutoffInterval: TimeInterval = 24 * 60 * 60) {
         let fileManager = FileManager.default
         let temporaryDirectory = fileManager.temporaryDirectory
         guard let urls = try? fileManager.contentsOfDirectory(at: temporaryDirectory, includingPropertiesForKeys: [.contentModificationDateKey], options: [.skipsHiddenFiles]) else { return }
-        let cutoff = Date().addingTimeInterval(-24 * 60 * 60)
+        let cutoff = Date().addingTimeInterval(-cutoffInterval)
         for url in urls where url.lastPathComponent.hasPrefix("Ceyloro-") {
             guard let values = try? url.resourceValues(forKeys: [.contentModificationDateKey]),
                   let date = values.contentModificationDate,
-                  date < cutoff else { continue }
+                  date <= cutoff else { continue }
             try? fileManager.removeItem(at: url)
         }
     }

@@ -43,19 +43,25 @@ final class VideoConverter {
             completion.signal()
         }
 
+        var lastProgress = 0.0
         while completion.wait(timeout: .now() + 0.05) == .timedOut {
             if isCancelled() {
                 session.cancelExport()
                 completion.wait()
+                try? FileManager.default.removeItem(at: output)
                 throw CancellationError()
             }
-            progress(Double(session.progress))
+            let raw = min(max(Double(session.progress), 0), 0.99)
+            lastProgress = max(lastProgress, raw)
+            progress(lastProgress)
         }
 
         if isCancelled() || session.status == .cancelled {
+            try? FileManager.default.removeItem(at: output)
             throw CancellationError()
         }
         guard session.status == .completed else {
+            try? FileManager.default.removeItem(at: output)
             throw session.error ?? ConversionError.encodingFailed
         }
         progress(1)

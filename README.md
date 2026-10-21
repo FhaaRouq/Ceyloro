@@ -85,11 +85,12 @@ Fitur lain yang tersedia:
 
 ## Privasi dan keamanan file
 
-- Pemrosesan dilakukan secara offline di perangkat pengguna.
-- File sumber tidak pernah diubah, dihapus, atau ditimpa.
-- File hasil diberi nama unik jika nama tujuan sudah ada.
-- Konversi batch melaporkan keberhasilan dan kegagalan secara terpisah.
-- File sementara dibersihkan setelah pekerjaan selesai atau dibatalkan.
+- **Pemrosesan Offline Penuh**: Semua konversi diproses secara lokal di perangkat Anda tanpa transmisi jaringan atau telemetri.
+- **Integritas File Sumber**: File sumber tidak pernah diubah, dihapus, atau ditimpa.
+- **Proteksi Penamaan Anti-Timpa**: File tujuan diberi nama unik menggunakan reservasi atomik tingkat kernel (`O_CREAT | O_EXCL`) untuk mencegah tabrakan berkas antar-proses.
+- **Pembersihan File Sementara**: Seluruh staging konversi diisolasi dalam subdirektori sementara (`Ceyloro-...`) dan langsung dihapus saat konversi berhasil, dibatalkan, gagal, atau saat aplikasi ditutup.
+- **Sanitasi Log**: Log aplikasi hanya disimpan lokal di `~/Library/Logs/Ceyloro/app.log`, path pengguna disamarkan (`~`), dan berkas log dirotasi otomatis saat mencapai 1 MB.
+- **Pelaporan Batch Transparan**: Konversi banyak file melaporkan status keberhasilan dan kegagalan per file secara independen tanpa menghentikan berkas lainnya.
 
 ## Status platform
 
