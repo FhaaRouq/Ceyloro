@@ -23,21 +23,30 @@ internal sealed class FfmpegCapabilities
         ["mkv"] = ["matroska"], ["webm"] = ["webm"], ["avi"] = ["avi"], ["wmv"] = ["asf"], ["gif"] = ["gif"]
     };
 
+    private static readonly IReadOnlyDictionary<string, string[]> imageDecoders = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["jpg"] = ["mjpeg"], ["png"] = ["png"], ["webp"] = ["webp"], ["heic"] = ["hevc"],
+        ["tiff"] = ["tiff"], ["bmp"] = ["bmp"], ["gif"] = ["gif"], ["avif"] = ["av1"]
+    };
+
     private readonly HashSet<string> availableEncoders;
+    private readonly HashSet<string> availableDecoders;
     private readonly HashSet<string> availableMuxers;
 
-    private FfmpegCapabilities(HashSet<string> availableEncoders, HashSet<string> availableMuxers)
+    private FfmpegCapabilities(HashSet<string> availableEncoders, HashSet<string> availableDecoders, HashSet<string> availableMuxers)
     {
         this.availableEncoders = availableEncoders;
+        this.availableDecoders = availableDecoders;
         this.availableMuxers = availableMuxers;
     }
 
     public static FfmpegCapabilities Probe(string ffmpegPath)
     {
         var encoderOutput = Run(ffmpegPath, "-hide_banner", "-encoders");
+        var decoderOutput = Run(ffmpegPath, "-hide_banner", "-decoders");
         var formatOutput = Run(ffmpegPath, "-hide_banner", "-formats");
-        var encoderSet = Regex.Matches(encoderOutput, @"^\s*[A-Z\.]{6}\s+(\S+)", RegexOptions.Multiline)
-            .Select(match => match.Groups[1].Value).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var encoderSet = ParseCodecNames(encoderOutput);
+        var decoderSet = ParseCodecNames(decoderOutput);
         var muxerSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var line in formatOutput.SplitLines())
         {
@@ -46,8 +55,11 @@ internal sealed class FfmpegCapabilities
             if (names.Length > 0)
                 foreach (var name in names[0].Split(',', StringSplitOptions.RemoveEmptyEntries)) muxerSet.Add(name);
         }
-        return new FfmpegCapabilities(encoderSet, muxerSet);
+        return new FfmpegCapabilities(encoderSet, decoderSet, muxerSet);
     }
+
+    private static HashSet<string> ParseCodecNames(string output) => Regex.Matches(output, @"^\s*[A-Z\.]{6}\s+(\S+)", RegexOptions.Multiline)
+            .Select(match => match.Groups[1].Value).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
     public bool Supports(string target)
     {
@@ -72,6 +84,9 @@ internal sealed class FfmpegCapabilities
         encoders.TryGetValue(target, out var encoderNames) ? encoderNames.FirstOrDefault(availableEncoders.Contains) : null;
 
     public string? AudioEncoderFor(string target) => EncoderFor(target);
+
+    public bool CanDecodeImage(string extension) =>
+        imageDecoders.TryGetValue(extension, out var names) && names.Any(availableDecoders.Contains);
 
     private static string Run(string executable, params string[] arguments)
     {
@@ -102,3 +117,4 @@ internal static class TextLineExtensions
 {
     public static IEnumerable<string> SplitLines(this string value) => value.Split(new[] { "\r\n", "\n", "\r" }, StringSplitOptions.RemoveEmptyEntries);
 }
+

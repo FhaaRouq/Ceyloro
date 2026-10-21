@@ -6,12 +6,12 @@ Lingkup: shell Windows, backend konversi, pengaturan, UI, CI, dan paket x64/ARM6
 
 ## Hasil
 
-Temuan W-01–W-22 sudah ditinjau satu per satu. Perbaikan kode yang dapat
-dikerjakan di workspace ini sudah diterapkan. Status **perlu validasi Windows**
-berarti kode sudah disiapkan tetapi hasil runtime belum dibuktikan pada mesin
-Windows. Build lokal tidak dapat dilakukan karena .NET SDK/MSBuild tidak
-tersedia di lingkungan ini. Workflow GitHub Actions kini membangun dua RID
-Windows, tetapi hasil workflow baru tersedia setelah perubahan didorong.
+Temuan W-01–W-22 sudah ditinjau satu per satu, lalu audit lanjutan menambahkan
+W-23–W-25 untuk penanganan format dan TIFF multi-halaman. Perbaikan source
+dikerjakan pada PR Windows. Build lokal tidak dapat dilakukan karena .NET
+SDK/MSBuild tidak tersedia. GitHub Actions lulus untuk `win-x64` dan
+`win-arm64` pada commit `81b43c39`; CI memeriksa kompilasi, bukan konversi atau
+UI ketika aplikasi berjalan.
 
 | ID | Status | Penanganan |
 | --- | --- | --- |
@@ -33,10 +33,13 @@ Windows, tetapi hasil workflow baru tersedia setelah perubahan didorong.
 | W-16 | Diperbaiki; perlu validasi Windows | Manifest menyatakan DPI-aware PerMonitorV2. Perilaku scaling tetap perlu diuji pada perangkat. |
 | W-17 | Diperbaiki | Form progres menampilkan nama file; ringkasan memuat kegagalan per file dan menawarkan membuka folder output. |
 | W-18 | Diperbaiki sebagian | Ikon tray Ceyloro dibuat khusus; roda mendukung navigasi panah dan teks target tetap terlihat. High-contrast dan aksesibilitas perlu diperiksa langsung di Windows. |
-| W-19 | Belum selesai | CI membangun x64 dan ARM64, tetapi belum ada test project Windows atau tes otomatis yang dijalankan. |
+| W-19 | Diperbaiki sebagian | `Ceyloro.Windows.Tests` menjalankan pemeriksaan otomatis di runner Windows x64 untuk normalisasi target, deteksi/konversi TAR.GZ, TIFF multi-halaman, transparansi PNG/JPG, dan pembatalan; CI tetap membangun app x64 serta ARM64. Tes belum berjalan native pada ARM64. |
 | W-20 | Diperbaiki; perlu validasi Windows | Target framework Windows 10 2004/API 19041; workflow build dan release membuat paket terpisah `win-x64` dan `win-arm64`. Kelayakan runtime kedua arsitektur masih harus diuji. |
 | W-21 | Belum selesai untuk distribusi publik | Paket tetap ZIP dan belum code-signed/installer. README memperingatkan pengguna tentang SmartScreen. |
 | W-22 | Diperbaiki | Pengaturan rusak disalin sebagai backup, default dimuat, dan pengguna diberi pesan serta log lokal. |
+| W-23 | Diperbaiki di PR Windows berikutnya | `.gz` didukung sebagai arsip hanya jika isinya TAR; stream gzip biasa tidak ditawarkan. `.tar.gz` dan `.tgz` juga dipetakan ke target TAR.GZ. |
+| W-24 | Diperbaiki; perlu validasi Windows | WEBP, HEIC, dan AVIF disiapkan dengan FFmpeg ke PNG sebelum masuk backend PDF atau konversi JPG/PNG/TIFF. PNG menjaga transparansi sampai backend menentukan hasil akhir. Target hanya ditawarkan bila FFmpeg lokal memiliki encoder PNG dan decoder gambar terkait. |
+| W-25 | Diperbaiki; perlu validasi Windows | TIFF multi-halaman dibaca per halaman dan seluruh halaman dikeluarkan sebagai koleksi seperti di macOS. Konversi gambar Windows memakai GDI+ untuk JPG/PNG/TIFF; JPG meratakan transparansi ke latar putih. |
 
 ## Fitur Windows yang masuk dalam remediasi
 
@@ -54,10 +57,11 @@ Windows, tetapi hasil workflow baru tersedia setelah perubahan didorong.
 
 ## Validasi yang masih diperlukan sebelum menyatakan rilis lulus
 
-1. Jalankan build CI untuk `win-x64` dan `win-arm64` dan perbaiki setiap kegagalan.
+1. Build CI `win-x64` dan `win-arm64` lulus pada commit parity `81b43c39`; tes otomatis baru ditambahkan dan masih menunggu hasil CI.
 2. Pada Windows x64 dan ARM64, uji overlay dan Explorer drag-drop pada PNG, MP4,
    MP3, PDF, SRT, serta file tidak dikenal.
-3. Uji konversi representatif, PDF multi-halaman folder/ZIP, arsip rusak dan
+3. Uji konversi representatif, termasuk TIFF multi-halaman dan gambar-ke-PDF untuk semua format yang ditawarkan,
+   PDF multi-halaman folder/ZIP, arsip rusak dan
    path berbahaya, batch campuran, direktori output read-only, pembatalan, dan
    jalur Unicode/panjang.
 4. Uji dua monitor dengan koordinat negatif, DPI campuran, high-contrast,
@@ -65,6 +69,8 @@ Windows, tetapi hasil workflow baru tersedia setelah perubahan didorong.
 5. Putuskan kebutuhan test project, code signing, installer, onboarding, dan
    hotkey alternatif sebelum rilis publik.
 
-Audit remediasi ini menutup pencatatan setiap temuan dan perubahan yang dapat
-dilakukan dari source. Status lulus operasional belum dapat diberikan tanpa
-build CI dan pengujian langsung pada Windows x64 serta ARM64.
+Audit statis source selesai untuk lingkup yang disebutkan, tetapi status lulus
+operasional belum dapat diberikan tanpa pengujian langsung pada Windows x64
+serta ARM64. CI saat ini tidak memiliki test project Windows; signing dan
+installer juga tetap menjadi pekerjaan distribusi sebelum rilis publik.
+

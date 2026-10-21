@@ -53,10 +53,10 @@ Untuk membuka roda tanpa drag (fallback), pilih satu atau beberapa file di Finde
 3. Tekan `Ctrl + Alt + Space` untuk membuka roda.
 4. Tarik file dari Explorer ke roda, lalu lepaskan pada format tujuan.
 
-Paket Windows yang sudah terbit adalah preview x64. Shell Windows menggunakan
-hotkey untuk membuka roda terlebih dahulu; gestur menahan `Shift` sambil
-menarik file dari Finder belum tersedia di Windows. Build x64 dan ARM64 sedang
-disiapkan untuk rilis berikutnya.
+Paket Windows yang sudah terbit adalah preview x64. Workflow rilis saat ini menyiapkan paket
+terpisah untuk x64 dan ARM64; paket untuk kode terbaru baru terbit setelah tag rilis dibuat.
+Shell Windows menggunakan hotkey untuk membuka roda terlebih dahulu; gestur menahan `Shift`
+sambil menarik file dari Finder belum tersedia di Windows.
 
 Paket release Windows sudah membawa FFmpeg LGPL yang sudah diverifikasi. Untuk build dari source, letakkan `ffmpeg.exe` LGPL di samping `Ceyloro.exe` atau pilih lokasinya melalui menu **Pengaturan**.
 
@@ -98,7 +98,7 @@ Fitur lain yang tersedia:
 | --- | --- | --- |
 | macOS Intel | Preview | App universal, target macOS 13+ |
 | macOS Apple Silicon | Preview | App universal, target macOS 13+ |
-| Windows x64 + ARM64 | Preview | Build dan paket per arsitektur sedang disiapkan; paket ARM64 belum dipublikasikan |
+| Windows x64 + ARM64 | Preview | CI membangun kedua arsitektur; paket resmi bergantung pada tag rilis berikutnya |
 
 Paket preview belum melalui Apple notarization atau Windows code signing. Sistem operasi dapat menampilkan peringatan keamanan saat pertama kali aplikasi dibuka.
 
@@ -130,7 +130,7 @@ DEVELOPER_DIR=/path/to/Xcode.app/Contents/Developer swift test
 
 Kebutuhan:
 
-- Windows x64;
+- Windows x64 atau ARM64;
 - Visual Studio 2022 dengan workload **.NET desktop development**;
 - .NET 8 SDK.
 
@@ -140,7 +140,7 @@ Build shell Windows:
 dotnet build Windows/Ceyloro.Windows/Ceyloro.Windows.csproj -c Release
 ```
 
-Workflow GitHub Actions membangun shell Windows setiap ada perubahan terkait Windows dan membuat paket desktop pada setiap tag `v*`.
+Workflow GitHub Actions membangun shell Windows untuk x64 dan ARM64 setiap ada perubahan terkait Windows. Workflow rilis membuat paket desktop untuk kedua arsitektur pada setiap tag `v*`.
 
 ## Arsitektur
 
@@ -182,3 +182,4 @@ Bug report dan usulan fitur dapat dibuat melalui [GitHub Issues](https://github.
 App Ceyloro, shell Windows, dan komponen proprietary lainnya mengikuti
 [ketentuan terpisah](LICENSE-APP.md). FFmpeg dan libshine mengikuti lisensi
 distribusinya sendiri.
+

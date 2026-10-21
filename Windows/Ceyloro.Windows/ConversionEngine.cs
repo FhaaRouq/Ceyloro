@@ -30,7 +30,12 @@ public sealed class ConversionEngine
         if (files.Length == 0) return targets;
         var formats = files.Select(PortableFileFormat.Detect).ToArray();
         if (formats.All(format => format.Kind is PortableMediaKind.Pdf or PortableMediaKind.Subtitle or PortableMediaKind.Archive))
+        {
+            if (Enumerable.Range(0, files.Length).Any(index =>
+                    formats[index].Kind == PortableMediaKind.Archive && !ArchiveConverter.IsSupportedArchive(files[index])))
+                return [];
             return targets;
+        }
 
         var capabilities = TryGetCapabilities();
         var hasAnimatedGif = formats.All(format => format.Extension == "gif") && files.Any(IsAnimatedGif);
@@ -41,9 +46,17 @@ public sealed class ConversionEngine
         }
         return targets.Where(target =>
         {
+            if (target == "pdf" && formats.Any(format =>
+                    format.Kind == PortableMediaKind.Image && !PdfConversion.CanCreatePdfFromImage(format.Extension)))
+            {
+                return capabilities?.Supports("png") == true && formats
+                    .Where(format => format.Kind == PortableMediaKind.Image && !PdfConversion.CanCreatePdfFromImage(format.Extension))
+                    .All(format => capabilities.CanDecodeImage(format.Extension));
+            }
             var needsFfmpeg = formats.Any(format =>
                 format.Kind is PortableMediaKind.Audio or PortableMediaKind.Video ||
-                (format.Kind == PortableMediaKind.Image && target != "pdf"));
+                (format.Kind == PortableMediaKind.Image &&
+                    (target == "heic" || ((target is "jpg" or "png" or "tiff") && !WindowsImageConverter.CanDecode(format.Extension)))));
             return !needsFfmpeg || capabilities?.Supports(target) == true;
         }).ToArray();
     }
@@ -67,7 +80,7 @@ public sealed class ConversionEngine
         if (formats.Any(format => !Enum.IsDefined(format.Kind) || format.Kind == PortableMediaKind.Unknown))
             return "Format file belum didukung";
         var needsFfmpeg = formats.Any(format => format.Kind is PortableMediaKind.Audio or PortableMediaKind.Video ||
-            (format.Kind == PortableMediaKind.Image && format.Extension != "pdf"));
+            (format.Kind == PortableMediaKind.Image && !WindowsImageConverter.CanDecode(format.Extension)));
         if (needsFfmpeg && TryGetCapabilities() is null)
             return IsCheckingCapabilities
                 ? "Memeriksa FFmpeg…"
@@ -93,9 +106,9 @@ public sealed class ConversionEngine
             try
             {
                 currentInputChanged?.Invoke(Path.GetFileName(inputs[index]));
-                var output = await ConvertOneAsync(inputs[index], target, cancellationToken,
+                var fileOutputs = await ConvertOneAsync(inputs[index], target, cancellationToken,
                     value => progress?.Report(value < 0 ? -1 : (index + value) / total), pdfOptions);
-                outputs.Add(output);
+                outputs.AddRange(fileOutputs);
             }
             catch (OperationCanceledException)
             {
@@ -125,11 +138,11 @@ public sealed class ConversionEngine
         var cleanName = Path.GetFileNameWithoutExtension(outputName.Trim());
         if (string.IsNullOrWhiteSpace(cleanName)) cleanName = "Gabungan";
         var output = UniqueOutputPath(outputDirectory, cleanName, "pdf");
-        await Task.Run(() => PdfConversion.CreateImagePdf(inputs, output, options, cancellationToken, value => progress?.Report(value)), cancellationToken);
+        await CreateImagePdfAsync(inputs, output, options, cancellationToken, value => progress?.Report(value));
         return output;
     }
 
-    private async Task<string> ConvertOneAsync(
+    private async Task<IReadOnlyList<string>> ConvertOneAsync(
         string input,
         string target,
         CancellationToken cancellationToken,
@@ -143,6 +156,39 @@ public sealed class ConversionEngine
         Directory.CreateDirectory(outputDirectory);
         var output = UniqueOutputPath(outputDirectory, Path.GetFileNameWithoutExtension(input), target);
         var source = PortableFileFormat.Detect(input);
+        if (source.Kind == PortableMediaKind.Image && (target is "jpg" or "png" or "tiff") && WindowsImageConverter.CanDecode(source.Extension))
+        {
+            var frameCount = WindowsImageConverter.FrameCount(input, source.Extension);
+            var outputPaths = frameCount == 1
+                ? new[] { output }
+                : Enumerable.Range(1, frameCount)
+                    .Select(index => UniqueOutputPath(outputDirectory, $"{Path.GetFileNameWithoutExtension(input)} {index.ToString("D" + Math.Max(2, frameCount.ToString(CultureInfo.InvariantCulture).Length), CultureInfo.InvariantCulture)}", target))
+                    .ToArray();
+            var imageOutputs = await Task.Run(() => WindowsImageConverter.Convert(input, target, outputPaths, settings.Current, cancellationToken, reportProgress), cancellationToken);
+            return imageOutputs;
+        }
+        if (source.Kind == PortableMediaKind.Image && (target is "jpg" or "png" or "tiff") && !WindowsImageConverter.CanDecode(source.Extension))
+        {
+            var ffmpegPath = ResolveFfmpegPath();
+            var imageCapabilities = TryGetCapabilities();
+            if (imageCapabilities is null || !imageCapabilities.CanDecodeImage(source.Extension) || !imageCapabilities.Supports("png"))
+                throw new InvalidOperationException($"FFmpeg tidak dapat membaca gambar {source.Extension.ToUpperInvariant()} atau menyiapkan PNG perantara.");
+            var staging = Path.Combine(Path.GetTempPath(), "Ceyloro", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(staging);
+            try
+            {
+                var intermediate = Path.Combine(staging, "image.png");
+                await ConvertImageAsync(input, intermediate, "png", ffmpegPath, imageCapabilities, cancellationToken);
+                var converted = await Task.Run(() => WindowsImageConverter.Convert(intermediate, target,
+                    [output], settings.Current, cancellationToken, reportProgress), cancellationToken);
+                return converted;
+            }
+            finally
+            {
+                try { if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true); }
+                catch { }
+            }
+        }
         var selectedPdfOptions = pdfOptions ?? new PdfConversionOptions(
             settings.Current.PdfPageSize,
             settings.Current.PdfMargin,
@@ -153,23 +199,23 @@ public sealed class ConversionEngine
             var converted = await Task.Run(() => SubtitleConverter.Convert(input, target, cancellationToken, reportProgress), cancellationToken);
             await Task.Run(() => SubtitleConverter.Write(output, converted), cancellationToken);
             reportProgress(1);
-            return output;
+            return [output];
         }
         if (source.Kind == PortableMediaKind.Archive)
         {
             await Task.Run(() => ArchiveConverter.Convert(input, target, output, cancellationToken, reportProgress), cancellationToken);
-            return output;
+            return [output];
         }
         if (source.Kind == PortableMediaKind.Image && target == "pdf")
         {
-            await Task.Run(() => PdfConversion.CreateImagePdf([input], output, selectedPdfOptions, cancellationToken, reportProgress), cancellationToken);
+            await CreateImagePdfAsync([input], output, selectedPdfOptions, cancellationToken, reportProgress);
             reportProgress(1);
-            return output;
+            return [output];
         }
         if (source.Kind == PortableMediaKind.Pdf)
         {
             var outputs = await PdfConversion.ConvertPdfAsync(input, target, output, selectedPdfOptions, cancellationToken, reportProgress);
-            return outputs.FirstOrDefault() ?? throw new InvalidOperationException("Konversi PDF tidak menghasilkan file.");
+            return outputs.Count > 0 ? outputs : throw new InvalidOperationException("Konversi PDF tidak menghasilkan file.");
         }
 
         var ffmpeg = ResolveFfmpegPath();
@@ -240,7 +286,7 @@ public sealed class ConversionEngine
             if (!File.Exists(output))
                 throw new InvalidOperationException("FFmpeg selesai tetapi file hasil tidak ditemukan.");
             completed = true;
-            return output;
+            return [output];
         }
         finally
         {
@@ -258,6 +304,104 @@ public sealed class ConversionEngine
                 }
                 TryDelete(output);
             }
+        }
+    }
+
+    private async Task CreateImagePdfAsync(
+        IReadOnlyList<string> inputs,
+        string output,
+        PdfConversionOptions options,
+        CancellationToken cancellationToken,
+        Action<double> reportProgress)
+    {
+        var staging = Path.Combine(Path.GetTempPath(), "Ceyloro", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(staging);
+        var prepared = new List<string>(inputs.Count);
+        try
+        {
+            var needsFfmpeg = inputs.Any(path => !PdfConversion.CanCreatePdfFromImage(PortableFileFormat.Detect(path).Extension));
+            var ffmpeg = needsFfmpeg ? ResolveFfmpegPath() : null;
+            var capabilities = needsFfmpeg ? TryGetCapabilities() : null;
+            if (needsFfmpeg && (capabilities?.Supports("png") != true))
+                throw new InvalidOperationException("FFmpeg tidak memiliki encoder PNG untuk menyiapkan gambar PDF.");
+
+            for (var index = 0; index < inputs.Count; index++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var input = inputs[index];
+                var extension = PortableFileFormat.Detect(input).Extension;
+                if (PdfConversion.CanCreatePdfFromImage(extension))
+                {
+                    prepared.Add(input);
+                }
+                else
+                {
+                    if (capabilities?.CanDecodeImage(extension) != true)
+                        throw new InvalidOperationException($"FFmpeg tidak dapat membaca gambar {extension.ToUpperInvariant()} untuk PDF.");
+                    var converted = Path.Combine(staging, $"image-{index + 1:D4}.png");
+                    await ConvertImageAsync(input, converted, "png", ffmpeg!, capabilities, cancellationToken);
+                    prepared.Add(converted);
+                }
+                reportProgress(0.35 * (index + 1d) / Math.Max(inputs.Count, 1));
+            }
+
+            await Task.Run(() => PdfConversion.CreateImagePdf(prepared, output, options, cancellationToken,
+                value => reportProgress(0.35 + 0.65 * value)), cancellationToken);
+        }
+        finally
+        {
+            try { if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true); }
+            catch { }
+        }
+    }
+
+    private async Task ConvertImageAsync(
+        string input,
+        string output,
+        string target,
+        string ffmpeg,
+        FfmpegCapabilities capabilities,
+        CancellationToken cancellationToken)
+    {
+        var arguments = FfmpegCommandBuilder.Build(input, output, target, capabilities, settings.Current);
+        using var process = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = ffmpeg,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            }
+        };
+        foreach (var argument in arguments) process.StartInfo.ArgumentList.Add(argument);
+        if (!process.Start()) throw new InvalidOperationException("FFmpeg tidak dapat menyiapkan gambar untuk PDF.");
+        try
+        {
+            using var registration = cancellationToken.Register(() =>
+            {
+                try { if (!process.HasExited) process.Kill(entireProcessTree: true); }
+                catch { }
+            });
+            cancellationToken.ThrowIfCancellationRequested();
+            var stdout = process.StandardOutput.ReadToEndAsync();
+            var stderr = process.StandardError.ReadToEndAsync();
+            await process.WaitForExitAsync();
+            await stdout;
+            var errorOutput = await stderr;
+            cancellationToken.ThrowIfCancellationRequested();
+            if (process.ExitCode != 0)
+                throw new InvalidOperationException(string.IsNullOrWhiteSpace(errorOutput)
+                    ? "FFmpeg gagal membaca gambar untuk PDF."
+                    : errorOutput.Trim());
+            if (!File.Exists(output))
+                throw new InvalidOperationException("FFmpeg tidak menghasilkan gambar sementara untuk PDF.");
+        }
+        catch
+        {
+            TryDelete(output);
+            throw;
         }
     }
 
@@ -406,3 +550,4 @@ public sealed class ConversionEngine
         }
     }
 }
+

@@ -41,18 +41,27 @@ atau dibundel.
 
 | Sumber | Target Windows |
 | --- | --- |
-| JPG, PNG, WEBP, HEIC, TIFF, BMP, GIF, AVIF | JPG, PNG, HEIC, TIFF, PDF |
+| JPG, PNG, TIFF, BMP, GIF | JPG, PNG, HEIC, TIFF, PDF |
+| WEBP, HEIC, AVIF | JPG, PNG, HEIC, TIFF |
 | PDF | JPG, PNG, TXT untuk PDF yang memiliki teks |
 | MP3, M4A, WAV, FLAC, OGG, OPUS, AIFF, WMA | MP3, M4A, WAV, FLAC, OGG, OPUS, AIFF |
 | MP4, MOV, MKV, WEBM, AVI, WMV | MP4, MOV, MKV, WEBM, AVI, WMV, GIF, serta target audio yang tersedia |
 | GIF animasi | Target video dan audio yang tersedia |
 | SRT, VTT | SRT, VTT, TXT |
-| ZIP, TAR, TAR.GZ | ZIP, TAR, TAR.GZ |
+| ZIP, TAR, TAR.GZ | ZIP, TAR, TAR.GZ (termasuk `.tgz` dan `.gz` yang berisi TAR) |
 
-Selain itu, satu atau beberapa gambar dapat digabung menjadi PDF. PDF multi-
-halaman dapat disimpan sebagai folder atau ZIP. RAR/7Z, OCR untuk PDF hasil
+Selain itu, JPG, PNG, TIFF, BMP, dan GIF dapat dijadikan PDF; satu atau beberapa gambar
+dapat digabung menjadi PDF. WEBP, HEIC, dan AVIF juga dapat dijadikan PDF jika FFmpeg
+yang tersedia dapat membaca format sumber tersebut. PDF multi-halaman dapat
+disimpan sebagai folder atau ZIP. RAR/7Z, OCR untuk PDF hasil
 scan, serta format yang tidak didukung encoder lokal tidak ditawarkan.
+
+Konversi JPG, PNG, TIFF, BMP, dan GIF memakai decoder gambar Windows. TIFF multi-halaman
+menghasilkan satu file per halaman, seperti alur macOS. WEBP, HEIC, dan AVIF memakai FFmpeg
+untuk membuat PNG perantara; ini menjaga transparansi saat target akhirnya JPG, PNG, TIFF,
+atau PDF.
 
 Jika Windows SmartScreen muncul saat pertama kali membuka aplikasi, pilih
 **More info**, lalu **Run anyway** hanya untuk paket yang diunduh dari GitHub
 Release resmi Ceyloro.
+

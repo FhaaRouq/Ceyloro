@@ -22,6 +22,8 @@ public sealed record PortableFileFormat(string Extension, PortableMediaKind Kind
             "jpeg" or "jfif" => "jpg",
             "tif" => "tiff",
             "heif" => "heic",
+            "tgz" => "gzip",
+            "gz" => "gzip",
             _ => extension
         };
 
@@ -35,7 +37,7 @@ public sealed record PortableFileFormat(string Extension, PortableMediaKind Kind
             return new PortableFileFormat(extension, PortableMediaKind.Pdf);
         if (new[] { "srt", "vtt" }.Contains(extension))
             return new PortableFileFormat(extension, PortableMediaKind.Subtitle);
-        if (new[] { "zip", "tar", "gzip", "gz", "tgz", "rar", "7z" }.Contains(extension))
+        if (new[] { "zip", "tar", "gzip", "rar", "7z" }.Contains(extension))
             return new PortableFileFormat(extension, PortableMediaKind.Archive);
         return new PortableFileFormat(extension, PortableMediaKind.Unknown);
     }
@@ -74,3 +76,4 @@ public static class PortablePlanner
         return common.OrderBy(value => value).ToArray();
     }
 }
+
