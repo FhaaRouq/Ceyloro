@@ -2,6 +2,10 @@ import AppKit
 import CeyloroCore
 import ServiceManagement
 
+extension Notification.Name {
+    static let ceyloroEngineSettingsChanged = Notification.Name("CeyloroEngineSettingsChanged")
+}
+
 final class SettingsWindowController: NSWindowController {
     private let folderLabel = NSTextField(labelWithString: "")
     private let multiPagePopup = NSPopUpButton(frame: .zero, pullsDown: false)
@@ -11,9 +15,10 @@ final class SettingsWindowController: NSWindowController {
     private let heicQualityLabel = NSTextField(labelWithString: "")
     private let loginButton = NSButton(checkboxWithTitle: "Mulai saat login", target: nil, action: nil)
     private let mergeAskButton = NSButton(checkboxWithTitle: "Tanyakan opsi saat menggabungkan gambar ke PDF", target: nil, action: nil)
+    private let ffmpegPathField = NSTextField(string: "")
 
     convenience init() {
-        let content = NSView(frame: NSRect(x: 0, y: 0, width: 520, height: 470))
+        let content = NSView(frame: NSRect(x: 0, y: 0, width: 520, height: 520))
         let window = NSWindow(contentRect: content.frame, styleMask: [.titled, .closable], backing: .buffered, defer: true)
         window.title = "Pengaturan Ceyloro"
         window.isReleasedWhenClosed = false
@@ -78,8 +83,23 @@ final class SettingsWindowController: NSWindowController {
         mergeAskButton.action = #selector(mergeAskChanged)
         content.addSubview(mergeAskButton)
 
+        let ffmpegTitle = NSTextField(labelWithString: "FFmpeg")
+        ffmpegTitle.frame = NSRect(x: 24, y: 96, width: 130, height: 20)
+        content.addSubview(ffmpegTitle)
+        ffmpegPathField.frame = NSRect(x: 24, y: 66, width: 310, height: 24)
+        ffmpegPathField.placeholderString = "Otomatis (bundled atau PATH)"
+        ffmpegPathField.lineBreakMode = .byTruncatingMiddle
+        ffmpegPathField.usesSingleLineMode = true
+        content.addSubview(ffmpegPathField)
+        let chooseFFmpeg = NSButton(title: "Pilih…", target: self, action: #selector(chooseFFmpeg))
+        chooseFFmpeg.frame = NSRect(x: 342, y: 63, width: 76, height: 30)
+        content.addSubview(chooseFFmpeg)
+        let resetFFmpeg = NSButton(title: "Otomatis", target: self, action: #selector(resetFFmpeg))
+        resetFFmpeg.frame = NSRect(x: 420, y: 63, width: 76, height: 30)
+        content.addSubview(resetFFmpeg)
+
         let note = NSTextField(wrappingLabelWithString: "Semua pemrosesan berlangsung lokal. File asli tidak pernah diubah atau ditimpa.")
-        note.frame = NSRect(x: 24, y: 42, width: 470, height: 54)
+        note.frame = NSRect(x: 24, y: 22, width: 470, height: 34)
         note.textColor = .secondaryLabelColor
         content.addSubview(note)
         updateControls()
@@ -136,6 +156,26 @@ final class SettingsWindowController: NSWindowController {
         UserDefaults.standard.set(mergeAskButton.state == .on, forKey: "mergePDF.askEveryTime")
     }
 
+    @objc private func chooseFFmpeg() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Pilih"
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            UserDefaults.standard.set(url.path, forKey: "ffmpegPath")
+            self.ffmpegPathField.stringValue = url.path
+            NotificationCenter.default.post(name: .ceyloroEngineSettingsChanged, object: nil)
+        }
+    }
+
+    @objc private func resetFFmpeg() {
+        UserDefaults.standard.removeObject(forKey: "ffmpegPath")
+        ffmpegPathField.stringValue = ""
+        NotificationCenter.default.post(name: .ceyloroEngineSettingsChanged, object: nil)
+    }
+
     private func updateControls() {
         updateFolderLabel()
         let output = MultiPageOutput(rawValue: UserDefaults.standard.string(forKey: "multiPageOutput") ?? "") ?? .folder
@@ -145,6 +185,7 @@ final class SettingsWindowController: NSWindowController {
         updateQualityLabels()
         loginButton.state = SMAppService.mainApp.status == .enabled ? .on : .off
         mergeAskButton.state = (UserDefaults.standard.object(forKey: "mergePDF.askEveryTime") as? Bool ?? true) ? .on : .off
+        ffmpegPathField.stringValue = UserDefaults.standard.string(forKey: "ffmpegPath") ?? ""
     }
 
     private func updateFolderLabel() {

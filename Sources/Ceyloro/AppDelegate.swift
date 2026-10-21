@@ -54,9 +54,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
         monitor.start()
         hotKeyMonitor.onTrigger = { [weak self] in self?.showWheelFromHotKey() }
         hotKeyMonitor.start()
-        let engineStatus = engineProbe.inspect()
-        ffmpegURL = engineStatus.ffmpegURL
-        log("Engine AVFoundation: tersedia; FFmpeg: \(engineStatus.ffmpegURL?.path ?? "tidak ditemukan")")
+        NotificationCenter.default.addObserver(forName: .ceyloroEngineSettingsChanged, object: nil, queue: .main) { [weak self] _ in
+            self?.refreshEngine()
+        }
+        refreshEngine()
         log("Ceyloro started")
     }
 
@@ -88,6 +89,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
         menu.addItem(NSMenuItem(title: "Keluar Ceyloro", action: #selector(quit), keyEquivalent: "q"))
         menu.items.forEach { $0.target = self }
         statusItem.menu = menu
+    }
+
+    private func refreshEngine() {
+        let customPath = UserDefaults.standard.string(forKey: "ffmpegPath")
+        let engineStatus = engineProbe.inspect(customFFmpegPath: customPath)
+        ffmpegURL = engineStatus.ffmpegURL
+        log("Engine AVFoundation: tersedia; FFmpeg: \(engineStatus.ffmpegURL?.path ?? "tidak ditemukan")")
     }
 
     private func showWheel(files: [URL], at point: NSPoint, flags: NSEvent.ModifierFlags) {
@@ -126,7 +134,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
                 return formats.filter { native.contains($0) || ffmpeg.contains($0) }.map { WheelItem(title: $0.title, target: $0, action: nil) }
             }
             if files.allSatisfy({ FileFormat.detect(url: $0).fileExtension == "gif" }) {
-                return formats.filter { ffmpegConverter.supportedTargets(for: files, candidates: [$0], ffmpegURL: ffmpegURL).contains($0) }
+                return ffmpegConverter.supportedTargets(for: files, candidates: FFmpegConversionPolicy.videoTargets, ffmpegURL: ffmpegURL)
                     .map { WheelItem(title: $0.title, target: $0, action: nil) }
             }
             if files.allSatisfy({ FileFormat.detect(url: $0).kind == .subtitle }) {
