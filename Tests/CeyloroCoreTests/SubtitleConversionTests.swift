@@ -36,4 +36,21 @@ final class SubtitleConversionTests: XCTestCase {
 
         XCTAssertEqual(cues, [SubtitleCue(startMilliseconds: 1_000, endMilliseconds: 2_000, text: "Halo")])
     }
+
+    func testExtractDialogueTextFromSRTAndVTTRemovesTimestamps() throws {
+        let srtSource = "1\n00:00:01,250 --> 00:00:02,500\nHalo kawan\n\n2\n00:01:02,000 --> 00:01:03,100\nSelamat datang"
+        let plainText = try SubtitleTranscoder.extractDialogueText(srtSource, from: .srt)
+
+        XCTAssertEqual(plainText, "Halo kawan\nSelamat datang\n")
+        XCTAssertFalse(plainText.contains("-->"))
+        XCTAssertFalse(plainText.contains("00:00:01"))
+    }
+
+    func testSubtitlePolicyIncludesTXTAsNativeTarget() {
+        let policy = SubtitleConversionPolicy()
+        let targets = policy.targets(for: FileFormat(fileExtension: "srt", kind: .subtitle))
+        XCTAssertTrue(targets.contains(.txt))
+        XCTAssertTrue(targets.contains(.vtt))
+        XCTAssertFalse(targets.contains(.srt))
+    }
 }

@@ -102,11 +102,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
                 activeFiles.removeAll()
                 return
             }
+            if currentMode == .convert {
+                let reason = conversionUnavailableReason(for: files)
+                showError(reason)
+                activeFiles.removeAll()
+                return
+            }
             currentMode = .actions
             items = wheelItems(for: files, mode: .actions)
         }
         guard !items.isEmpty else { return }
         overlay.present(files: files, mode: currentMode, items: items, at: point)
+    }
+
+    private func conversionUnavailableReason(for files: [URL]) -> String {
+        guard !files.isEmpty else { return "Tidak ada file yang dipilih." }
+        if files.contains(where: { !FileManager.default.isReadableFile(atPath: $0.path) }) {
+            return "File tidak dapat dibaca atau izin file dibatasi."
+        }
+        let formats = files.map(FileFormat.detect(url:))
+        if formats.contains(where: { $0.kind == .unknown }) {
+            let unknownExts = formats.filter { $0.kind == .unknown }.map { ".\($0.fileExtension)" }.joined(separator: ", ")
+            return "Format \(unknownExts) belum didukung untuk konversi."
+        }
+        if formats.contains(where: { $0.kind == .archive && !ArchiveConversionPolicy.nativeSources.contains($0.fileExtension) }) {
+            let archiveExts = formats.filter { $0.kind == .archive && !ArchiveConversionPolicy.nativeSources.contains($0.fileExtension) }.map { ".\($0.fileExtension)" }.joined(separator: ", ")
+            return "Format arsip \(archiveExts) hanya didukung baca/ekstrak, konversi native belum tersedia."
+        }
+        if formats.allSatisfy({ $0.kind == .audio || $0.kind == .video || $0.fileExtension == "gif" }) && ffmpegURL == nil {
+            return "Format media ini memerlukan engine FFmpeg. Buka Pengaturan untuk memeriksa FFmpeg."
+        }
+        let common = matrix.commonTargets(for: formats)
+        if common.isEmpty {
+            return "Kombinasi jenis file yang dipilih tidak memiliki target konversi bersama."
+        }
+        return "Tidak ada target konversi yang tersedia untuk file ini."
     }
 
     private func showWheelFromHotKey() {

@@ -243,7 +243,7 @@ enum ConversionError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidInput: return "File tidak valid, terkunci, atau tidak dapat dibaca."
-        case .noText: return "PDF tidak berisi teks, mungkin hasil scan."
+        case .noText: return "PDF tidak berisi teks (hasil scan/gambar). Ceyloro belum menyertakan pengenalan teks (OCR)."
         case .encodingFailed: return "Ceyloro tidak dapat menulis hasil konversi."
         case .audioEngineUnavailable: return "Mesin audio macOS tidak mendukung format ini."
         case .videoEngineUnavailable: return "Mesin video macOS tidak mendukung format ini."

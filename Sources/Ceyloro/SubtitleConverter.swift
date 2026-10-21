@@ -12,7 +12,6 @@ final class SubtitleConverter {
     func convert(input: URL, target: TargetFormat, temporaryDirectory: URL, progress: @escaping (Double) -> Void, isCancelled: @escaping () -> Bool) throws -> ConversionResult {
         let source = FileFormat.detect(url: input)
         guard let sourceFormat = SubtitleFormat(rawValue: source.fileExtension),
-              let targetFormat = SubtitleFormat(rawValue: target.fileExtension),
               SubtitleConversionPolicy().targets(for: source).contains(target),
               FileManager.default.isReadableFile(atPath: input.path) else {
             throw ConversionError.invalidInput
@@ -37,7 +36,13 @@ final class SubtitleConverter {
         if isCancelled() { throw CancellationError() }
         let converted: String
         do {
-            converted = try SubtitleTranscoder.convert(text, from: sourceFormat, to: targetFormat)
+            if target == .txt {
+                converted = try SubtitleTranscoder.extractDialogueText(text, from: sourceFormat)
+            } else if let targetFormat = SubtitleFormat(rawValue: target.fileExtension) {
+                converted = try SubtitleTranscoder.convert(text, from: sourceFormat, to: targetFormat)
+            } else {
+                throw ConversionError.invalidInput
+            }
         } catch {
             throw ConversionError.invalidInput
         }

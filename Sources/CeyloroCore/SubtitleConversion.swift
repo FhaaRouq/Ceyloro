@@ -26,7 +26,7 @@ public enum SubtitleConversionError: Error, Equatable, Sendable {
 }
 
 public struct SubtitleConversionPolicy: Sendable {
-    public static let nativeTargets: [TargetFormat] = [.srt, .vtt]
+    public static let nativeTargets: [TargetFormat] = [.srt, .vtt, .txt]
 
     public init() {}
 
@@ -119,6 +119,12 @@ public enum SubtitleTranscoder {
             }
             return "WEBVTT\n\n" + blocks.joined(separator: "\n\n") + "\n"
         }
+    }
+
+    /// Extracts plain dialogue text from all cues, stripping timing headers and cue numbers.
+    public static func extractDialogueText(_ text: String, from source: SubtitleFormat) throws -> String {
+        let cues = try parse(text, format: source)
+        return cues.map(\.text).joined(separator: "\n") + "\n"
     }
 
     private static func parseTimestamp(_ value: String) throws -> Int {
