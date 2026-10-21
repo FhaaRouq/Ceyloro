@@ -113,8 +113,14 @@ final class RadialOverlay: NSPanel {
             self.dismiss()
             self.overlayDelegate?.radialOverlayDidCancel(self)
         }
+        alphaValue = 0
         orderFrontRegardless()
         makeKey()
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.13
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            self.animator().alphaValue = 1
+        }
     }
 
     static func combinedScreenFrame(screens: [NSRect], fallback: NSRect = NSRect(x: 0, y: 0, width: 1440, height: 900)) -> NSRect {
@@ -127,13 +133,26 @@ final class RadialOverlay: NSPanel {
         return files[0].deletingPathExtension().lastPathComponent
     }
 
-    func dismiss() {
+    func dismiss(animated: Bool = true) {
         dismissTimer?.invalidate()
         dismissTimer = nil
-        orderOut(nil)
         files.removeAll()
         items.removeAll()
         wheelView.activeIndex = nil
+        if animated && isVisible {
+            NSAnimationContext.runAnimationGroup({ ctx in
+                ctx.duration = 0.10
+                ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
+                self.animator().alphaValue = 0
+            }, completionHandler: { [weak self] in
+                guard let self else { return }
+                self.orderOut(nil)
+                self.alphaValue = 1
+            })
+        } else {
+            orderOut(nil)
+            alphaValue = 1
+        }
     }
 
     override func cancelOperation(_ sender: Any?) {
