@@ -1,6 +1,7 @@
 import AppKit
 import AVFoundation
 import CoreGraphics
+import CoreVideo
 import ImageIO
 import PDFKit
 import CeyloroCore
@@ -9,6 +10,27 @@ import XCTest
 @testable import Ceyloro
 
 final class ImageConverterTests: XCTestCase {
+    func testNativeVideoCanExportToMOVWhenSupported() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("CeyloroVideo-\(UUID().uuidString)")
+        let source = root.appendingPathComponent("source.mp4")
+        let temporaryDirectory = root.appendingPathComponent("temporary", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try await makeVideo(at: source)
+
+        let converter = VideoConverter()
+        guard converter.supportedTargets(for: [source], candidates: [.mov]).contains(.mov) else {
+            throw XCTSkip("AVFoundation tidak menawarkan ekspor MOV pada sistem ini")
+        }
+
+        let result = try converter.convert(input: source, target: .mov, temporaryDirectory: temporaryDirectory, progress: { _ in }, isCancelled: { false })
+        let output = try XCTUnwrap(result.first)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: output.path))
+        let size = try XCTUnwrap(FileManager.default.attributesOfItem(atPath: output.path)[.size] as? NSNumber).intValue
+        XCTAssertGreaterThan(size, 0)
+        XCTAssertNotNil(AVAsset(url: output))
+    }
+
     func testNativeAudioCanExportToM4AWhenSupported() throws {
         let source = URL(fileURLWithPath: "/System/Library/Sounds/Glass.aiff")
         guard FileManager.default.isReadableFile(atPath: source.path) else {
@@ -148,5 +170,71 @@ final class ImageConverterTests: XCTestCase {
         CGImageDestinationAddImage(destination, image, nil)
         XCTAssertTrue(CGImageDestinationFinalize(destination))
         return url
+    }
+
+    private func makeVideo(at url: URL) async throws {
+        guard let writer = try? AVAssetWriter(outputURL: url, fileType: .mp4) else {
+            throw XCTSkip("AVAssetWriter MP4 tidak tersedia")
+        }
+        let width = 160
+        let height = 120
+        let settings: [String: Any] = [
+            AVVideoCodecKey: AVVideoCodecType.h264,
+            AVVideoWidthKey: width,
+            AVVideoHeightKey: height
+        ]
+        let input = AVAssetWriterInput(mediaType: .video, outputSettings: settings)
+        input.expectsMediaDataInRealTime = false
+        let adaptor = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: input, sourcePixelBufferAttributes: [
+            kCVPixelBufferPixelFormatTypeKey as String: Int(kCVPixelFormatType_32BGRA),
+            kCVPixelBufferWidthKey as String: width,
+            kCVPixelBufferHeightKey as String: height
+        ])
+        guard writer.canAdd(input) else { throw XCTSkip("AVAssetWriter input tidak tersedia") }
+        writer.add(input)
+        guard writer.startWriting() else {
+            throw writer.error ?? NSError(domain: "CeyloroTests", code: 1, userInfo: [NSLocalizedDescriptionKey: "Video fixture gagal dimulai."])
+        }
+        writer.startSession(atSourceTime: .zero)
+        for frame in 0..<3 {
+            while !input.isReadyForMoreMediaData {
+                try await Task.sleep(nanoseconds: 10_000_000)
+            }
+            guard let pixelBuffer = makePixelBuffer(width: width, height: height, frame: frame),
+                  adaptor.append(pixelBuffer, withPresentationTime: CMTime(value: Int64(frame), timescale: 3)) else {
+                writer.cancelWriting()
+                throw writer.error ?? NSError(domain: "CeyloroTests", code: 2, userInfo: [NSLocalizedDescriptionKey: "Video fixture gagal ditulis."])
+            }
+        }
+        input.markAsFinished()
+        await writer.finishWriting()
+        guard writer.status == .completed else {
+            throw writer.error ?? NSError(domain: "CeyloroTests", code: 3, userInfo: [NSLocalizedDescriptionKey: "Video fixture gagal diselesaikan."])
+        }
+    }
+
+    private func makePixelBuffer(width: Int, height: Int, frame: Int) -> CVPixelBuffer? {
+        var pixelBuffer: CVPixelBuffer?
+        let attributes: CFDictionary = [
+            kCVPixelBufferCGImageCompatibilityKey: true,
+            kCVPixelBufferCGBitmapContextCompatibilityKey: true
+        ] as CFDictionary
+        guard CVPixelBufferCreate(kCFAllocatorDefault, width, height, kCVPixelFormatType_32BGRA, attributes, &pixelBuffer) == kCVReturnSuccess,
+              let pixelBuffer else { return nil }
+        guard CVPixelBufferLockBaseAddress(pixelBuffer, []) == kCVReturnSuccess else { return nil }
+        defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, []) }
+        guard let baseAddress = CVPixelBufferGetBaseAddress(pixelBuffer) else { return nil }
+        let bytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer)
+        let bytes = baseAddress.assumingMemoryBound(to: UInt8.self)
+        for y in 0..<height {
+            for x in 0..<width {
+                let offset = y * bytesPerRow + x * 4
+                bytes[offset] = UInt8((x + frame * 20) % 255)
+                bytes[offset + 1] = UInt8((y + frame * 30) % 255)
+                bytes[offset + 2] = UInt8((frame * 60) % 255)
+                bytes[offset + 3] = 255
+            }
+        }
+        return pixelBuffer
     }
 }
