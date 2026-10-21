@@ -125,6 +125,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
                 let ffmpeg = Set(ffmpegConverter.supportedTargets(for: files, candidates: formats, ffmpegURL: ffmpegURL))
                 return formats.filter { native.contains($0) || ffmpeg.contains($0) }.map { WheelItem(title: $0.title, target: $0, action: nil) }
             }
+            if files.allSatisfy({ FileFormat.detect(url: $0).fileExtension == "gif" }) {
+                return formats.filter { ffmpegConverter.supportedTargets(for: files, candidates: [$0], ffmpegURL: ffmpegURL).contains($0) }
+                    .map { WheelItem(title: $0.title, target: $0, action: nil) }
+            }
             if files.allSatisfy({ FileFormat.detect(url: $0).kind == .subtitle }) {
                 return subtitleConverter.supportedTargets(for: files, candidates: formats).map { WheelItem(title: $0.title, target: $0, action: nil) }
             }
@@ -181,6 +185,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
                         return try videoConverter.convert(input: input, target: target, temporaryDirectory: videoTemp, progress: progress, isCancelled: cancelled)
                     }
                     return try ffmpegConverter.convert(input: input, target: target, temporaryDirectory: videoTemp, ffmpegURL: ffmpegURL, progress: progress, isCancelled: cancelled)
+                }
+                if FileFormat.detect(url: input).fileExtension == "gif" {
+                    return try ffmpegConverter.convert(input: input, target: target, temporaryDirectory: temp.appendingPathComponent(UUID().uuidString), ffmpegURL: ffmpegURL, progress: progress, isCancelled: cancelled)
                 }
                 if FileFormat.detect(url: input).kind == .subtitle {
                     return try SubtitleConverter().convert(input: input, target: target, temporaryDirectory: temp.appendingPathComponent(UUID().uuidString), progress: progress, isCancelled: cancelled)

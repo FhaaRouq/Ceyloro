@@ -34,7 +34,7 @@ public struct FileFormat: Hashable, Codable, Sendable {
         let video = ["mp4", "mov", "mkv", "webm", "avi", "wmv", "gif"]
         let document = ["doc", "docx", "rtf", "txt", "md", "pages", "xls", "xlsx", "ppt", "pptx"]
         let subtitle = ["srt", "vtt"]
-        let archive = ["zip", "tar", "gz", "gzip", "rar", "7z"]
+        let archive = ["zip", "tar", "gz", "gzip", "tgz", "rar", "7z"]
 
         if ext == "pdf" { return FileFormat(fileExtension: ext, kind: .pdf) }
         if image.contains(ext) { return FileFormat(fileExtension: ext, kind: .image) }
@@ -107,5 +107,7 @@ public enum TargetFormat: String, CaseIterable, Codable, Sendable {
         }
     }
 
-    public var fileExtension: String { rawValue }
+    public var fileExtension: String {
+        self == .gzip ? "tar.gz" : rawValue
+    }
 }

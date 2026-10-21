@@ -27,7 +27,7 @@ final class ArchiveConverter {
         }
         try fileManager.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
         let staging = temporaryDirectory.appendingPathComponent("archive-staging", isDirectory: true)
-        let contentRoot = staging.appendingPathComponent(input.deletingPathExtension().lastPathComponent, isDirectory: true)
+        let contentRoot = staging.appendingPathComponent(archiveBaseName(for: input, source: source), isDirectory: true)
         try fileManager.createDirectory(at: contentRoot, withIntermediateDirectories: true)
         defer { try? fileManager.removeItem(at: staging) }
 
@@ -48,7 +48,7 @@ final class ArchiveConverter {
             try run(executable: "/usr/bin/ditto", arguments: ["-x", "-k", input.path, destination.path], isCancelled: isCancelled)
         case "tar":
             try run(executable: "/usr/bin/tar", arguments: ["-xf", input.path, "-C", destination.path], isCancelled: isCancelled)
-        case "gz", "gzip":
+        case "gz", "gzip", "tgz":
             try run(executable: "/usr/bin/tar", arguments: ["-xzf", input.path, "-C", destination.path], isCancelled: isCancelled)
         default:
             throw ConversionError.unsupportedConversion
@@ -56,11 +56,12 @@ final class ArchiveConverter {
     }
 
     private func create(target: TargetFormat, contentRoot: URL, output: URL, isCancelled: @escaping () -> Bool) throws {
-        let parent = contentRoot.deletingLastPathComponent()
-        let name = contentRoot.lastPathComponent
+        let packRoot = try preferredPackRoot(for: contentRoot)
+        let parent = packRoot.deletingLastPathComponent()
+        let name = packRoot.lastPathComponent
         switch target {
         case .zip:
-            try run(executable: "/usr/bin/ditto", arguments: ["-c", "-k", "--keepParent", contentRoot.path, output.path], isCancelled: isCancelled)
+            try run(executable: "/usr/bin/ditto", arguments: ["-c", "-k", "--keepParent", packRoot.path, output.path], isCancelled: isCancelled)
         case .tar:
             try run(executable: "/usr/bin/tar", arguments: ["-cf", output.path, "-C", parent.path, name], isCancelled: isCancelled)
         case .gzip:
@@ -68,6 +69,23 @@ final class ArchiveConverter {
         default:
             throw ConversionError.unsupportedConversion
         }
+    }
+
+    private func preferredPackRoot(for contentRoot: URL) throws -> URL {
+        let entries = try fileManager.contentsOfDirectory(at: contentRoot, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles])
+        if entries.count == 1, let candidate = entries.first,
+           (try candidate.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
+            return candidate
+        }
+        return contentRoot
+    }
+
+    private func archiveBaseName(for input: URL, source: FileFormat) -> String {
+        var name = input.deletingPathExtension().lastPathComponent
+        if ["gz", "gzip"].contains(source.fileExtension), name.lowercased().hasSuffix(".tar") {
+            name = String(name.dropLast(4))
+        }
+        return name.isEmpty ? "archive" : name
     }
 
     private func run(executable: String, arguments: [String], isCancelled: @escaping () -> Bool) throws {

@@ -19,6 +19,23 @@ final class ArchiveConverterTests: XCTestCase {
         XCTAssertTrue(try tarContains(output, path: "hello.txt"))
     }
 
+    func testGzipOutputUsesTarGzExtension() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("CeyloroArchive-\(UUID().uuidString)")
+        let sourceFolder = root.appendingPathComponent("sample", isDirectory: true)
+        let sourceZip = root.appendingPathComponent("source.zip")
+        let temporaryDirectory = root.appendingPathComponent("temporary", isDirectory: true)
+        try FileManager.default.createDirectory(at: sourceFolder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try Data("Ceyloro".utf8).write(to: sourceFolder.appendingPathComponent("hello.txt"))
+        try run(executable: "/usr/bin/ditto", arguments: ["-c", "-k", "--keepParent", sourceFolder.path, sourceZip.path])
+
+        let result = try ArchiveConverter().convert(input: sourceZip, target: .gzip, temporaryDirectory: temporaryDirectory, progress: { _ in }, isCancelled: { false })
+        let output = try XCTUnwrap(result.first)
+        XCTAssertEqual(output.pathExtension, "gz")
+        XCTAssertEqual(output.lastPathComponent, "output.tar.gz")
+        XCTAssertTrue(try tarContains(output, path: "hello.txt"))
+    }
+
     private func tarContains(_ archive: URL, path: String) throws -> Bool {
         let process = Process()
         let pipe = Pipe()

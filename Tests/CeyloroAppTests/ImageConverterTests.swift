@@ -54,6 +54,26 @@ final class ImageConverterTests: XCTestCase {
         XCTAssertNotNil(try AVAudioFile(forReading: output))
     }
 
+    func testNativeAudioCanDecodeToWAVPCMWhenSupported() throws {
+        let source = URL(fileURLWithPath: "/System/Library/Sounds/Glass.aiff")
+        guard FileManager.default.isReadableFile(atPath: source.path) else {
+            throw XCTSkip("Audio fixture macOS tidak tersedia")
+        }
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("CeyloroAudio-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let temporaryDirectory = root.appendingPathComponent("temporary", isDirectory: true)
+        let converter = AudioConverter()
+        guard converter.supportedTargets(for: [source], candidates: [.wav]).contains(.wav) else {
+            throw XCTSkip("PCM WAV tidak tersedia pada sistem ini")
+        }
+
+        let result = try converter.convert(input: source, target: .wav, temporaryDirectory: temporaryDirectory, progress: { _ in }, isCancelled: { false })
+        let output = try XCTUnwrap(result.first)
+        XCTAssertEqual(output.pathExtension, "wav")
+        XCTAssertGreaterThan(try AVAudioFile(forReading: output).length, 0)
+    }
+
     func testJPEGExifOrientationIsAppliedWhenConvertingToJPG() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("CeyloroImage-\(UUID().uuidString)")
         let sourceURL = root.appendingPathComponent("portrait-source.jpg")
@@ -68,17 +88,24 @@ final class ImageConverterTests: XCTestCase {
             throw XCTSkip("ImageIO JPEG fixture is unavailable on this system")
         }
 
-        CGImageDestinationAddImage(destination, image, [kCGImagePropertyOrientation: 6] as CFDictionary)
+        let sourceExif: [CFString: Any] = [kCGImagePropertyExifUserComment: "Ceyloro test metadata"]
+        CGImageDestinationAddImage(destination, image, [
+            kCGImagePropertyOrientation: 6,
+            kCGImagePropertyExifDictionary: sourceExif
+        ] as CFDictionary)
         XCTAssertTrue(CGImageDestinationFinalize(destination))
 
         let outputs = try ImageConverter().convert(input: sourceURL, target: .jpg, temporaryDirectory: temporaryDirectory, progress: { _ in }, isCancelled: { false })
         let output = try XCTUnwrap(outputs.first)
         let source = try XCTUnwrap(CGImageSourceCreateWithURL(output as CFURL, nil))
-        let width = try XCTUnwrap(CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as NSDictionary?)[kCGImagePropertyPixelWidth] as? Int
-        let height = try XCTUnwrap(CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as NSDictionary?)[kCGImagePropertyPixelHeight] as? Int
+        let properties = try XCTUnwrap(CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as NSDictionary?)
+        let width = properties[kCGImagePropertyPixelWidth] as? Int
+        let height = properties[kCGImagePropertyPixelHeight] as? Int
 
         XCTAssertEqual(width, 30)
         XCTAssertEqual(height, 60)
+        let outputExif = properties[kCGImagePropertyExifDictionary] as? NSDictionary
+        XCTAssertEqual(outputExif?[kCGImagePropertyExifUserComment] as? String, "Ceyloro test metadata")
     }
 
     func testMergedPDFKeepsInputOrderInPageSizes() throws {

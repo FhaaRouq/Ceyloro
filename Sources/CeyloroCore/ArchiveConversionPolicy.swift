@@ -2,7 +2,7 @@ import Foundation
 
 public struct ArchiveConversionPolicy: Sendable {
     public static let nativeTargets: [TargetFormat] = [.zip, .tar, .gzip]
-    public static let nativeSources = ["zip", "tar", "gz", "gzip"]
+    public static let nativeSources = ["zip", "tar", "gz", "gzip", "tgz"]
 
     public init() {}
 

@@ -53,6 +53,7 @@ public enum FFmpegCommandBuilder {
         default:
             break
         }
+        arguments += ["-progress", "pipe:1", "-nostats"]
         arguments.append(output.path)
         return arguments
     }

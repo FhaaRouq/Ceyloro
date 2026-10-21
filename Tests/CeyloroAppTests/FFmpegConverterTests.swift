@@ -3,6 +3,21 @@ import XCTest
 @testable import Ceyloro
 
 final class FFmpegConverterTests: XCTestCase {
+    func testAnimatedGIFOffersVideoTargetsWhenFFmpegIsAvailable() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("CeyloroGIF-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let fake = root.appendingPathComponent("ffmpeg")
+        let gif = root.appendingPathComponent("animation.gif")
+        try Data("fixture".utf8).write(to: gif)
+        try Data("#!/bin/sh\nexit 0\n".utf8).write(to: fake)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fake.path)
+
+        let targets = FFmpegConverter().supportedTargets(for: [gif], candidates: [.mp4, .jpg, .gif], ffmpegURL: fake)
+
+        XCTAssertEqual(targets, [.mp4])
+    }
+
     func testExecutableBridgeProducesOutput() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("CeyloroFFmpeg-\(UUID().uuidString)")
         let fake = root.appendingPathComponent("ffmpeg")

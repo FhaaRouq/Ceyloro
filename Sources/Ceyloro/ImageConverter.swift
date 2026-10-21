@@ -200,7 +200,8 @@ final class ImageConverter {
         switch target {
         case .jpg:
             guard let flattened = flattenForJPEG(image) else { throw ConversionError.encodingFailed }
-            CGImageDestinationAddImage(destination, flattened, [kCGImageDestinationLossyCompressionQuality: options.jpgQuality] as CFDictionary)
+            properties[kCGImageDestinationLossyCompressionQuality] = options.jpgQuality
+            CGImageDestinationAddImage(destination, flattened, properties as CFDictionary)
         case .heic:
             properties[kCGImageDestinationLossyCompressionQuality] = options.heicQuality
             CGImageDestinationAddImage(destination, image, properties as CFDictionary)

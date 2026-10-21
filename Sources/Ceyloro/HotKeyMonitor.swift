@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 
 final class HotKeyMonitor {
     var onTrigger: (() -> Void)?
@@ -6,6 +7,10 @@ final class HotKeyMonitor {
     private var globalMonitor: Any?
 
     func start() {
+        if !AXIsProcessTrusted() {
+            let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+            _ = AXIsProcessTrustedWithOptions(options)
+        }
         let handler: (NSEvent) -> NSEvent? = { [weak self] event in
             if Self.isFallbackHotKey(event) {
                 self?.onTrigger?()
