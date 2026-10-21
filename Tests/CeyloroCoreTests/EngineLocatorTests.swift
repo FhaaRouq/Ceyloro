@@ -24,4 +24,16 @@ final class EngineLocatorTests: XCTestCase {
 
         XCTAssertNil(FFmpegLocator().locate(searchPaths: [directory], environmentPath: ""))
     }
+
+    func testSearchPathFindsExecutableWithoutBundleLookup() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("CeyloroEngine-\(UUID().uuidString)")
+        let resources = root.appendingPathComponent("Resources", isDirectory: true)
+        let executable = resources.appendingPathComponent("ffmpeg")
+        try FileManager.default.createDirectory(at: resources, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try Data("#!/bin/sh\nexit 0\n".utf8).write(to: executable)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.path)
+
+        XCTAssertEqual(FFmpegLocator().locate(searchPaths: [resources], environmentPath: ""), executable.standardizedFileURL)
+    }
 }
