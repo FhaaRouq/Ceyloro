@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
     private let archiveConverter = ArchiveConverter()
     private let ffmpegConverter = FFmpegConverter()
     private var ffmpegURL: URL?
+    private var ffmpegEncoders: Set<String> = []
     private let engineProbe = RuntimeEngineProbe()
     private var progressWindows: [UUID: ProgressWindowController] = [:]
     private var settingsWindow: SettingsWindowController?
@@ -89,7 +90,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
         let customPath = UserDefaults.standard.string(forKey: "ffmpegPath")
         let engineStatus = engineProbe.inspect(customFFmpegPath: customPath)
         ffmpegURL = engineStatus.ffmpegURL
-        log("Engine AVFoundation: tersedia; FFmpeg: \(engineStatus.ffmpegURL?.path ?? "tidak ditemukan")")
+        ffmpegEncoders = engineStatus.encoders
+        log("Engine AVFoundation: \(engineStatus.avFoundation ? "tersedia" : "tidak tersedia"); FFmpeg: \(engineStatus.ffmpegURL?.path ?? "tidak ditemukan") (encoders: \(engineStatus.encoders.count))")
     }
 
     private func showWheel(files: [URL], at point: NSPoint, flags: NSEvent.ModifierFlags) {
@@ -154,18 +156,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
             let formats = matrix.commonTargets(for: files.map(FileFormat.detect(url:)))
             if files.allSatisfy({ FileFormat.detect(url: $0).kind == .audio }) {
                 let native = Set(audioConverter.supportedTargets(for: files, candidates: formats))
-                let ffmpeg = Set(ffmpegConverter.supportedTargets(for: files, candidates: formats, ffmpegURL: ffmpegURL))
+                let ffmpeg = Set(ffmpegConverter.supportedTargets(for: files, candidates: formats, ffmpegURL: ffmpegURL, encoders: ffmpegEncoders))
                 return formats.filter { native.contains($0) || ffmpeg.contains($0) }.map { WheelItem(title: $0.title, target: $0, action: nil) }
             }
             if files.allSatisfy({ FileFormat.detect(url: $0).kind == .video }) {
                 let native = Set(videoConverter.supportedTargets(for: files, candidates: formats))
-                let ffmpeg = Set(ffmpegConverter.supportedTargets(for: files, candidates: formats, ffmpegURL: ffmpegURL))
+                let ffmpeg = Set(ffmpegConverter.supportedTargets(for: files, candidates: formats, ffmpegURL: ffmpegURL, encoders: ffmpegEncoders))
                 return formats.filter { native.contains($0) || ffmpeg.contains($0) }.map { WheelItem(title: $0.title, target: $0, action: nil) }
             }
             if files.allSatisfy({ FileFormat.detect(url: $0).fileExtension == "gif" }) {
                 let hasAnimated = files.contains { ImageConverter.isAnimatedGIF(at: $0) }
                 if hasAnimated {
-                    let videoTargets = ffmpegConverter.supportedTargets(for: files, candidates: FFmpegConversionPolicy.videoTargets, ffmpegURL: ffmpegURL)
+                    let videoTargets = ffmpegConverter.supportedTargets(for: files, candidates: FFmpegConversionPolicy.videoTargets, ffmpegURL: ffmpegURL, encoders: ffmpegEncoders)
                     let imageTargets = converter.supportedTargets(for: files, candidates: [.png, .pdf])
                     return (videoTargets + imageTargets).map { WheelItem(title: $0.title, target: $0, action: nil) }
                 } else {
@@ -215,24 +217,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
             let videoConverter = self.videoConverter
             let ffmpegConverter = self.ffmpegConverter
             let ffmpegURL = self.ffmpegURL
-            let id = runner.submit(inputs: files, target: target, outputDirectory: outputDirectory, multiPageOutput: multiPageOutput, processor: { [converter, audioConverter, videoConverter, ffmpegConverter, ffmpegURL] input, target, temp, progress, cancelled in
+            let ffmpegEncoders = self.ffmpegEncoders
+            let id = runner.submit(inputs: files, target: target, outputDirectory: outputDirectory, multiPageOutput: multiPageOutput, processor: { [converter, audioConverter, videoConverter, ffmpegConverter, ffmpegURL, ffmpegEncoders] input, target, temp, progress, cancelled in
                 if FileFormat.detect(url: input).kind == .audio {
                     let audioTemp = temp.appendingPathComponent(UUID().uuidString)
                     if audioConverter.supportedTargets(for: [input], candidates: [target]).contains(target) {
                         return try audioConverter.convert(input: input, target: target, temporaryDirectory: audioTemp, progress: progress, isCancelled: cancelled)
                     }
-                    return try ffmpegConverter.convert(input: input, target: target, temporaryDirectory: audioTemp, ffmpegURL: ffmpegURL, progress: progress, isCancelled: cancelled)
+                    return try ffmpegConverter.convert(input: input, target: target, temporaryDirectory: audioTemp, ffmpegURL: ffmpegURL, encoders: ffmpegEncoders, progress: progress, isCancelled: cancelled)
                 }
                 if FileFormat.detect(url: input).kind == .video {
                     let videoTemp = temp.appendingPathComponent(UUID().uuidString)
                     if videoConverter.supportedTargets(for: [input], candidates: [target]).contains(target) {
                         return try videoConverter.convert(input: input, target: target, temporaryDirectory: videoTemp, progress: progress, isCancelled: cancelled)
                     }
-                    return try ffmpegConverter.convert(input: input, target: target, temporaryDirectory: videoTemp, ffmpegURL: ffmpegURL, progress: progress, isCancelled: cancelled)
+                    return try ffmpegConverter.convert(input: input, target: target, temporaryDirectory: videoTemp, ffmpegURL: ffmpegURL, encoders: ffmpegEncoders, progress: progress, isCancelled: cancelled)
                 }
                 if FileFormat.detect(url: input).fileExtension == "gif" {
                     if FFmpegConversionPolicy.videoTargets.contains(target) {
-                        return try ffmpegConverter.convert(input: input, target: target, temporaryDirectory: temp.appendingPathComponent(UUID().uuidString), ffmpegURL: ffmpegURL, progress: progress, isCancelled: cancelled)
+                        return try ffmpegConverter.convert(input: input, target: target, temporaryDirectory: temp.appendingPathComponent(UUID().uuidString), ffmpegURL: ffmpegURL, encoders: ffmpegEncoders, progress: progress, isCancelled: cancelled)
                     }
                     return try converter.convert(input: input, target: target, temporaryDirectory: temp.appendingPathComponent(UUID().uuidString), progress: progress, isCancelled: cancelled, options: imageOptions)
                 }

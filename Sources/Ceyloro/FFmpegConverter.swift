@@ -9,21 +9,25 @@ final class FFmpegConverter {
         self.fileManager = fileManager
     }
 
-    func supportedTargets(for files: [URL], candidates: [TargetFormat], ffmpegURL: URL?) -> [TargetFormat] {
+    func supportedTargets(for files: [URL], candidates: [TargetFormat], ffmpegURL: URL?, encoders: Set<String> = []) -> [TargetFormat] {
         guard let ffmpegURL, isExecutableFile(ffmpegURL), !files.isEmpty else { return [] }
         let formats = files.map(FileFormat.detect(url:))
         let isGIFSelection = formats.allSatisfy { $0.fileExtension == "gif" }
         guard isGIFSelection || formats.allSatisfy({ $0.kind == .audio || $0.kind == .video }) else { return [] }
+        let available = candidates.filter { FFmpegConversionPolicy.supports(target: $0, encoders: encoders) }
         if isGIFSelection {
-            return candidates.filter { FFmpegConversionPolicy.videoTargets.contains($0) && $0.fileExtension != "gif" }
+            return available.filter { FFmpegConversionPolicy.videoTargets.contains($0) && $0.fileExtension != "gif" }
         }
         let policy = FFmpegConversionPolicy()
         guard let first = formats.first else { return [] }
-        return candidates.filter { policy.targets(for: first).contains($0) }
+        return available.filter { policy.targets(for: first).contains($0) }
     }
 
-    func convert(input: URL, target: TargetFormat, temporaryDirectory: URL, ffmpegURL: URL?, progress: @escaping (Double) -> Void, isCancelled: @escaping () -> Bool) throws -> ConversionResult {
+    func convert(input: URL, target: TargetFormat, temporaryDirectory: URL, ffmpegURL: URL?, encoders: Set<String> = [], progress: @escaping (Double) -> Void, isCancelled: @escaping () -> Bool) throws -> ConversionResult {
         guard let ffmpegURL, isExecutableFile(ffmpegURL) else { throw ConversionError.ffmpegUnavailable }
+        guard FFmpegConversionPolicy.supports(target: target, encoders: encoders) else {
+            throw ConversionError.ffmpegFailed(reason: "Binary FFmpeg tidak mendukung encoder untuk format \(target.fileExtension).")
+        }
         let source = FileFormat.detect(url: input)
         let allowedTargets = source.fileExtension == "gif"
             ? FFmpegConversionPolicy.videoTargets
@@ -35,7 +39,7 @@ final class FFmpegConverter {
         let output = temporaryDirectory.appendingPathComponent("output.\(target.fileExtension)")
         let process = Process()
         process.executableURL = ffmpegURL
-        process.arguments = FFmpegCommandBuilder.arguments(input: input, output: output, target: target)
+        process.arguments = FFmpegCommandBuilder.arguments(input: input, output: output, target: target, encoders: encoders)
         let progressPipe = Pipe()
         let errorPipe = Pipe()
         process.standardOutput = progressPipe

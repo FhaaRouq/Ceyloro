@@ -25,7 +25,41 @@ struct RuntimeEngineProbe {
             searchPaths: searchPaths,
             environmentPath: environment["PATH"]
         )
-        _ = AVAsset.self
-        return EngineAvailability(avFoundation: true, ffmpegURL: ffmpegURL)
+        let encoders = ffmpegURL.map(Self.probeEncoders(at:)) ?? []
+        let avFoundation = Self.probeAVFoundation()
+        return EngineAvailability(avFoundation: avFoundation, ffmpegURL: ffmpegURL, encoders: encoders)
+    }
+
+    static func probeEncoders(at url: URL) -> Set<String> {
+        let process = Process()
+        process.executableURL = url
+        process.arguments = ["-encoders"]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = Pipe()
+        do {
+            try process.run()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            process.waitUntilExit()
+            guard process.terminationStatus == 0, let text = String(data: data, encoding: .utf8) else {
+                return []
+            }
+            var encoders = Set<String>()
+            for line in text.components(separatedBy: .newlines) {
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                guard trimmed.hasPrefix("V") || trimmed.hasPrefix("A") || trimmed.hasPrefix("S") else { continue }
+                let parts = trimmed.split(separator: " ", omittingEmptySubsequences: true)
+                if parts.count >= 2 {
+                    encoders.insert(String(parts[1]).lowercased())
+                }
+            }
+            return encoders
+        } catch {
+            return []
+        }
+    }
+
+    static func probeAVFoundation() -> Bool {
+        !AVAssetExportSession.allExportPresets().isEmpty
     }
 }
