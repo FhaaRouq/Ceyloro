@@ -146,6 +146,10 @@ final class ImageConverter {
             break
         }
         context.scaleBy(x: scale, y: scale)
+        // PDF crop boxes may start at a non-zero origin. Move that origin to
+        // the image coordinate space so the visible crop is not shifted out
+        // of the rendered bitmap.
+        context.translateBy(x: -box.minX, y: -box.minY)
         page.draw(with: .cropBox, to: context)
         context.restoreGState()
         return context.makeImage()
