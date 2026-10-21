@@ -57,6 +57,19 @@ public struct JobSnapshot: Sendable {
     }
 }
 
+/// Coordinates concurrent file conversion and merge jobs with bounded parallelism.
+///
+/// ### Threading Model & Concurrency Invariants
+/// - **Thread Safety**: `JobRunner` is safe to call from any thread (UI main thread or background worker threads).
+/// - **State Synchronization**: Access to the mutable state properties (`operations` and `updates`) is strictly
+///   guarded by an internal `NSLock` (`lock`). Callers never hold locks across asynchronous operations.
+/// - **Job Execution**: Tasks are queued and executed asynchronously on an internal `OperationQueue` with bounded
+///   concurrency (`maxConcurrentOperationCount`), ensuring disk and CPU resources are not saturated.
+/// - **Progress & Snapshot Dispatch**: All `Update` callback invocations (`JobSnapshot`) are guaranteed to be
+///   dispatched asynchronously onto `DispatchQueue.main` so UI observers (e.g. progress bars, status items) can
+///   update AppKit views without additional thread hops.
+/// - **Terminal State Cleanup**: When a job completes, fails, or is cancelled, its corresponding entries in
+///   `operations` and `updates` are purged under lock inside `emit` once the final snapshot is handed to the main thread.
 public final class JobRunner {
     public typealias Processor = (_ input: URL, _ target: TargetFormat, _ temporaryDirectory: URL, _ progress: @escaping (Double) -> Void, _ isCancelled: @escaping () -> Bool) throws -> ConversionResult
     public typealias MergeProcessor = (_ inputs: [URL], _ temporaryFile: URL, _ options: PDFMergeOptions, _ progress: @escaping (Double) -> Void, _ isCancelled: @escaping () -> Bool) throws -> URL
@@ -64,22 +77,33 @@ public final class JobRunner {
 
     private let queue: OperationQueue
     private let fileManager: FileManager
+
+    // Guarded by `lock`
     private var operations: [UUID: BlockOperation] = [:]
+    // Guarded by `lock`
     private var updates: [UUID: Update] = [:]
     private let lock = NSLock()
 
+    /// Initializes a job runner with bounded concurrency.
+    /// - Parameters:
+    ///   - maxConcurrentJobs: Maximum operations to run concurrently. Clamped between 1 and activeProcessorCount (up to 4).
+    ///   - fileManager: FileManager instance for file moving and directory operations.
     public init(maxConcurrentJobs: Int = min(max(ProcessInfo.processInfo.activeProcessorCount, 1), 4), fileManager: FileManager = .default) {
         self.queue = OperationQueue()
         self.queue.maxConcurrentOperationCount = maxConcurrentJobs
         self.fileManager = fileManager
     }
 
+    /// Checks if any submitted jobs are currently executing or queued.
+    /// Thread-safe: Acquires `lock` to inspect active operations.
     public var hasActiveJobs: Bool {
         lock.lock()
         defer { lock.unlock() }
         return operations.values.contains { !$0.isFinished }
     }
 
+    /// Cancels all queued and running jobs.
+    /// Thread-safe: Snapshot of active IDs is taken under `lock` before cancellation.
     public func cancelAll() {
         lock.lock()
         let ids = Array(operations.keys)
@@ -87,6 +111,16 @@ public final class JobRunner {
         ids.forEach { cancel(id: $0) }
     }
 
+    /// Submits a batch file conversion job.
+    /// Thread-safe: Registers operation and updates under `lock` before queueing onto background `OperationQueue`.
+    /// - Parameters:
+    ///   - inputs: Source file URLs to convert.
+    ///   - target: Desired target file format.
+    ///   - outputDirectory: Optional destination directory; defaults to the input files' directory.
+    ///   - multiPageOutput: Formatting strategy when multi-page outputs are produced (.folder or .zip).
+    ///   - processor: Heavy conversion callback executed on worker thread.
+    ///   - update: Status callback delivered on `DispatchQueue.main`.
+    /// - Returns: Unique UUID identifying this job.
     @discardableResult
     public func submit(inputs: [URL], target: TargetFormat, outputDirectory: URL? = nil, multiPageOutput: MultiPageOutput = .folder, processor: @escaping Processor, update: @escaping Update) -> UUID {
         let id = UUID()
@@ -175,6 +209,9 @@ public final class JobRunner {
         return id
     }
 
+    /// Cancels a specific job by UUID.
+    /// Thread-safe: Retrieves operation and updates under `lock`. If job was still queued,
+    /// emits a cancellation snapshot immediately on the main thread.
     public func cancel(id: UUID) {
         lock.lock()
         let operation = operations[id]
