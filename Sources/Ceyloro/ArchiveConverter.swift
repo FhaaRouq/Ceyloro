@@ -3,6 +3,7 @@ import Foundation
 
 final class ArchiveConverter {
     private let fileManager: FileManager
+    private let maxExpandedBytes: UInt64 = 2_000_000_000
 
     init(fileManager: FileManager = .default) {
         self.fileManager = fileManager
@@ -14,7 +15,9 @@ final class ArchiveConverter {
               hasExecutable(at: "/usr/bin/ditto"),
               hasExecutable(at: "/usr/bin/tar") else { return [] }
         let policy = ArchiveConversionPolicy()
-        return candidates.filter { policy.targets(for: FileFormat.detect(url: files[0])).contains($0) }
+        let source = FileFormat.detect(url: files[0])
+        guard isSupportedArchive(source, at: files[0]) else { return [] }
+        return candidates.filter { policy.targets(for: source).contains($0) }
     }
 
     func convert(input: URL, target: TargetFormat, temporaryDirectory: URL, progress: @escaping (Double) -> Void, isCancelled: @escaping () -> Bool) throws -> ConversionResult {
@@ -22,7 +25,8 @@ final class ArchiveConverter {
         guard ArchiveConversionPolicy().targets(for: source).contains(target),
               fileManager.isReadableFile(atPath: input.path),
               hasExecutable(at: "/usr/bin/ditto"),
-              hasExecutable(at: "/usr/bin/tar") else {
+              hasExecutable(at: "/usr/bin/tar"),
+              isSupportedArchive(source, at: input) else {
             throw ConversionError.archiveEngineUnavailable
         }
         try fileManager.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
@@ -45,11 +49,11 @@ final class ArchiveConverter {
     private func extract(input: URL, source: FileFormat, destination: URL, isCancelled: @escaping () -> Bool) throws {
         switch source.fileExtension {
         case "zip":
-            try run(executable: "/usr/bin/ditto", arguments: ["-x", "-k", input.path, destination.path], isCancelled: isCancelled)
+            try run(executable: "/usr/bin/ditto", arguments: ["-x", "-k", input.path, destination.path], monitorDirectory: destination, isCancelled: isCancelled)
         case "tar":
-            try run(executable: "/usr/bin/tar", arguments: ["-xf", input.path, "-C", destination.path], isCancelled: isCancelled)
+            try run(executable: "/usr/bin/tar", arguments: ["-xf", input.path, "-C", destination.path], monitorDirectory: destination, isCancelled: isCancelled)
         case "gz", "gzip", "tgz":
-            try run(executable: "/usr/bin/tar", arguments: ["-xzf", input.path, "-C", destination.path], isCancelled: isCancelled)
+            try run(executable: "/usr/bin/tar", arguments: ["-xzf", input.path, "-C", destination.path], monitorDirectory: destination, isCancelled: isCancelled)
         default:
             throw ConversionError.unsupportedConversion
         }
@@ -88,7 +92,7 @@ final class ArchiveConverter {
         return name.isEmpty ? "archive" : name
     }
 
-    private func run(executable: String, arguments: [String], isCancelled: @escaping () -> Bool) throws {
+    private func run(executable: String, arguments: [String], monitorDirectory: URL? = nil, isCancelled: @escaping () -> Bool) throws {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executable)
         process.arguments = arguments
@@ -99,6 +103,11 @@ final class ArchiveConverter {
                 process.waitUntilExit()
                 throw CancellationError()
             }
+            if let monitorDirectory, expandedSize(of: monitorDirectory) > maxExpandedBytes {
+                process.terminate()
+                process.waitUntilExit()
+                throw ConversionError.archiveTooLarge
+            }
             Thread.sleep(forTimeInterval: 0.05)
         }
         guard process.terminationStatus == 0 else {
@@ -108,5 +117,34 @@ final class ArchiveConverter {
 
     private func hasExecutable(at path: String) -> Bool {
         fileManager.isExecutableFile(atPath: path)
+    }
+
+    private func isSupportedArchive(_ source: FileFormat, at url: URL) -> Bool {
+        guard ["gz", "gzip", "tgz"].contains(source.fileExtension) else { return true }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/tar")
+        process.arguments = ["-tzf", url.path]
+        let nullOutput = FileHandle(forWritingAtPath: "/dev/null")
+        process.standardOutput = nullOutput
+        process.standardError = nullOutput
+        do {
+            try process.run()
+            process.waitUntilExit()
+            return process.terminationStatus == 0
+        } catch {
+            return false
+        }
+    }
+
+    private func expandedSize(of directory: URL) -> UInt64 {
+        let keys: Set<URLResourceKey> = [.fileSizeKey, .isDirectoryKey]
+        let enumerator = fileManager.enumerator(at: directory, includingPropertiesForKeys: Array(keys), options: [.skipsHiddenFiles])
+        var total: UInt64 = 0
+        while let url = enumerator?.nextObject() as? URL {
+            guard let values = try? url.resourceValues(forKeys: keys), values.isDirectory != true else { continue }
+            total += UInt64(max(values.fileSize ?? 0, 0))
+            if total > maxExpandedBytes { return total }
+        }
+        return total
     }
 }

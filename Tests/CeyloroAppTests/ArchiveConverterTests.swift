@@ -36,6 +36,20 @@ final class ArchiveConverterTests: XCTestCase {
         XCTAssertTrue(try tarContains(output, path: "hello.txt"))
     }
 
+    func testPlainGzipIsNotOfferedAsTarArchive() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("CeyloroArchive-\(UUID().uuidString)")
+        let input = root.appendingPathComponent("notes.gz")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try Data("not a tar archive".utf8).write(to: root.appendingPathComponent("notes.txt"))
+        FileManager.default.createFile(atPath: input.path, contents: Data())
+        try run(executable: "/usr/bin/gzip", arguments: ["-c", root.appendingPathComponent("notes.txt").path], output: input)
+
+        let targets = ArchiveConverter().supportedTargets(for: [input], candidates: [.zip, .tar, .gzip])
+
+        XCTAssertTrue(targets.isEmpty)
+    }
+
     private func tarContains(_ archive: URL, path: String) throws -> Bool {
         let process = Process()
         let pipe = Pipe()
@@ -49,10 +63,14 @@ final class ArchiveConverterTests: XCTestCase {
         return output.split(whereSeparator: { $0 == "\n" }).contains { $0.hasSuffix(path) }
     }
 
-    private func run(executable: String, arguments: [String]) throws {
+    private func run(executable: String, arguments: [String], output: URL? = nil) throws {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executable)
         process.arguments = arguments
+        if let output {
+            let handle = try FileHandle(forWritingTo: output)
+            process.standardOutput = handle
+        }
         try process.run()
         process.waitUntilExit()
         guard process.terminationStatus == 0 else {
