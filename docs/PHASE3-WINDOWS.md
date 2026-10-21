@@ -19,24 +19,26 @@ capability, request, dan kontrak backend yang dipakai kedua platform.
 - [x] Planner dapat memilih native atau FFmpeg berdasarkan capability.
 - [x] Test capability Windows dan pemilihan backend.
 - [x] Shell Windows awal: system tray, hotkey, overlay radial, drag-and-drop Explorer, Settings, progres, pembatalan, dan batch FFmpeg.
-- [x] Binary FFmpeg Windows x64 untuk paket release: LGPL, dipin ke build tertentu, dan diverifikasi dengan SHA-256 sebelum dipaketkan.
+- [x] Binary FFmpeg dan FFprobe Windows x64/ARM64 untuk paket release: LGPL, dipin ke build tertentu, dan diverifikasi dengan SHA-256 sebelum dipaketkan.
 - [x] Video → audio di planner portable dan shell Windows.
-- [x] Paket release macOS universal dan Windows self-contained dengan FFmpeg yang sudah tersedia.
+- [x] Workflow paket release macOS universal dan Windows self-contained untuk x64/ARM64 dengan FFmpeg yang sesuai arsitektur.
 - [ ] Installer, auto-update, dan code signing Windows; item ini membutuhkan tool installer, sertifikat, dan kredensial distribusi eksternal.
 
 ## Status shell Windows awal
 
 Proyek shell berada di `Windows/Ceyloro.Windows`. Ia sengaja terpisah dari
-target AppKit macOS dan memakai WinForms bawaan .NET 8, sehingga dapat dibangun
-di Windows tanpa menambah paket NuGet. Shell ini mencakup konversi media melalui
-FFmpeg, termasuk video → audio, output unik, progres, pembatalan, dan laporan per
-file. Paket release mengambil binary FFmpeg LGPL yang dipin dan memverifikasi
-checksum-nya sebelum membuat ZIP.
+target AppKit macOS dan memakai WinForms .NET 8. Shell ini mencakup konversi
+media melalui FFmpeg, subtitle SRT/VTT, arsip ZIP/TAR/TAR.GZ, serta PDF melalui
+backend Windows/PdfPig dan penulis PDF lokal. Paket release mengambil FFmpeg dan
+FFprobe LGPL yang dipin untuk tiap arsitektur dan memverifikasi checksum sebelum
+membuat ZIP terpisah. Fitur baru dan paket ARM64 masih menunggu build CI serta
+validasi runtime pada perangkat Windows.
 
-PDF native Windows, integrasi Explorer yang otomatis membuka roda saat drag
-dimulai, installer, auto-update, dan code signing tetap menjadi pekerjaan
-distribusi/parity lanjutan. Fitur kompresi media bukan bagian Fase 3 dan akan
-direncanakan sebagai fase terpisah.
+Integrasi Explorer yang otomatis membuka roda saat drag dimulai, installer,
+auto-update, dan code signing tetap menjadi pekerjaan distribusi/parity
+lanjutan. Fitur kompresi media bukan bagian Fase 3 dan akan direncanakan sebagai
+fase terpisah. Rincian status tiap temuan audit Windows ada di
+[`docs/WINDOWS-AUDIT-REMEDIATION.md`](WINDOWS-AUDIT-REMEDIATION.md).
 
 Build portable product di macOS:
 

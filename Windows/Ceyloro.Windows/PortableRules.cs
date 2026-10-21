@@ -7,6 +7,7 @@ public enum PortableMediaKind
     Video,
     Pdf,
     Subtitle,
+    Archive,
     Unknown
 }
 
@@ -14,7 +15,8 @@ public sealed record PortableFileFormat(string Extension, PortableMediaKind Kind
 {
     public static PortableFileFormat Detect(string path)
     {
-        var extension = Path.GetExtension(path).TrimStart('.').ToLowerInvariant();
+        var lowerPath = path.ToLowerInvariant();
+        var extension = lowerPath.EndsWith(".tar.gz", StringComparison.Ordinal) ? "gzip" : Path.GetExtension(path).TrimStart('.').ToLowerInvariant();
         extension = extension switch
         {
             "jpeg" or "jfif" => "jpg",
@@ -33,6 +35,8 @@ public sealed record PortableFileFormat(string Extension, PortableMediaKind Kind
             return new PortableFileFormat(extension, PortableMediaKind.Pdf);
         if (new[] { "srt", "vtt" }.Contains(extension))
             return new PortableFileFormat(extension, PortableMediaKind.Subtitle);
+        if (new[] { "zip", "tar", "gzip", "gz", "tgz", "rar", "7z" }.Contains(extension))
+            return new PortableFileFormat(extension, PortableMediaKind.Archive);
         return new PortableFileFormat(extension, PortableMediaKind.Unknown);
     }
 }
@@ -43,10 +47,11 @@ public static class PortablePlanner
         new Dictionary<PortableMediaKind, string[]>
         {
             [PortableMediaKind.Image] = ["jpg", "png", "heic", "tiff", "pdf"],
-            [PortableMediaKind.Pdf] = ["jpg", "png"],
+            [PortableMediaKind.Pdf] = ["jpg", "png", "txt"],
             [PortableMediaKind.Audio] = ["mp3", "m4a", "wav", "flac", "ogg", "opus", "aiff"],
             [PortableMediaKind.Video] = ["mp4", "mov", "mkv", "webm", "avi", "wmv", "gif", "mp3", "m4a", "wav", "flac", "ogg", "opus", "aiff"],
-            [PortableMediaKind.Subtitle] = ["srt", "vtt"]
+            [PortableMediaKind.Subtitle] = ["srt", "vtt", "txt"],
+            [PortableMediaKind.Archive] = ["zip", "tar", "gzip"]
         };
 
     public static IReadOnlyList<string> TargetsFor(IEnumerable<string> paths)
@@ -60,7 +65,12 @@ public static class PortablePlanner
             common.IntersectWith(targets[format.Kind]);
 
         foreach (var format in formats)
-            common.Remove(format.Extension);
+        {
+            if (format.Kind != PortableMediaKind.Pdf)
+                common.Remove(format.Extension);
+            if (format.Kind == PortableMediaKind.Archive && format.Extension is "rar" or "7z")
+                return [];
+        }
         return common.OrderBy(value => value).ToArray();
     }
 }
