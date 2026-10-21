@@ -194,6 +194,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
     }
 
     private func showWheelFromHotKey() {
+        if !HotKeyMonitor.isAccessibilityGranted {
+            showPermissionAlert(
+                title: "Izin Aksesibilitas Diperlukan",
+                message: "Ceyloro membutuhkan izin Aksesibilitas agar dapat merespons shortcut global.\n\nBuka Pengaturan Sistem > Privasi & Keamanan > Aksesibilitas, lalu izinkan Ceyloro.",
+                settingsURL: URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
+            )
+            HotKeyMonitor.requestAccessibilityPermission()
+            return
+        }
+
         switch finderSelectionReader.readSelection() {
         case .success(let files):
             guard !files.isEmpty else {

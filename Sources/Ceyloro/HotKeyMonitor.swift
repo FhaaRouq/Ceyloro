@@ -10,10 +10,9 @@ final class HotKeyMonitor {
     private var localMonitor: Any?
     private var globalMonitor: Any?
 
-    func start() {
-        if !AXIsProcessTrusted() {
-            let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-            _ = AXIsProcessTrustedWithOptions(options)
+    func start(promptForAccessibility: Bool = false) {
+        if promptForAccessibility && !AXIsProcessTrusted() {
+            Self.requestAccessibilityPermission()
         }
         let handler: (NSEvent) -> NSEvent? = { [weak self] event in
             if Self.isFallbackHotKey(event) {
@@ -27,6 +26,11 @@ final class HotKeyMonitor {
                 self?.onTrigger?()
             }
         }
+    }
+
+    static func requestAccessibilityPermission() {
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+        _ = AXIsProcessTrustedWithOptions(options)
     }
 
     func stop() {
@@ -47,7 +51,23 @@ final class HotKeyMonitor {
             return false
         }
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        return event.keyCode == 49 && flags == .shift
+        guard event.keyCode == 49 && flags == .shift else { return false }
+
+        // Guard against inline text editing in Finder (e.g. renaming file or typing in search/filter field)
+        let systemWide = AXUIElementCreateSystemWide()
+        var focusedElement: AnyObject?
+        if AXUIElementCopyAttributeValue(systemWide, kAXFocusedUIElementAttribute as CFString, &focusedElement) == .success,
+           let element = focusedElement {
+            var roleValue: AnyObject?
+            if AXUIElementCopyAttributeValue(element as! AXUIElement, kAXRoleAttribute as CFString, &roleValue) == .success,
+               let role = roleValue as? String {
+                if role == (kAXTextFieldRole as String) || role == (kAXTextAreaRole as String) {
+                    return false
+                }
+            }
+        }
+
+        return true
     }
 }
 
