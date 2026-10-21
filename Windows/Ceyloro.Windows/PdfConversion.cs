@@ -197,7 +197,7 @@ internal static class PdfConversion
         try
         {
             if (!image.PropertyIdList.Contains(orientationId)) return;
-            var orientationValue = image.GetPropertyItem(orientationId).Value;
+            var orientationValue = image.GetPropertyItem(orientationId)?.Value;
             if (orientationValue is null || orientationValue.Length < 2) return;
             var orientation = BitConverter.ToUInt16(orientationValue, 0);
             var rotate = orientation switch

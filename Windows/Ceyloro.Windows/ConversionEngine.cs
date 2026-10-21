@@ -169,16 +169,16 @@ public sealed class ConversionEngine
         }
         if (source.Kind == PortableMediaKind.Image && (target is "jpg" or "png" or "tiff") && !WindowsImageConverter.CanDecode(source.Extension))
         {
-            var ffmpeg = ResolveFfmpegPath();
-            var capabilities = TryGetCapabilities();
-            if (capabilities is null || !capabilities.CanDecodeImage(source.Extension) || !capabilities.Supports("png"))
+            var ffmpegPath = ResolveFfmpegPath();
+            var imageCapabilities = TryGetCapabilities();
+            if (imageCapabilities is null || !imageCapabilities.CanDecodeImage(source.Extension) || !imageCapabilities.Supports("png"))
                 throw new InvalidOperationException($"FFmpeg tidak dapat membaca gambar {source.Extension.ToUpperInvariant()} atau menyiapkan PNG perantara.");
             var staging = Path.Combine(Path.GetTempPath(), "Ceyloro", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(staging);
             try
             {
                 var intermediate = Path.Combine(staging, "image.png");
-                await ConvertImageAsync(input, intermediate, "png", ffmpeg, capabilities, cancellationToken);
+                await ConvertImageAsync(input, intermediate, "png", ffmpegPath, imageCapabilities, cancellationToken);
                 var converted = await Task.Run(() => WindowsImageConverter.Convert(intermediate, target,
                     [output], settings.Current, cancellationToken, reportProgress), cancellationToken);
                 return converted;
