@@ -29,8 +29,35 @@ final class FFmpegConversionTests: XCTestCase {
 
         XCTAssertTrue(arguments.contains("-vn"))
         XCTAssertTrue(arguments.contains("-c:a"))
-        XCTAssertTrue(arguments.contains("mp3"))
+        XCTAssertTrue(arguments.contains("libshine"))
+        XCTAssertTrue(arguments.contains("192k"))
         XCTAssertEqual(arguments.last, "/output.mp3")
+    }
+
+    func testOggCommandEnablesExperimentalVorbisAndStereoCompatibility() {
+        let arguments = FFmpegCommandBuilder.arguments(
+            input: URL(fileURLWithPath: "/input.mp4"),
+            output: URL(fileURLWithPath: "/output.ogg"),
+            target: .ogg
+        )
+
+        XCTAssertTrue(arguments.contains("-strict"))
+        XCTAssertTrue(arguments.contains("-2"))
+        XCTAssertTrue(arguments.contains("-ac"))
+        XCTAssertTrue(arguments.contains("2"))
+        XCTAssertTrue(arguments.contains("vorbis"))
+    }
+
+    func testOpusCommandEnablesExperimentalEncoder() {
+        let arguments = FFmpegCommandBuilder.arguments(
+            input: URL(fileURLWithPath: "/input.mp3"),
+            output: URL(fileURLWithPath: "/output.opus"),
+            target: .opus
+        )
+
+        XCTAssertTrue(arguments.contains("-strict"))
+        XCTAssertTrue(arguments.contains("-2"))
+        XCTAssertTrue(arguments.contains("opus"))
     }
 
     func testVideoCommandUsesExpectedCodecAndOutput() {

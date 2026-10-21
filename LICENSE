@@ -20,6 +20,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-This MIT grant applies to the CeyloroCore target only. The Ceyloro app target,
-including its UI, branding, menu-bar integration, and commercial features,
-remains proprietary unless a separate written license says otherwise.
+This MIT grant applies to the CeyloroCore and CeyloroEngine targets only. The
+Ceyloro app target, the Windows shell, including their UI, branding, desktop
+integration, bundled product configuration, and commercial features, remain
+proprietary unless a separate written license says otherwise.

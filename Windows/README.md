@@ -26,3 +26,11 @@ di samping executable atau pilih file tersebut melalui menu **Pengaturan**.
 Alur penggunaan saat ini: jalankan Ceyloro, tekan `Ctrl+Alt+Space`, lalu tarik
 file dari Explorer ke roda dan lepaskan pada target yang diinginkan. `Esc`
 membatalkan overlay.
+
+Shell Windows ini masih preview x64 dan belum setara dengan shell macOS.
+Gestur `Shift` sambil menarik file belum tersedia, dan Windows ARM64 belum
+didukung.
+
+Jika Windows SmartScreen muncul saat pertama kali membuka aplikasi, pilih
+**More info**, lalu **Run anyway** hanya untuk paket yang diunduh dari GitHub
+Release resmi Ceyloro.

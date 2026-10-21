@@ -14,10 +14,21 @@ Semua pemrosesan berjalan lokal. File asli tidak diubah, ditimpa, atau diunggah 
 
 | Platform | Paket |
 | --- | --- |
-| macOS Intel + Apple Silicon | [Download Ceyloro untuk macOS](https://github.com/neuraldigital/Ceyloro/releases/download/v0.1.0-preview.3/Ceyloro-macOS-universal.zip) |
-| Windows x64 | [Download Ceyloro untuk Windows](https://github.com/neuraldigital/Ceyloro/releases/download/v0.1.0-preview.3/Ceyloro-Windows-x64.zip) |
+| macOS Intel + Apple Silicon | [Download Ceyloro untuk macOS](https://github.com/neuraldigital/Ceyloro/releases/download/v0.1.0-preview.4/Ceyloro-macOS-universal.zip) |
+| Windows x64 | [Download Ceyloro untuk Windows](https://github.com/neuraldigital/Ceyloro/releases/download/v0.1.0-preview.4/Ceyloro-Windows-x64.zip) |
 
 Paket di atas adalah preview release. Build macOS sudah universal (`x86_64` + `arm64`), sedangkan paket Windows bersifat self-contained dan tidak memerlukan instalasi .NET.
+
+### Membuka aplikasi preview
+
+Paket preview belum ditandatangani secara resmi.
+
+- **macOS:** buka aplikasi sekali dengan klik kanan **Open**. Jika macOS tetap
+  memblokirnya, buka **System Settings › Privacy & Security**, gulir ke bagian
+  keamanan, lalu pilih **Open Anyway** untuk Ceyloro. Setelah itu konfirmasi
+  **Open**.
+- **Windows:** jika SmartScreen muncul, pilih **More info**, lalu **Run anyway**
+  hanya jika paket diunduh dari halaman Release resmi Ceyloro.
 
 ## Cara menggunakan
 
@@ -37,6 +48,11 @@ Untuk membuka roda tanpa drag, gunakan hotkey cadangan yang dikonfigurasi di apl
 2. Jalankan `Ceyloro.exe`.
 3. Tekan `Ctrl + Alt + Space` untuk membuka roda.
 4. Tarik file dari Explorer ke roda, lalu lepaskan pada format tujuan.
+
+Windows saat ini adalah shell preview x64. Gestur inti macOS—menahan `Shift`
+sambil menarik file dari Finder—belum tersedia di Windows; alur Windows masih
+menggunakan hotkey untuk membuka roda terlebih dahulu. Windows ARM64 juga belum
+didukung.
 
 Paket release Windows sudah membawa FFmpeg LGPL yang sudah diverifikasi. Untuk build dari source, letakkan `ffmpeg.exe` LGPL di samping `Ceyloro.exe` atau pilih lokasinya melalui menu **Pengaturan**.
 
@@ -77,7 +93,7 @@ Fitur lain yang tersedia:
 | --- | --- | --- |
 | macOS Intel | Preview | App universal, target macOS 13+ |
 | macOS Apple Silicon | Preview | App universal, target macOS 13+ |
-| Windows x64 | Preview | Shell tray + radial drag-and-drop |
+| Windows x64 | Preview | Shell tray + hotkey + radial drag-and-drop; belum setara dengan macOS |
 
 Paket preview belum melalui Apple notarization atau Windows code signing. Sistem operasi dapat menampilkan peringatan keamanan saat pertama kali aplikasi dibuka.
 
@@ -130,7 +146,19 @@ Ceyloro menggunakan pendekatan open-core:
 - Shell macOS menggunakan AppKit, ImageIO, PDFKit, AVFoundation, dan FFmpeg.
 - Shell Windows menggunakan WinForms dan FFmpeg.
 
-Target `CeyloroCore` tersedia di bawah MIT. Aplikasi, UI, branding, integrasi desktop, dan fitur komersial tetap proprietary. Lihat [LICENSE](LICENSE) untuk detailnya.
+Komponen proyek memiliki batas lisensi berikut:
+
+| Komponen | Lisensi | Catatan |
+| --- | --- | --- |
+| `CeyloroCore` | MIT | Logika format, hit-testing, penamaan, job runner, dan kebijakan konversi |
+| `CeyloroEngine` | MIT | Kontrak engine lintas-platform |
+| `Sources/Ceyloro/` | Proprietary | App macOS, UI, menu bar, branding, dan integrasi desktop |
+| `Windows/` | Proprietary | Shell Windows, UI, tray, dan integrasi desktop |
+| FFmpeg/libshine | Lisensi pihak ketiga | Mengikuti lisensi dan notice masing-masing komponen |
+
+Kode app terlihat di repo agar build dan audit dapat dilakukan, tetapi visibilitas
+source tidak berarti izin redistribusi. Lihat [LICENSE](LICENSE) dan
+[LICENSE-APP.md](LICENSE-APP.md) sebelum menggunakan komponen proprietary.
 
 ## Roadmap
 
@@ -145,4 +173,7 @@ Bug report dan usulan fitur dapat dibuat melalui [GitHub Issues](https://github.
 
 ## Lisensi
 
-Kode `CeyloroCore` dilisensikan di bawah [MIT License](LICENSE). App Ceyloro dan komponen proprietary lainnya memiliki ketentuan lisensi terpisah. FFmpeg, jika digunakan, mengikuti lisensi distribusinya sendiri.
+`CeyloroCore` dan `CeyloroEngine` dilisensikan di bawah [MIT License](LICENSE).
+App Ceyloro, shell Windows, dan komponen proprietary lainnya mengikuti
+[ketentuan terpisah](LICENSE-APP.md). FFmpeg dan libshine mengikuti lisensi
+distribusinya sendiri.

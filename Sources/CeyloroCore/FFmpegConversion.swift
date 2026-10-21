@@ -23,7 +23,7 @@ public enum FFmpegCommandBuilder {
         var arguments = ["-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-i", input.path]
         switch target {
         case .mp3:
-            arguments += ["-vn", "-c:a", "mp3", "-q:a", "2"]
+            arguments += ["-vn", "-c:a", "libshine", "-b:a", "192k"]
         case .m4a:
             arguments += ["-vn", "-c:a", "aac", "-b:a", "192k"]
         case .wav:
@@ -31,9 +31,9 @@ public enum FFmpegCommandBuilder {
         case .flac:
             arguments += ["-vn", "-c:a", "flac"]
         case .ogg:
-            arguments += ["-vn", "-c:a", "vorbis", "-q:a", "5"]
+            arguments += ["-vn", "-ac", "2", "-strict", "-2", "-c:a", "vorbis", "-q:a", "5"]
         case .opus:
-            arguments += ["-vn", "-c:a", "opus", "-b:a", "128k"]
+            arguments += ["-vn", "-strict", "-2", "-c:a", "opus", "-b:a", "128k"]
         case .aiff:
             arguments += ["-vn", "-c:a", "pcm_s16be"]
         case .mp4:

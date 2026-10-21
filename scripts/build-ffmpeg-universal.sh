@@ -7,9 +7,12 @@ set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 VERSION="${FFMPEG_VERSION:-7.1.1}"
+SHINE_VERSION="${SHINE_VERSION:-3.1.1}"
 BUILD_ROOT="${CEYLORO_FFMPEG_BUILD_ROOT:-${TMPDIR:-/tmp}/ceyloro-ffmpeg-${VERSION}}"
 SOURCE_ARCHIVE="$BUILD_ROOT/ffmpeg-${VERSION}.tar.xz"
 SOURCE_URL="https://ffmpeg.org/releases/ffmpeg-${VERSION}.tar.xz"
+SHINE_ARCHIVE="$BUILD_ROOT/shine-${SHINE_VERSION}.tar.gz"
+SHINE_SOURCE_URL="https://github.com/savonet/shine/archive/refs/tags/${SHINE_VERSION}.tar.gz"
 OUTPUT="$ROOT/Sources/Ceyloro/Resources/ffmpeg"
 
 DEVELOPER_DIR="${DEVELOPER_DIR:-}"
@@ -48,22 +51,78 @@ if [ ! -d "$SOURCE_DIR" ]; then
     tar -xJf "$SOURCE_ARCHIVE" -C "$BUILD_ROOT"
 fi
 
+SHINE_SOURCE_DIR="$BUILD_ROOT/shine-${SHINE_VERSION}"
+if [ ! -f "$SHINE_ARCHIVE" ]; then
+    curl --fail --location --retry 3 --output "$SHINE_ARCHIVE" "$SHINE_SOURCE_URL"
+fi
+if [ ! -d "$SHINE_SOURCE_DIR" ]; then
+    tar -xzf "$SHINE_ARCHIVE" -C "$BUILD_ROOT"
+fi
+
 JOBS="${CEYLORO_FFMPEG_JOBS:-}"
 if [ -z "$JOBS" ]; then
     JOBS=$(sysctl -n hw.ncpu 2>/dev/null || echo 2)
 fi
 
-COMMON_FLAGS="--prefix=%PREFIX% --cc=$TOOLCHAIN/clang --cxx=$TOOLCHAIN/clang++ --host-cc=$TOOLCHAIN/clang --ar=$TOOLCHAIN/ar --ranlib=$TOOLCHAIN/ranlib --strip=$TOOLCHAIN/strip --pkg-config=false --disable-debug --disable-doc --disable-ffplay --disable-ffprobe --disable-gpl --disable-nonfree --disable-x86asm --disable-shared --enable-static --enable-videotoolbox --enable-audiotoolbox --extra-version=ceyloro"
+COMMON_FLAGS="--prefix=%PREFIX% --cc=$TOOLCHAIN/clang --cxx=$TOOLCHAIN/clang++ --host-cc=$TOOLCHAIN/clang --ar=$TOOLCHAIN/ar --ranlib=$TOOLCHAIN/ranlib --strip=$TOOLCHAIN/strip --disable-debug --disable-doc --disable-ffplay --disable-ffprobe --disable-gpl --disable-nonfree --disable-x86asm --disable-shared --enable-static --enable-libshine --enable-videotoolbox --enable-audiotoolbox --extra-version=ceyloro"
+
+build_shine() {
+    ARCH="$1"
+    SHINE_PREFIX_LOCAL="$BUILD_ROOT/shine-install-$ARCH"
+    SHINE_BUILD_DIR_LOCAL="$BUILD_ROOT/shine-build-$ARCH"
+    if [ -f "$SHINE_PREFIX_LOCAL/lib/libshine.a" ]; then
+        return
+    fi
+    rm -rf "$SHINE_BUILD_DIR_LOCAL" "$SHINE_PREFIX_LOCAL"
+    mkdir -p "$SHINE_BUILD_DIR_LOCAL/obj" "$SHINE_PREFIX_LOCAL/include/shine" "$SHINE_PREFIX_LOCAL/lib/pkgconfig"
+    cp "$SHINE_SOURCE_DIR/src/lib/layer3.h" "$SHINE_PREFIX_LOCAL/include/shine/layer3.h"
+    SHINE_CFLAGS="-arch $ARCH -mmacosx-version-min=13.0 -isysroot $SDKROOT -O2 -funroll-loops -fno-exceptions -Wall -fsigned-char -I$SHINE_SOURCE_DIR/src/lib"
+    for source in "$SHINE_SOURCE_DIR"/src/lib/*.c; do
+        object="$SHINE_BUILD_DIR_LOCAL/obj/$(basename "${source%.c}").o"
+        # shellcheck disable=SC2086
+        "$TOOLCHAIN/clang" $SHINE_CFLAGS -c "$source" -o "$object"
+    done
+    "$TOOLCHAIN/ar" rcs "$SHINE_PREFIX_LOCAL/lib/libshine.a" "$SHINE_BUILD_DIR_LOCAL"/obj/*.o
+    "$TOOLCHAIN/ranlib" "$SHINE_PREFIX_LOCAL/lib/libshine.a"
+    cat > "$SHINE_PREFIX_LOCAL/lib/pkgconfig/shine.pc" <<EOF
+prefix=$SHINE_PREFIX_LOCAL
+exec_prefix=\${prefix}
+libdir=\${exec_prefix}/lib
+includedir=\${prefix}/include
+Name: shine
+Description: Fixed-point MP3 encoder
+Version: $SHINE_VERSION
+Libs: -L\${libdir} -lshine -lm
+Cflags: -I\${includedir}
+EOF
+}
 
 for ARCH in x86_64 arm64; do
     PREFIX="$BUILD_ROOT/install-$ARCH"
     BUILD_DIR="$BUILD_ROOT/build-$ARCH"
-    if [ -x "$PREFIX/bin/ffmpeg" ]; then
+    if [ -x "$PREFIX/bin/ffmpeg" ] && [ -f "$PREFIX/.ceyloro-shine-enabled" ]; then
         echo "Menggunakan slice $ARCH yang sudah selesai: $PREFIX/bin/ffmpeg"
         continue
     fi
     rm -rf "$BUILD_DIR" "$PREFIX"
     mkdir -p "$BUILD_DIR" "$PREFIX"
+    build_shine "$ARCH"
+    SHINE_PREFIX="$BUILD_ROOT/shine-install-$ARCH"
+    PKG_CONFIG_SHINE="$BUILD_ROOT/pkg-config-shine-$ARCH"
+    cat > "$PKG_CONFIG_SHINE" <<EOF
+#!/bin/sh
+case "\$*" in
+    --version*) printf '%s\\n' '1.8.1' ;;
+    *--exists*) exit 0 ;;
+    *--cflags*) printf '%s\\n' '-I$SHINE_PREFIX/include' ;;
+    *--libs*) printf '%s\\n' '-L$SHINE_PREFIX/lib -lshine -lm' ;;
+    *--variable=includedir*) printf '%s\\n' '$SHINE_PREFIX/include' ;;
+    *--cflags-only-I*) printf '%s\\n' '-I$SHINE_PREFIX/include' ;;
+    *--modversion*) printf '%s\\n' '$SHINE_VERSION' ;;
+    *) exit 1 ;;
+esac
+EOF
+    chmod +x "$PKG_CONFIG_SHINE"
     CFLAGS="-arch $ARCH -mmacosx-version-min=13.0 -isysroot $SDKROOT"
     LDFLAGS="-arch $ARCH -mmacosx-version-min=13.0 -isysroot $SDKROOT -framework VideoToolbox -framework AudioToolbox -framework CoreMedia -framework CoreVideo"
     HOST_CFLAGS="-arch x86_64 -mmacosx-version-min=13.0 -isysroot $SDKROOT"
@@ -76,13 +135,16 @@ for ARCH in x86_64 arm64; do
         cd "$BUILD_DIR"
         # shellcheck disable=SC2086
         "$SOURCE_DIR/configure" $TARGET_FLAGS $(printf '%s' "$COMMON_FLAGS" | sed "s|%PREFIX%|$PREFIX|g") \
+            --pkg-config="$PKG_CONFIG_SHINE" \
             --extra-cflags="$CFLAGS" \
-            --extra-ldflags="$LDFLAGS" \
+            --extra-ldflags="$LDFLAGS -L$SHINE_PREFIX/lib" \
+            --extra-libs="-lshine -lm" \
             --host-cflags="$HOST_CFLAGS" \
             --host-ldflags="$HOST_LDFLAGS"
         make -j"$JOBS"
         make install
     )
+    touch "$PREFIX/.ceyloro-shine-enabled"
 done
 
 mkdir -p "$(dirname -- "$OUTPUT")"
@@ -93,7 +155,8 @@ lipo -create \
 chmod +x "$OUTPUT"
 
 echo "FFmpeg source: $SOURCE_URL"
+echo "libshine source: $SHINE_SOURCE_URL"
 echo "FFmpeg output: $OUTPUT"
 "$ROOT/scripts/verify-ffmpeg.sh" "$OUTPUT"
 echo "SHA-256: $(shasum -a 256 "$OUTPUT" | awk '{print $1}')"
-echo "Build config: LGPL-only, --disable-gpl --disable-nonfree, macOS 13+, x86_64 + arm64"
+echo "Build config: LGPL-only, libshine $SHINE_VERSION, --disable-gpl --disable-nonfree, macOS 13+, x86_64 + arm64"

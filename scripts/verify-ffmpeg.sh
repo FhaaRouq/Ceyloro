@@ -27,4 +27,12 @@ case "$VERSION" in
         ;;
 esac
 
+ENCODERS=$($FFMPEG_PATH -hide_banner -encoders 2>/dev/null)
+for encoder in libshine opus vorbis; do
+    if ! printf '%s\n' "$ENCODERS" | grep -Eq "[[:space:]]${encoder}[[:space:]]"; then
+        echo "FFmpeg tidak memiliki encoder audio yang dibutuhkan: $encoder" >&2
+        exit 1
+    fi
+done
+
 echo "FFmpeg universal valid: $ARCHS"
