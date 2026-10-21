@@ -39,6 +39,12 @@ lipo -create \
 cp "$ROOT/Sources/Ceyloro/Resources/Info.plist" "$APP/Contents/Info.plist"
 if [ -f "$ROOT/Sources/Ceyloro/Resources/Ceyloro.icns" ]; then
     cp "$ROOT/Sources/Ceyloro/Resources/Ceyloro.icns" "$APP/Contents/Resources/Ceyloro.icns"
+else
+    echo "Peringatan: Aset branding $ROOT/Sources/Ceyloro/Resources/Ceyloro.icns tidak ditemukan." >&2
+    if [ "${CEYLORO_REQUIRE_BRANDING:-0}" = "1" ] || [ "${CI:-}" = "true" ]; then
+        echo "Error: Build release mewajibkan Ceyloro.icns ada." >&2
+        exit 1
+    fi
 fi
 if [ -f "$ROOT/Sources/Ceyloro/Resources/CeyloroMenuTemplate.png" ]; then
     cp "$ROOT/Sources/Ceyloro/Resources/CeyloroMenuTemplate.png" "$APP/Contents/Resources/CeyloroMenuTemplate.png"

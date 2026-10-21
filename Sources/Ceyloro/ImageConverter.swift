@@ -20,6 +20,12 @@ struct ImageConversionOptions: Sendable {
 }
 
 final class ImageConverter {
+    static func isAnimatedGIF(at url: URL) -> Bool {
+        guard url.pathExtension.lowercased() == "gif",
+              let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return false }
+        return CGImageSourceGetCount(source) > 1
+    }
+
     func supportedTargets(for files: [URL], candidates: [TargetFormat]) -> [TargetFormat] {
         candidates.filter { target in
             guard !files.isEmpty else { return false }
