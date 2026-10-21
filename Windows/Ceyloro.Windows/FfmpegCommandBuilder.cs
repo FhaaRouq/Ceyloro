@@ -11,7 +11,7 @@ internal static class FfmpegCommandBuilder
         FfmpegCapabilities capabilities,
         AppSettings settings)
     {
-        var arguments = new List<string> { "-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-i", input };
+        var arguments = new List<string> { "-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-protocol_whitelist", "file,crypto,data", "-i", input };
         if (target is "jpg" or "png" or "heic" or "tiff")
         {
             arguments.AddRange(["-frames:v", "1", "-an", "-c:v", RequiredEncoder(capabilities, target)]);
@@ -39,7 +39,7 @@ internal static class FfmpegCommandBuilder
             if (target == "webm") arguments.AddRange(["-crf", "32", "-b:v", "0"]);
             else if (target is "mp4" or "mov" or "mkv" or "avi") arguments.AddRange(["-q:v", "3"]);
             if (target == "gif")
-                arguments.AddRange(["-an", "-vf", "fps=12,scale=iw:-1:flags=lanczos"]);
+                arguments.AddRange(["-an", "-vf", "fps=12,scale='min(480,iw)':-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse"]);
             else if (target == "webm")
                 arguments.AddRange(["-c:a", capabilities.AudioEncoderFor("opus") ?? "copy"]);
             else if (target == "avi")

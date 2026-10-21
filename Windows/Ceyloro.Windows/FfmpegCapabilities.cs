@@ -8,7 +8,7 @@ internal sealed class FfmpegCapabilities
     private static readonly IReadOnlyDictionary<string, string[]> encoders = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
     {
         ["jpg"] = ["mjpeg"], ["png"] = ["png"], ["heic"] = ["libx265", "hevc"], ["tiff"] = ["tiff"],
-        ["mp3"] = ["libshine", "libmp3lame"], ["m4a"] = ["aac"], ["wav"] = ["pcm_s16le"],
+        ["mp3"] = ["libmp3lame", "libshine"], ["m4a"] = ["aac"], ["wav"] = ["pcm_s16le"],
         ["flac"] = ["flac"], ["ogg"] = ["libvorbis", "vorbis"], ["opus"] = ["libopus", "opus"], ["aiff"] = ["pcm_s16be"],
         ["mp4"] = ["mpeg4", "libx264", "h264"], ["mov"] = ["mpeg4", "libx264", "h264"],
         ["mkv"] = ["mpeg4", "libx264", "h264"], ["webm"] = ["libvpx-vp9", "libvpx", "vp9"],

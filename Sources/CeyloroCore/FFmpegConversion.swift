@@ -56,10 +56,10 @@ public struct FFmpegConversionPolicy: Sendable {
 
 public enum FFmpegCommandBuilder {
     public static func arguments(input: URL, output: URL, target: TargetFormat, encoders: Set<String> = []) -> [String] {
-        var arguments = ["-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-i", input.path]
+        var arguments = ["-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-protocol_whitelist", "file,crypto,data", "-i", input.path]
         switch target {
         case .mp3:
-            let codec = encoders.contains("libshine") || encoders.isEmpty ? "libshine" : (encoders.contains("libmp3lame") ? "libmp3lame" : "mp3")
+            let codec = encoders.contains("libmp3lame") || encoders.isEmpty ? "libmp3lame" : (encoders.contains("libshine") ? "libshine" : "mp3")
             arguments += ["-vn", "-c:a", codec, "-b:a", "192k"]
         case .m4a:
             arguments += ["-vn", "-c:a", "aac", "-b:a", "192k"]
@@ -87,7 +87,7 @@ public enum FFmpegCommandBuilder {
         case .wmv:
             arguments += ["-c:v", "wmv2", "-c:a", "wmav2"]
         case .gif:
-            arguments += ["-an", "-vf", "fps=12,scale=iw:-1:flags=lanczos"]
+            arguments += ["-an", "-vf", "fps=12,scale='min(480,iw)':-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse"]
         default:
             break
         }

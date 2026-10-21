@@ -29,8 +29,10 @@ final class FFmpegConversionTests: XCTestCase {
 
         XCTAssertTrue(arguments.contains("-vn"))
         XCTAssertTrue(arguments.contains("-c:a"))
-        XCTAssertTrue(arguments.contains("libshine"))
+        XCTAssertTrue(arguments.contains("libmp3lame"))
         XCTAssertTrue(arguments.contains("192k"))
+        XCTAssertTrue(arguments.contains("-protocol_whitelist"))
+        XCTAssertTrue(arguments.contains("file,crypto,data"))
         XCTAssertEqual(arguments.last, "/output.mp3")
     }
 

@@ -45,16 +45,20 @@ final class OutputNamingTests: XCTestCase {
         XCTAssertEqual(result.lastPathComponent, "..-hasil-tersembunyi.pdf")
     }
 
-    func testCompoundArchiveExtensionsAreStrippedCorrectly() {
+    func testCompoundArchiveExtensionsAreStrippedCorrectly() throws {
         let naming = OutputNaming()
-        let tarGz = URL(fileURLWithPath: "/tmp/backup.tar.gz")
-        let tgz = URL(fileURLWithPath: "/tmp/assets.tgz")
-        let tarBz2 = URL(fileURLWithPath: "/tmp/archive.tar.bz2")
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("CeyloroTestCompound-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
 
-        XCTAssertEqual(naming.uniqueURL(for: tarGz, target: .zip).lastPathComponent, "backup.zip")
-        XCTAssertEqual(naming.uniqueURL(for: tgz, target: .zip).lastPathComponent, "assets.zip")
-        XCTAssertEqual(naming.uniqueURL(for: tarBz2, target: .tar).lastPathComponent, "archive.tar")
-        XCTAssertEqual(naming.reserveUniqueURL(for: tarGz, target: .zip).lastPathComponent, "backup.zip")
+        let tarGz = dir.appendingPathComponent("backup.tar.gz")
+        let tgz = dir.appendingPathComponent("assets.tgz")
+        let tarBz2 = dir.appendingPathComponent("archive.tar.bz2")
+
+        XCTAssertEqual(naming.uniqueURL(for: tarGz, target: .zip, in: dir).lastPathComponent, "backup.zip")
+        XCTAssertEqual(naming.uniqueURL(for: tgz, target: .zip, in: dir).lastPathComponent, "assets.zip")
+        XCTAssertEqual(naming.uniqueURL(for: tarBz2, target: .tar, in: dir).lastPathComponent, "archive.tar")
+        XCTAssertEqual(naming.reserveUniqueURL(for: tarGz, target: .zip, in: dir).lastPathComponent, "backup.zip")
     }
 
     func testReserveUniqueURLAtomicallyCreatesZeroBytePlaceholder() throws {
