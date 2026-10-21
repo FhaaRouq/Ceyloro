@@ -29,6 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         return folder.appendingPathComponent("app.log")
     }()
+    private var logFileHandle: FileHandle?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         if let bundleIdentifier = Bundle.main.bundleIdentifier,
@@ -69,6 +70,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
         hotKeyMonitor.stop()
         runner.cancelAll()
         cleanupOldTemporaryDirectories(cutoffInterval: 0)
+        try? logFileHandle?.close()
+        logFileHandle = nil
     }
 
     private func setupStatusItem() {
@@ -517,12 +520,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
     private func log(_ message: String) {
         let sanitized = Self.sanitizeLogMessage(message)
         let line = "[\(Self.logDateFormatter.string(from: Date()))] \(sanitized)\n"
-        if let data = line.data(using: .utf8), let handle = try? FileHandle(forWritingTo: logURL) {
-            handle.seekToEndOfFile()
-            handle.write(data)
-            try? handle.close()
+        guard let data = line.data(using: .utf8) else { return }
+
+        if logFileHandle == nil {
+            if !FileManager.default.fileExists(atPath: logURL.path) {
+                FileManager.default.createFile(atPath: logURL.path, contents: nil)
+            }
+            logFileHandle = try? FileHandle(forWritingTo: logURL)
+            _ = try? logFileHandle?.seekToEnd()
+        }
+
+        if let handle = logFileHandle {
+            try? handle.write(contentsOf: data)
         } else {
-            try? line.data(using: .utf8)?.write(to: logURL, options: .atomic)
+            try? data.write(to: logURL, options: .atomic)
         }
     }
 
@@ -544,6 +555,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
         guard let attributes = try? fileManager.attributesOfItem(atPath: logURL.path),
               let size = attributes[.size] as? NSNumber,
               size.intValue > 1_048_576 else { return }
+        try? logFileHandle?.close()
+        logFileHandle = nil
         let rotated = logURL.deletingLastPathComponent().appendingPathComponent("app.log.1")
         try? fileManager.removeItem(at: rotated)
         try? fileManager.moveItem(at: logURL, to: rotated)
