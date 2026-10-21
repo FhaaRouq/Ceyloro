@@ -121,10 +121,11 @@ public final class JobRunner {
                             throw NSError(domain: "Ceyloro", code: 1, userInfo: [NSLocalizedDescriptionKey: "File tidak dapat dibaca: \(input.lastPathComponent)"])
                         }
 
-                        let inputProgress = { (value: Double) in
-                            let overall = (Double(index) + min(max(value, 0), 1)) / Double(total)
-                            self.emit(JobSnapshot(id: id, state: .running, progress: overall, message: input.lastPathComponent, outputs: outputs, failures: failures), update: update)
-                        }
+                let inputProgress = { (value: Double) in
+                    let overall = (Double(index) + min(max(value, 0), 1)) / Double(total)
+                    let msg = total > 1 ? "\(input.lastPathComponent) → \(target.title) (\(index + 1)/\(total))" : "\(input.lastPathComponent) → \(target.title)"
+                    self.emit(JobSnapshot(id: id, state: .running, progress: overall, message: msg, outputs: outputs, failures: failures), update: update)
+                }
                         let fileTemp = tempRoot.appendingPathComponent(UUID().uuidString, isDirectory: true)
                         let produced = try processor(input, target, fileTemp, inputProgress, { operation?.isCancelled == true })
                         if operation?.isCancelled == true { throw CancellationError() }
@@ -213,8 +214,7 @@ public final class JobRunner {
                 try self.fileManager.createDirectory(at: folder, withIntermediateDirectories: true)
                 let destination = OutputNaming().reserveUniqueURL(baseName: outputName, fileExtension: "pdf", in: folder, fileManager: self.fileManager)
                 do {
-                    try? self.fileManager.removeItem(at: destination)
-                    try self.moveSafely(from: result, to: destination)
+                    try self.moveSafely(from: result, to: destination, overwritePlaceholder: true)
                     self.emit(JobSnapshot(id: id, state: .completed, progress: 1, message: "Selesai", outputs: [destination]), update: update)
                 } catch {
                     try? self.fileManager.removeItem(at: destination)
@@ -259,8 +259,7 @@ public final class JobRunner {
                 if operation?.isCancelled == true { throw CancellationError() }
                 let destination = naming.reserveUniqueURL(for: input, target: target, in: destinationFolder, fileManager: fileManager)
                 do {
-                    try? fileManager.removeItem(at: destination)
-                    try moveSafely(from: temporaryURL, to: destination)
+                    try moveSafely(from: temporaryURL, to: destination, overwritePlaceholder: true)
                     committed.append(destination)
                 } catch {
                     try? fileManager.removeItem(at: destination)
@@ -329,7 +328,12 @@ public final class JobRunner {
     // Keep an existing destination intact if a cross-volume copy fails.
     // The caller already chooses unique destination names, so deleting the
     // destination here could destroy an unrelated file in a race.
-    func moveSafely(from source: URL, to destination: URL) throws {
+    func moveSafely(from source: URL, to destination: URL, overwritePlaceholder: Bool = false) throws {
+        if overwritePlaceholder && fileManager.fileExists(atPath: destination.path) {
+            if let _ = try? fileManager.replaceItemAt(destination, withItemAt: source) {
+                return
+            }
+        }
         do {
             try fileManager.moveItem(at: source, to: destination)
         } catch let moveError {

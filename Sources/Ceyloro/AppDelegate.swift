@@ -1,5 +1,6 @@
 import AppKit
 import CeyloroCore
+import UserNotifications
 
 final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate {
     private var statusItem: NSStatusItem!
@@ -39,6 +40,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
         rotateLogIfNeeded()
         NSApp.setActivationPolicy(.accessory)
         setupStatusItem()
+        requestNotificationPermission()
         checkPermissionsOnLaunch()
         overlay.overlayDelegate = self
         monitor.onWheelChange = { [weak self] files, point, flags in self?.showWheel(files: files, at: point, flags: flags) }
@@ -70,7 +72,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
     }
 
     private func setupStatusItem() {
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let image = Bundle.main.image(forResource: "CeyloroMenuTemplate") {
             image.isTemplate = true
             image.size = NSSize(width: 18, height: 18)
@@ -78,6 +80,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
         } else {
             statusItem.button?.image = NSImage(systemSymbolName: "circle.grid.3x3", accessibilityDescription: "Ceyloro")
         }
+        statusItem.button?.imagePosition = .imageLeft
         statusItem.button?.toolTip = "Ceyloro"
         let menu = NSMenu()
         menu.addItem(NSMenuItem(title: "Ceyloro aktif", action: nil, keyEquivalent: ""))
@@ -88,6 +91,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
         menu.addItem(NSMenuItem(title: "Keluar Ceyloro", action: #selector(quit), keyEquivalent: "q"))
         menu.items.forEach { $0.target = self }
         statusItem.menu = menu
+    }
+
+    private func updateStatusItemState() {
+        let hasActiveJobs = !progressWindows.isEmpty
+        DispatchQueue.main.async { [weak self] in
+            guard let self, let button = self.statusItem?.button else { return }
+            if hasActiveJobs {
+                button.title = " ●"
+                button.toolTip = "Ceyloro (Mengonversi…)"
+            } else {
+                button.title = ""
+                button.toolTip = "Ceyloro"
+            }
+        }
+    }
+
+    private func requestNotificationPermission() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+    }
+
+    private func sendCompletionNotification(outputs: [URL]) {
+        let content = UNMutableNotificationContent()
+        content.title = "Konversi Selesai"
+        if outputs.count == 1, let first = outputs.first {
+            content.body = "Hasil disimpan: \(first.lastPathComponent)"
+        } else {
+            content.body = "\(outputs.count) file berhasil dikonversi."
+        }
+        content.sound = .default
+        let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(request, withCompletionHandler: nil)
     }
 
     private func refreshEngine() {
@@ -298,6 +332,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
             }
             let progressWindow = ProgressWindowController()
             progressWindows[id] = progressWindow
+            updateStatusItemState()
             progressWindow.show(jobID: id, cancel: { [weak self] id in self?.runner.cancel(id: id) })
             log("Job \(id.uuidString) submitted: \(target.title) for \(files.count) file(s)")
         case .tools:
@@ -346,6 +381,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
             }
             let progressWindow = ProgressWindowController()
             progressWindows[id] = progressWindow
+            updateStatusItemState()
             progressWindow.show(jobID: id, cancel: { [weak self] id in self?.runner.cancel(id: id) })
             log("Job \(id.uuidString) submitted: gabungkan \(files.count) gambar menjadi PDF")
         case .each:
@@ -361,6 +397,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
             }
             let progressWindow = ProgressWindowController()
             progressWindows[id] = progressWindow
+            updateStatusItemState()
             progressWindow.show(jobID: id, cancel: { [weak self] id in self?.runner.cancel(id: id) })
             log("Job \(id.uuidString) submitted: \(files.count) gambar menjadi PDF terpisah")
         }
@@ -384,9 +421,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
             let details = snapshot.failures.map { "\($0.input.lastPathComponent): \($0.message)" }.joined(separator: "\n")
             showError("Selesai dengan \(snapshot.failures.count) file gagal.\n\n\(details)")
         }
-        if snapshot.state == .completed, !snapshot.outputs.isEmpty { NSWorkspace.shared.activateFileViewerSelecting(snapshot.outputs) }
+        if snapshot.state == .completed, !snapshot.outputs.isEmpty {
+            NSWorkspace.shared.activateFileViewerSelecting(snapshot.outputs)
+            sendCompletionNotification(outputs: snapshot.outputs)
+        }
         if snapshot.state == .completed || snapshot.state == .failed || snapshot.state == .cancelled {
             progressWindows.removeValue(forKey: snapshot.id)
+            updateStatusItemState()
         }
     }
 
