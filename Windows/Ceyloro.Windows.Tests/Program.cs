@@ -13,7 +13,8 @@ var tests = new (string Name, Action Run)[]
     ("converts valid gzip TAR without leaving partial output", GzipArchiveConversion),
     ("exports every TIFF page and preserves PNG alpha", MultiPageTiffConversion),
     ("flattens transparent pixels to white in JPEG output", JpegTransparencyFlattening),
-    ("cancels image conversion before writing output", ImageConversionCancellation)
+    ("cancels image conversion before writing output", ImageConversionCancellation),
+    ("radial geometry hit tests sectors and boundaries correctly", RadialGeometryHitTesting)
 };
 
 var failures = new List<string>();
@@ -174,6 +175,47 @@ static void CreateMultiPageTiff(string path)
     parameters.Param[0].Dispose();
     parameters.Param[0] = new EncoderParameter(DrawingEncoder.SaveFlag, (long)EncoderValue.Flush);
     first.SaveAdd(parameters);
+}
+
+static void RadialGeometryHitTesting()
+{
+    var center = new Point(500, 500);
+
+    // Points inside hub (< 66 radius) return -1
+    Ensure(RadialGeometry.HitTest(center, center, 6) == -1, "Hub center should return -1.");
+    Ensure(RadialGeometry.HitTest(center, new Point(500, 550), 6) == -1, "Inner ring point should return -1.");
+
+    // Points outside outer radius (> 154) return -1
+    Ensure(RadialGeometry.HitTest(center, new Point(500, 700), 6) == -1, "Far outside point should return -1.");
+
+    // 0 sectors return -1
+    Ensure(RadialGeometry.HitTest(center, new Point(500, 390), 0) == -1, "Zero sectors should return -1.");
+
+    // Test for 6 sectors (step = 60 degrees):
+    // Sector 0 center is at 12 o'clock: dx = 0, dy = -110 -> (500, 390)
+    Ensure(RadialGeometry.HitTest(center, new Point(500, 390), 6) == 0, "Top center should be sector 0.");
+
+    // Sector 0 boundaries for 6 sectors: -30 deg to +30 deg
+    // At -25 deg (approx dx = -46, dy = -100):
+    Ensure(RadialGeometry.HitTest(center, new Point(454, 400), 6) == 0, "Counter-clockwise edge of sector 0 should be sector 0.");
+    // At +25 deg (approx dx = +46, dy = -100):
+    Ensure(RadialGeometry.HitTest(center, new Point(546, 400), 6) == 0, "Clockwise edge of sector 0 should be sector 0.");
+
+    // Sector 1 center is at 60 deg (dx = 95, dy = -55 -> 595, 445):
+    Ensure(RadialGeometry.HitTest(center, new Point(595, 445), 6) == 1, "Sector 1 center should be index 1.");
+
+    // Sector 3 center is at 180 deg (6 o'clock, dx = 0, dy = 110 -> 500, 610):
+    Ensure(RadialGeometry.HitTest(center, new Point(500, 610), 6) == 3, "Bottom center should be sector 3.");
+
+    // Test with N = 1 (whole ring is sector 0)
+    Ensure(RadialGeometry.HitTest(center, new Point(500, 390), 1) == 0, "N=1 top should be sector 0.");
+    Ensure(RadialGeometry.HitTest(center, new Point(500, 610), 1) == 0, "N=1 bottom should be sector 0.");
+
+    // Test with N = 4 (step = 90 deg: sector 0 = top, 1 = right, 2 = bottom, 3 = left)
+    Ensure(RadialGeometry.HitTest(center, new Point(500, 390), 4) == 0, "N=4 top should be sector 0.");
+    Ensure(RadialGeometry.HitTest(center, new Point(610, 500), 4) == 1, "N=4 right should be sector 1.");
+    Ensure(RadialGeometry.HitTest(center, new Point(500, 610), 4) == 2, "N=4 bottom should be sector 2.");
+    Ensure(RadialGeometry.HitTest(center, new Point(390, 500), 4) == 3, "N=4 left should be sector 3.");
 }
 
 static void Ensure(bool condition, string message)

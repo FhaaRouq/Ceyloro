@@ -243,20 +243,7 @@ public sealed class RadialOverlayForm : Form
     private void UpdateSelection(Point screenPoint)
     {
         var local = new Point(screenPoint.X - virtualBounds.Left, screenPoint.Y - virtualBounds.Top);
-        var dx = local.X - center.X;
-        var dy = local.Y - center.Y;
-        var radius = Math.Sqrt(dx * dx + dy * dy);
-        if (radius is < 66 or > 154 || availableTargets.Length == 0)
-        {
-            selectedIndex = -1;
-            return;
-        }
-        var count = availableTargets.Length;
-        var step = 360d / count;
-        var degrees = Math.Atan2(dy, dx) * 180 / Math.PI + 90;
-        if (degrees < 0) degrees += 360;
-        var normalized = (degrees + step / 2) % 360;
-        selectedIndex = (int)(normalized / step) % count;
+        selectedIndex = RadialGeometry.HitTest(center, local, availableTargets.Length);
     }
 
     protected override void OnPaint(PaintEventArgs e)
