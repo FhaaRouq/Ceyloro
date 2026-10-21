@@ -1,9 +1,9 @@
 import XCTest
-@testable import PomeloCore
+@testable import CeyloroCore
 
 final class OutputNamingTests: XCTestCase {
     func testDoesNotOverwriteExistingOutput() throws {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("PomeloNaming-\(UUID().uuidString)")
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("CeyloroNaming-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
         let input = directory.appendingPathComponent("photo.heic")
@@ -14,7 +14,7 @@ final class OutputNamingTests: XCTestCase {
     }
 
     func testPageSuffixIsStable() throws {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("PomeloNaming-\(UUID().uuidString)")
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("CeyloroNaming-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
         let input = directory.appendingPathComponent("report.pdf")
@@ -28,7 +28,7 @@ final class OutputNamingTests: XCTestCase {
     }
 
     func testUniqueFolderAndZipNamesAvoidCollisions() throws {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("PomeloNaming-\(UUID().uuidString)")
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("CeyloroNaming-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
         try FileManager.default.createDirectory(at: directory.appendingPathComponent("report"), withIntermediateDirectories: true)

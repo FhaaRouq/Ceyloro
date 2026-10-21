@@ -1,5 +1,5 @@
 import AppKit
-import PomeloCore
+import CeyloroCore
 
 final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate {
     private var statusItem: NSStatusItem!
@@ -17,7 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
     private var currentMode: WheelMode = .convert
     private var dragActivity: NSObjectProtocol?
     private let logURL: URL = {
-        let folder = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Pomelo", isDirectory: true)
+        let folder = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Ceyloro", isDirectory: true)
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         return folder.appendingPathComponent("app.log")
     }()
@@ -47,7 +47,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
         monitor.start()
         hotKeyMonitor.onTrigger = { [weak self] in self?.showWheelFromHotKey() }
         hotKeyMonitor.start()
-        log("Pomelo started")
+        log("Ceyloro started")
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -61,21 +61,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
 
     private func setupStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        if let image = Bundle.main.image(forResource: "PomeloMenuTemplate") {
+        if let image = Bundle.main.image(forResource: "CeyloroMenuTemplate") {
             image.isTemplate = true
             image.size = NSSize(width: 18, height: 18)
             statusItem.button?.image = image
         } else {
-            statusItem.button?.image = NSImage(systemSymbolName: "circle.grid.3x3", accessibilityDescription: "Pomelo")
+            statusItem.button?.image = NSImage(systemSymbolName: "circle.grid.3x3", accessibilityDescription: "Ceyloro")
         }
-        statusItem.button?.toolTip = "Pomelo"
+        statusItem.button?.toolTip = "Ceyloro"
         let menu = NSMenu()
-        menu.addItem(NSMenuItem(title: "Pomelo aktif", action: nil, keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "Ceyloro aktif", action: nil, keyEquivalent: ""))
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Pengaturan…", action: #selector(showSettings), keyEquivalent: ","))
         menu.addItem(NSMenuItem(title: "Tampilkan Log", action: #selector(showLogs), keyEquivalent: "l"))
         menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Keluar Pomelo", action: #selector(quit), keyEquivalent: "q"))
+        menu.addItem(NSMenuItem(title: "Keluar Ceyloro", action: #selector(quit), keyEquivalent: "q"))
         menu.items.forEach { $0.target = self }
         statusItem.menu = menu
     }
@@ -301,7 +301,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
     private func showError(_ message: String) {
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
-        alert.messageText = "Pomelo"
+        alert.messageText = "Ceyloro"
         alert.informativeText = message
         alert.alertStyle = .warning
         alert.addButton(withTitle: "OK")
@@ -324,7 +324,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
         let temporaryDirectory = fileManager.temporaryDirectory
         guard let urls = try? fileManager.contentsOfDirectory(at: temporaryDirectory, includingPropertiesForKeys: [.contentModificationDateKey], options: [.skipsHiddenFiles]) else { return }
         let cutoff = Date().addingTimeInterval(-24 * 60 * 60)
-        for url in urls where url.lastPathComponent.hasPrefix("Pomelo-") {
+        for url in urls where url.lastPathComponent.hasPrefix("Ceyloro-") {
             guard let values = try? url.resourceValues(forKeys: [.contentModificationDateKey]),
                   let date = values.contentModificationDate,
                   date < cutoff else { continue }

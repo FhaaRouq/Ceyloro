@@ -1,5 +1,5 @@
 import XCTest
-@testable import PomeloCore
+@testable import CeyloroCore
 
 final class PDFMergeTests: XCTestCase {
     func testNaturalSortPutsIMG2BeforeIMG10() {
@@ -13,7 +13,7 @@ final class PDFMergeTests: XCTestCase {
     }
 
     func testDateSortUsesNameAsTieBreaker() throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("PomeloSort-\(UUID().uuidString)")
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("CeyloroSort-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
         var first = root.appendingPathComponent("IMG_10.jpg")

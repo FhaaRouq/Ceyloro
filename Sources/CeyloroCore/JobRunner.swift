@@ -100,7 +100,7 @@ public final class JobRunner {
 
             var outputs: [URL] = []
             var failures: [JobFailure] = []
-            let tempRoot = self.fileManager.temporaryDirectory.appendingPathComponent("Pomelo-\(id.uuidString)", isDirectory: true)
+            let tempRoot = self.fileManager.temporaryDirectory.appendingPathComponent("Ceyloro-\(id.uuidString)", isDirectory: true)
 
             do {
                 try self.fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
@@ -118,7 +118,7 @@ public final class JobRunner {
 
                     do {
                         guard self.fileManager.isReadableFile(atPath: input.path) else {
-                            throw NSError(domain: "Pomelo", code: 1, userInfo: [NSLocalizedDescriptionKey: "File tidak dapat dibaca: \(input.lastPathComponent)"])
+                            throw NSError(domain: "Ceyloro", code: 1, userInfo: [NSLocalizedDescriptionKey: "File tidak dapat dibaca: \(input.lastPathComponent)"])
                         }
 
                         let inputProgress = { (value: Double) in
@@ -199,7 +199,7 @@ public final class JobRunner {
                 return
             }
 
-            let tempRoot = self.fileManager.temporaryDirectory.appendingPathComponent("Pomelo-\(id.uuidString)", isDirectory: true)
+            let tempRoot = self.fileManager.temporaryDirectory.appendingPathComponent("Ceyloro-\(id.uuidString)", isDirectory: true)
             do {
                 try self.fileManager.createDirectory(at: tempRoot, withIntermediateDirectories: true)
                 defer { try? self.fileManager.removeItem(at: tempRoot) }
@@ -310,7 +310,7 @@ public final class JobRunner {
         }
         guard process.terminationStatus == 0 else {
             try? fileManager.removeItem(at: zipURL)
-            throw NSError(domain: "Pomelo", code: 2, userInfo: [NSLocalizedDescriptionKey: "ZIP gagal dibuat."])
+            throw NSError(domain: "Ceyloro", code: 2, userInfo: [NSLocalizedDescriptionKey: "ZIP gagal dibuat."])
         }
     }
 

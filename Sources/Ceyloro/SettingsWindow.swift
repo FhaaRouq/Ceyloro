@@ -1,5 +1,5 @@
 import AppKit
-import PomeloCore
+import CeyloroCore
 import ServiceManagement
 
 final class SettingsWindowController: NSWindowController {
@@ -15,7 +15,7 @@ final class SettingsWindowController: NSWindowController {
     convenience init() {
         let content = NSView(frame: NSRect(x: 0, y: 0, width: 520, height: 470))
         let window = NSWindow(contentRect: content.frame, styleMask: [.titled, .closable], backing: .buffered, defer: true)
-        window.title = "Pengaturan Pomelo"
+        window.title = "Pengaturan Ceyloro"
         window.isReleasedWhenClosed = false
         window.hidesOnDeactivate = false
         window.contentView = content
@@ -160,7 +160,7 @@ final class SettingsWindowController: NSWindowController {
     private func showError(_ message: String) {
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
-        alert.messageText = "Pomelo"
+        alert.messageText = "Ceyloro"
         alert.informativeText = message
         alert.alertStyle = .warning
         alert.addButton(withTitle: "OK")

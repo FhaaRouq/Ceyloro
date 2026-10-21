@@ -2,19 +2,19 @@
 import PackageDescription
 
 let package = Package(
-    name: "Pomelo",
+    name: "Ceyloro",
     platforms: [.macOS(.v13)],
     products: [
-        .executable(name: "Pomelo", targets: ["Pomelo"])
+        .executable(name: "Ceyloro", targets: ["Ceyloro"])
     ],
     targets: [
-        .target(name: "PomeloCore"),
+        .target(name: "CeyloroCore"),
         .executableTarget(
-            name: "Pomelo",
-            dependencies: ["PomeloCore"],
+            name: "Ceyloro",
+            dependencies: ["CeyloroCore"],
             exclude: ["Resources"]
         ),
-        .testTarget(name: "PomeloCoreTests", dependencies: ["PomeloCore"]),
-        .testTarget(name: "PomeloAppTests", dependencies: ["Pomelo"])
+        .testTarget(name: "CeyloroCoreTests", dependencies: ["CeyloroCore"]),
+        .testTarget(name: "CeyloroAppTests", dependencies: ["Ceyloro"])
     ]
 )

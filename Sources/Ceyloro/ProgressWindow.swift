@@ -1,5 +1,5 @@
 import AppKit
-import PomeloCore
+import CeyloroCore
 
 final class ProgressWindowController {
     private let window: NSPanel
@@ -16,7 +16,7 @@ final class ProgressWindowController {
     init() {
         let frame = NSRect(x: 0, y: 0, width: 330, height: 92)
         window = NSPanel(contentRect: frame, styleMask: [.titled, .utilityWindow], backing: .buffered, defer: true)
-        window.title = "Pomelo"
+        window.title = "Ceyloro"
         window.level = .floating
         window.hidesOnDeactivate = false
         window.isReleasedWhenClosed = false

@@ -1,6 +1,6 @@
 import AppKit
 import Darwin
-import PomeloCore
+import CeyloroCore
 
 enum WheelMode: String {
     case convert

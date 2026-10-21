@@ -1,6 +1,6 @@
-# Pomelo
+# Ceyloro
 
-Pomelo adalah prototipe native macOS menu-bar untuk mengubah file melalui satu gestur radial. Semua pemrosesan MVP berjalan lokal; file asli tidak pernah ditimpa.
+Ceyloro adalah prototipe native macOS menu-bar untuk mengubah file melalui satu gestur radial. Semua pemrosesan MVP berjalan lokal; file asli tidak pernah ditimpa.
 
 ## MVP yang tersedia
 
@@ -11,7 +11,7 @@ Pomelo adalah prototipe native macOS menu-bar untuk mengubah file melalui satu g
 - Seleksi banyak file memakai irisan format yang valid.
 - Antrean job dengan progres per file, pembatalan, folder/ZIP output multi-halaman, dan penamaan anti-timpa.
 - Penggabungan beberapa gambar menjadi satu PDF dengan urutan dan opsi halaman yang bisa diatur.
-- Menu bar, Pengaturan dasar, dan log lokal di `~/Library/Logs/Pomelo/app.log`.
+- Menu bar, Pengaturan dasar, dan log lokal di `~/Library/Logs/Ceyloro/app.log`.
 
 ## Build dan test
 
@@ -31,7 +31,7 @@ DEVELOPER_DIR=/path/to/Xcode.app/Contents/Developer swift test
 Untuk menjalankan binary dari terminal:
 
 ```sh
-.build/release/Pomelo
+.build/release/Ceyloro
 ```
 
 Distribusi publik masih membutuhkan app bundle universal, Developer ID signing, notarization, dan pengujian manual Shift-drag di Finder pada Intel serta Apple Silicon. Dukungan audio/video melalui ffmpeg dan tool lanjutan mengikuti fase berikutnya pada PRD.

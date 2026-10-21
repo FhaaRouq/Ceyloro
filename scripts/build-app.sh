@@ -2,7 +2,7 @@
 set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-APP="$ROOT/Pomelo.app"
+APP="$ROOT/Ceyloro.app"
 
 DEV_DIR="${DEVELOPER_DIR:-}"
 if [ -z "$DEV_DIR" ]; then
@@ -33,16 +33,16 @@ DEVELOPER_DIR="$DEV_DIR" swift build --package-path "$ROOT" -c release --arch ar
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 lipo -create \
-    "$X86_SCRATCH/release/Pomelo" \
-    "$ARM_SCRATCH/release/Pomelo" \
-    -output "$APP/Contents/MacOS/Pomelo"
-cp "$ROOT/Sources/Pomelo/Resources/Info.plist" "$APP/Contents/Info.plist"
-if [ -f "$ROOT/Sources/Pomelo/Resources/Pomelo.icns" ]; then
-    cp "$ROOT/Sources/Pomelo/Resources/Pomelo.icns" "$APP/Contents/Resources/Pomelo.icns"
+    "$X86_SCRATCH/release/Ceyloro" \
+    "$ARM_SCRATCH/release/Ceyloro" \
+    -output "$APP/Contents/MacOS/Ceyloro"
+cp "$ROOT/Sources/Ceyloro/Resources/Info.plist" "$APP/Contents/Info.plist"
+if [ -f "$ROOT/Sources/Ceyloro/Resources/Ceyloro.icns" ]; then
+    cp "$ROOT/Sources/Ceyloro/Resources/Ceyloro.icns" "$APP/Contents/Resources/Ceyloro.icns"
 fi
-if [ -f "$ROOT/Sources/Pomelo/Resources/PomeloMenuTemplate.png" ]; then
-    cp "$ROOT/Sources/Pomelo/Resources/PomeloMenuTemplate.png" "$APP/Contents/Resources/PomeloMenuTemplate.png"
+if [ -f "$ROOT/Sources/Ceyloro/Resources/CeyloroMenuTemplate.png" ]; then
+    cp "$ROOT/Sources/Ceyloro/Resources/CeyloroMenuTemplate.png" "$APP/Contents/Resources/CeyloroMenuTemplate.png"
 fi
-chmod +x "$APP/Contents/MacOS/Pomelo"
+chmod +x "$APP/Contents/MacOS/Ceyloro"
 codesign --force --deep --sign - "$APP" >/dev/null
-echo "Built $APP ($(lipo -archs "$APP/Contents/MacOS/Pomelo"))"
+echo "Built $APP ($(lipo -archs "$APP/Contents/MacOS/Ceyloro"))"

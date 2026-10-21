@@ -2,14 +2,14 @@ import AppKit
 import CoreGraphics
 import ImageIO
 import PDFKit
-import PomeloCore
+import CeyloroCore
 import UniformTypeIdentifiers
 import XCTest
-@testable import Pomelo
+@testable import Ceyloro
 
 final class ImageConverterTests: XCTestCase {
     func testJPEGExifOrientationIsAppliedWhenConvertingToJPG() throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("PomeloImage-\(UUID().uuidString)")
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("CeyloroImage-\(UUID().uuidString)")
         let sourceURL = root.appendingPathComponent("portrait-source.jpg")
         let temporaryDirectory = root.appendingPathComponent("temporary", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -36,7 +36,7 @@ final class ImageConverterTests: XCTestCase {
     }
 
     func testMergedPDFKeepsInputOrderInPageSizes() throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("PomeloPDF-\(UUID().uuidString)")
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("CeyloroPDF-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
         let landscape = try makeImage(at: root.appendingPathComponent("IMG_2.png"), width: 1200, height: 600)
@@ -60,7 +60,7 @@ final class ImageConverterTests: XCTestCase {
     }
 
     func testTenImagesProduceMeasuredBalancedPDF() throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("PomeloPDF-\(UUID().uuidString)")
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("CeyloroPDF-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
         let images = try (0..<10).map { index in
@@ -77,7 +77,7 @@ final class ImageConverterTests: XCTestCase {
     }
 
     func testRotatedPDFPageIsRenderedWithPageOrientationOnce() throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("PomeloPDF-\(UUID().uuidString)")
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("CeyloroPDF-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
         let source = root.appendingPathComponent("rotated.pdf")
@@ -100,7 +100,7 @@ final class ImageConverterTests: XCTestCase {
     }
 
     func testScannedPDFToTextReportsEmptyText() throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("PomeloPDF-\(UUID().uuidString)")
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("CeyloroPDF-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
         let imageURL = try makeImage(at: root.appendingPathComponent("source.png"), width: 100, height: 100)

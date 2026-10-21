@@ -1,5 +1,5 @@
 import XCTest
-@testable import PomeloCore
+@testable import CeyloroCore
 
 final class JobRunnerTests: XCTestCase {
     func testCancelledQueuedJobPublishesCancelledSnapshot() {
@@ -7,7 +7,7 @@ final class JobRunnerTests: XCTestCase {
         let firstStarted = expectation(description: "first job started")
         let secondCancelled = expectation(description: "second job cancelled")
         let releaseFirst = DispatchSemaphore(value: 0)
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("PomeloRunner-\(UUID().uuidString)")
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("CeyloroRunner-\(UUID().uuidString)")
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
         let firstInput = directory.appendingPathComponent("first.input")
@@ -43,7 +43,7 @@ final class JobRunnerTests: XCTestCase {
     func testTempDirectoryIsRemovedAfterCompletion() {
         let runner = JobRunner(maxConcurrentJobs: 1)
         let completed = expectation(description: "job completed")
-        let input = FileManager.default.temporaryDirectory.appendingPathComponent("PomeloRunner-\(UUID().uuidString).input")
+        let input = FileManager.default.temporaryDirectory.appendingPathComponent("CeyloroRunner-\(UUID().uuidString).input")
         FileManager.default.createFile(atPath: input.path, contents: Data())
         defer { try? FileManager.default.removeItem(at: input) }
         var jobID: UUID?
@@ -60,14 +60,14 @@ final class JobRunnerTests: XCTestCase {
         }
 
         wait(for: [completed], timeout: 2)
-        let tempRoot = FileManager.default.temporaryDirectory.appendingPathComponent("Pomelo-\(jobID!.uuidString)")
+        let tempRoot = FileManager.default.temporaryDirectory.appendingPathComponent("Ceyloro-\(jobID!.uuidString)")
         XCTAssertFalse(FileManager.default.fileExists(atPath: tempRoot.path))
     }
 
     func testOneFailedFileDoesNotAbortTheBatch() {
         let runner = JobRunner(maxConcurrentJobs: 1)
         let completed = expectation(description: "batch completed")
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("PomeloRunner-\(UUID().uuidString)")
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("CeyloroRunner-\(UUID().uuidString)")
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
         let first = directory.appendingPathComponent("failing.input")
@@ -77,7 +77,7 @@ final class JobRunnerTests: XCTestCase {
 
         let jobID = runner.submit(inputs: [first, second], target: .png, processor: { input, _, temporaryDirectory, _, _ in
             if input == first {
-                throw NSError(domain: "PomeloTest", code: 1, userInfo: [NSLocalizedDescriptionKey: "fixture failure"])
+                throw NSError(domain: "CeyloroTest", code: 1, userInfo: [NSLocalizedDescriptionKey: "fixture failure"])
             }
             try FileManager.default.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
             let output = temporaryDirectory.appendingPathComponent("output.png")
@@ -98,7 +98,7 @@ final class JobRunnerTests: XCTestCase {
     func testCollectionOfThreeFilesCreatesFolderWithStableNames() throws {
         let runner = JobRunner(maxConcurrentJobs: 1)
         let completed = expectation(description: "collection completed")
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("PomeloCollection-\(UUID().uuidString)")
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("CeyloroCollection-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
         let input = root.appendingPathComponent("report.pdf")
@@ -127,7 +127,7 @@ final class JobRunnerTests: XCTestCase {
     func testCollectionZipContainsOneParentFolder() throws {
         let runner = JobRunner(maxConcurrentJobs: 1)
         let completed = expectation(description: "zip completed")
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("PomeloZip-\(UUID().uuidString)")
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("CeyloroZip-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
         let input = root.appendingPathComponent("report.pdf")

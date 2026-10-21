@@ -1,5 +1,5 @@
 import XCTest
-@testable import PomeloCore
+@testable import CeyloroCore
 
 final class HitTestingTests: XCTestCase {
     func testTopIsFirstSector() {

@@ -2,7 +2,7 @@ import AppKit
 import CoreGraphics
 import ImageIO
 import PDFKit
-import PomeloCore
+import CeyloroCore
 import UniformTypeIdentifiers
 
 struct ImageConversionOptions: Sendable {
@@ -232,7 +232,7 @@ enum ConversionError: LocalizedError {
         switch self {
         case .invalidInput: return "File tidak valid, terkunci, atau tidak dapat dibaca."
         case .noText: return "PDF tidak berisi teks, mungkin hasil scan."
-        case .encodingFailed: return "Pomelo tidak dapat menulis hasil konversi."
+        case .encodingFailed: return "Ceyloro tidak dapat menulis hasil konversi."
         case .unsupportedConversion: return "Format ini belum didukung di MVP."
         }
     }
