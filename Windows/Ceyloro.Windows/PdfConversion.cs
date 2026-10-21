@@ -40,7 +40,7 @@ internal static class PdfConversion
         var pageCount = checked((int)document.PageCount);
         var baseName = Path.GetFileNameWithoutExtension(input);
         var directory = Path.GetDirectoryName(outputPath)!;
-        var pageFolder = UniqueDirectory(directory, baseName + " pages");
+        var pageFolder = UniqueDirectory(directory, baseName);
         var useZip = pageCount > 1 && options.MultiPageOutput.Equals("zip", StringComparison.OrdinalIgnoreCase);
         var useFolder = pageCount > 1 && !useZip;
         var zipPath = UniquePath(Path.ChangeExtension(outputPath, ".zip"));
@@ -66,8 +66,8 @@ internal static class PdfConversion
                 var bytes = await ReadAllAsync(stream);
                 var output = pageCount == 1
                     ? outputPath
-                    : Path.Combine(pageFolder, $"{baseName} {index + 1:D2}.{target}");
-                WriteRaster(bytes, output, target);
+                    : Path.Combine(pageFolder, PageFileName(baseName, index, pageCount, target));
+                WriteRaster(bytes, output, target, options);
                 pagePaths.Add(output);
                 progress((index + 1d) / pageCount);
             }
@@ -81,7 +81,7 @@ internal static class PdfConversion
                     foreach (var pagePath in pagePaths)
                     {
                         cancellationToken.ThrowIfCancellationRequested();
-                        archive.CreateEntryFromFile(pagePath, Path.GetFileName(pagePath), CompressionLevel.Optimal);
+                        archive.CreateEntryFromFile(pagePath, $"{baseName}/{Path.GetFileName(pagePath)}", CompressionLevel.Optimal);
                     }
                 }
                 File.Move(partialZip, zipPath);
@@ -160,12 +160,36 @@ internal static class PdfConversion
         return bytes;
     }
 
-    private static void WriteRaster(byte[] bytes, string path, string target)
+    internal static string PageFileName(string baseName, int index, int total, string fileExtension)
+    {
+        var width = Math.Max(total, 1).ToString(CultureInfo.InvariantCulture).Length;
+        width = Math.Max(width, 2);
+        var safeBaseName = string.IsNullOrWhiteSpace(baseName) || baseName is "." or ".." ? "Hasil" : baseName;
+        foreach (var invalid in Path.GetInvalidFileNameChars()) safeBaseName = safeBaseName.Replace(invalid, '-');
+        return $"{safeBaseName}-{(index + 1).ToString($"D{width}", CultureInfo.InvariantCulture)}.{fileExtension.TrimStart('.') }";
+    }
+
+    private static void WriteRaster(byte[] bytes, string path, string target, PdfConversionOptions options)
     {
         using var stream = new MemoryStream(bytes, writable: false);
         using var image = Image.FromStream(stream);
         using var file = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None);
-        image.Save(file, target == "jpg" ? ImageFormat.Jpeg : ImageFormat.Png);
+        if (target != "jpg")
+        {
+            image.Save(file, ImageFormat.Png);
+            return;
+        }
+
+        using var bitmap = new Bitmap(image.Width, image.Height, PixelFormat.Format24bppRgb);
+        using (var graphics = Graphics.FromImage(bitmap))
+        {
+            graphics.Clear(Color.White);
+            graphics.DrawImage(image, 0, 0, image.Width, image.Height);
+        }
+        var codec = ImageCodecInfo.GetImageEncoders().First(encoder => encoder.MimeType == "image/jpeg");
+        using var parameters = new EncoderParameters(1);
+        parameters.Param[0] = new EncoderParameter(System.Drawing.Imaging.Encoder.Quality, JpegQuality(options));
+        bitmap.Save(file, codec, parameters);
     }
 
     private static JpegImage PrepareJpeg(string path, PdfConversionOptions options)
@@ -186,10 +210,13 @@ internal static class PdfConversion
         using var memory = new MemoryStream();
         var codec = ImageCodecInfo.GetImageEncoders().First(encoder => encoder.MimeType == "image/jpeg");
         using var parameters = new EncoderParameters(1);
-        parameters.Param[0] = new EncoderParameter(System.Drawing.Imaging.Encoder.Quality, options.Quality.Equals("original", StringComparison.OrdinalIgnoreCase) ? 92L : 85L);
+        parameters.Param[0] = new EncoderParameter(System.Drawing.Imaging.Encoder.Quality, JpegQuality(options));
         bitmap.Save(memory, codec, parameters);
         return new JpegImage(memory.ToArray(), width, height);
     }
+
+    internal static long JpegQuality(PdfConversionOptions options) =>
+        options.Quality.Equals("original", StringComparison.OrdinalIgnoreCase) ? 92L : 85L;
 
     internal static void ApplyExifOrientation(Image image)
     {
