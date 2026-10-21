@@ -41,7 +41,8 @@ atau dibundel.
 
 | Sumber | Target Windows |
 | --- | --- |
-| JPG, PNG, WEBP, HEIC, TIFF, BMP, GIF, AVIF | JPG, PNG, HEIC, TIFF, PDF |
+| JPG, PNG, TIFF, BMP, GIF | JPG, PNG, HEIC, TIFF, PDF |
+| WEBP, HEIC, AVIF | JPG, PNG, HEIC, TIFF |
 | PDF | JPG, PNG, TXT untuk PDF yang memiliki teks |
 | MP3, M4A, WAV, FLAC, OGG, OPUS, AIFF, WMA | MP3, M4A, WAV, FLAC, OGG, OPUS, AIFF |
 | MP4, MOV, MKV, WEBM, AVI, WMV | MP4, MOV, MKV, WEBM, AVI, WMV, GIF, serta target audio yang tersedia |
@@ -49,10 +50,13 @@ atau dibundel.
 | SRT, VTT | SRT, VTT, TXT |
 | ZIP, TAR, TAR.GZ | ZIP, TAR, TAR.GZ |
 
-Selain itu, satu atau beberapa gambar dapat digabung menjadi PDF. PDF multi-
-halaman dapat disimpan sebagai folder atau ZIP. RAR/7Z, OCR untuk PDF hasil
+Selain itu, JPG, PNG, TIFF, BMP, dan GIF dapat dijadikan PDF; satu atau beberapa gambar
+dapat digabung menjadi PDF. WEBP, HEIC, dan AVIF belum ditawarkan untuk PDF karena
+backend Windows saat ini tidak dapat membacanya secara andal. PDF multi-halaman dapat
+disimpan sebagai folder atau ZIP. RAR/7Z, OCR untuk PDF hasil
 scan, serta format yang tidak didukung encoder lokal tidak ditawarkan.
 
 Jika Windows SmartScreen muncul saat pertama kali membuka aplikasi, pilih
 **More info**, lalu **Run anyway** hanya untuk paket yang diunduh dari GitHub
 Release resmi Ceyloro.
+
