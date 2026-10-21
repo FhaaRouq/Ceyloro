@@ -66,6 +66,9 @@ final class RadialOverlay: NSPanel {
     private var files: [URL] = []
     private let geometry = RadialGeometry()
     private var dismissTimer: Timer?
+    private var countdownTimer: Timer?
+    private var dismissStartDate: Date?
+    private var exitDebounceTimer: Timer?
 
     override var canBecomeKey: Bool { true }
 
@@ -106,12 +109,25 @@ final class RadialOverlay: NSPanel {
             y: clampedY - screenFrame.minY
         )
         wheelView.activeIndex = nil
+        wheelView.isHubActive = false
+        wheelView.dismissCountdownFraction = nil
         wheelView.needsDisplay = true
         dismissTimer?.invalidate()
+        countdownTimer?.invalidate()
+        dismissStartDate = Date()
         dismissTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: false) { [weak self] _ in
             guard let self else { return }
             self.dismiss()
             self.overlayDelegate?.radialOverlayDidCancel(self)
+        }
+        countdownTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+            guard let self, let start = self.dismissStartDate else { return }
+            let elapsed = Date().timeIntervalSince(start)
+            if elapsed >= 25.0 {
+                let fraction = min(max((30.0 - elapsed) / 5.0, 0), 1.0)
+                self.wheelView.dismissCountdownFraction = fraction
+                self.wheelView.needsDisplay = true
+            }
         }
         alphaValue = 0
         orderFrontRegardless()
@@ -136,9 +152,16 @@ final class RadialOverlay: NSPanel {
     func dismiss(animated: Bool = true) {
         dismissTimer?.invalidate()
         dismissTimer = nil
+        countdownTimer?.invalidate()
+        countdownTimer = nil
+        dismissStartDate = nil
+        exitDebounceTimer?.invalidate()
+        exitDebounceTimer = nil
         files.removeAll()
         items.removeAll()
         wheelView.activeIndex = nil
+        wheelView.isHubActive = false
+        wheelView.dismissCountdownFraction = nil
         if animated && isVisible {
             NSAnimationContext.runAnimationGroup({ ctx in
                 ctx.duration = 0.10
@@ -208,18 +231,27 @@ final class RadialOverlay: NSPanel {
 
 extension RadialOverlay: NSDraggingDestination {
     func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        exitDebounceTimer?.invalidate()
+        exitDebounceTimer = nil
         wheelView.update(point: sender.draggingLocation)
         return .copy
     }
 
     func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        exitDebounceTimer?.invalidate()
+        exitDebounceTimer = nil
         wheelView.update(point: sender.draggingLocation)
         return .copy
     }
 
     func draggingExited(_ sender: NSDraggingInfo?) {
-        wheelView.activeIndex = nil
-        wheelView.needsDisplay = true
+        exitDebounceTimer?.invalidate()
+        exitDebounceTimer = Timer.scheduledTimer(withTimeInterval: 0.07, repeats: false) { [weak self] _ in
+            guard let self else { return }
+            self.wheelView.activeIndex = nil
+            self.wheelView.isHubActive = false
+            self.wheelView.needsDisplay = true
+        }
     }
 
     func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool { true }
@@ -246,8 +278,14 @@ final class RadialOverlayView: NSView {
             accessibilityChildrenCache.removeAll()
         }
     }
-    var mode: WheelMode = .convert
+    var mode: WheelMode = .convert {
+        didSet {
+            accessibilityChildrenCache.removeAll()
+        }
+    }
     var selectionSummary = "File"
+    var isHubActive = false
+    var dismissCountdownFraction: Double?
     var activeIndex: Int? {
         didSet {
             guard activeIndex != oldValue else { return }
@@ -260,6 +298,39 @@ final class RadialOverlayView: NSView {
     private let geometry = RadialGeometry()
     private var accessibilityChildrenCache: [RadialSectorAccessibilityElement] = []
 
+    private var modeAccentColor: NSColor {
+        switch mode {
+        case .convert:
+            return NSColor(calibratedRed: 0.35, green: 0.72, blue: 1.0, alpha: 1)
+        case .actions:
+            return NSColor(calibratedRed: 1.0, green: 0.65, blue: 0.25, alpha: 1)
+        case .tools:
+            return NSColor(calibratedWhite: 0.72, alpha: 1)
+        }
+    }
+
+    private var activeSectorFillColor: NSColor {
+        switch mode {
+        case .convert:
+            return NSColor(calibratedRed: 0.16, green: 0.43, blue: 0.92, alpha: 0.98)
+        case .actions:
+            return NSColor(calibratedRed: 0.88, green: 0.45, blue: 0.10, alpha: 0.98)
+        case .tools:
+            return NSColor(calibratedWhite: 0.30, alpha: 0.98)
+        }
+    }
+
+    private var activeSectorStrokeColor: NSColor {
+        switch mode {
+        case .convert:
+            return NSColor(calibratedRed: 0.58, green: 0.80, blue: 1.0, alpha: 0.95)
+        case .actions:
+            return NSColor(calibratedRed: 1.0, green: 0.75, blue: 0.40, alpha: 0.95)
+        case .tools:
+            return NSColor(calibratedWhite: 0.70, alpha: 0.95)
+        }
+    }
+
     override var isFlipped: Bool { false }
 
     override func isAccessibilityElement() -> Bool { true }
@@ -269,7 +340,9 @@ final class RadialOverlayView: NSView {
     }
 
     override func accessibilityChildren() -> [Any]? {
-        if accessibilityChildrenCache.count != items.count {
+        let titlesMatch = accessibilityChildrenCache.count == items.count &&
+            zip(accessibilityChildrenCache, items).allSatisfy { $0.title == $1.title }
+        if !titlesMatch {
             accessibilityChildrenCache = items.enumerated().map { index, item in
                 RadialSectorAccessibilityElement(index: index, title: item.title, parentView: self)
             }
@@ -279,10 +352,17 @@ final class RadialOverlayView: NSView {
 
     func update(point: NSPoint) {
         let center = centerPoint
-        if case let .sector(index) = RadialHitTesting.hit(point: point, center: center, sectorCount: items.count, geometry: geometry) {
+        let hit = RadialHitTesting.hit(point: point, center: center, sectorCount: items.count, geometry: geometry)
+        switch hit {
+        case .sector(let index):
             activeIndex = index
-        } else {
+            isHubActive = false
+        case .hub:
             activeIndex = nil
+            isHubActive = true
+        case .outside:
+            activeIndex = nil
+            isHubActive = false
         }
         needsDisplay = true
     }
@@ -311,10 +391,10 @@ final class RadialOverlayView: NSView {
             let path = annularPath(center: center, innerRadius: innerRadius, outerRadius: outerRadius, startAngle: start, endAngle: end)
             let isActive = index == activeIndex
             let idleColor = NSColor(calibratedWhite: 0.16, alpha: 0.90)
-            let activeColor = NSColor(calibratedRed: 0.16, green: 0.43, blue: 0.92, alpha: 0.98)
+            let activeColor = activeSectorFillColor
             (isActive ? activeColor : idleColor).setFill()
             path.fill()
-            (isActive ? NSColor(calibratedRed: 0.58, green: 0.80, blue: 1.0, alpha: 0.95) : NSColor(calibratedWhite: 1, alpha: 0.16)).setStroke()
+            (isActive ? activeSectorStrokeColor : NSColor(calibratedWhite: 1, alpha: 0.16)).setStroke()
             path.lineWidth = isActive ? 1.6 : 1
             path.lineJoinStyle = .round
             path.stroke()
@@ -348,16 +428,33 @@ final class RadialOverlayView: NSView {
 
         let hubRect = NSRect(x: center.x - 52, y: center.y - 32, width: 104, height: 64)
         let hub = NSBezierPath(roundedRect: hubRect, xRadius: 18, yRadius: 18)
-        NSColor(calibratedWhite: 0.08, alpha: 0.96).setFill()
+        let hubBgColor = isHubActive ? NSColor(calibratedWhite: 0.14, alpha: 0.98) : NSColor(calibratedWhite: 0.08, alpha: 0.96)
+        hubBgColor.setFill()
         hub.fill()
-        NSColor(calibratedWhite: 1, alpha: 0.22).setStroke()
-        hub.lineWidth = 1.2
+        let hubStrokeColor = isHubActive ? modeAccentColor.withAlphaComponent(0.85) : NSColor(calibratedWhite: 1, alpha: 0.22)
+        hubStrokeColor.setStroke()
+        hub.lineWidth = isHubActive ? 2.0 : 1.2
         hub.stroke()
 
-        let modeTitle = mode == .convert ? "KONVERSI" : mode == .tools ? "ALAT" : "AKSI"
+        if let fraction = dismissCountdownFraction, fraction > 0 {
+            let countdownPath = NSBezierPath(roundedRect: hubRect.insetBy(dx: -3, dy: -3), xRadius: 21, yRadius: 21)
+            NSColor(calibratedRed: 1.0, green: 0.35, blue: 0.35, alpha: CGFloat(0.4 + 0.5 * (1.0 - fraction))).setStroke()
+            countdownPath.lineWidth = 1.5
+            countdownPath.stroke()
+        }
+
+        let modeTitle: String
+        switch mode {
+        case .convert:
+            modeTitle = "KONVERSI"
+        case .actions:
+            modeTitle = "AKSI"
+        case .tools:
+            modeTitle = "ALAT • SEGERA HADIR"
+        }
         let modeAttributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 8.5, weight: .bold),
-            .foregroundColor: NSColor(calibratedRed: 0.55, green: 0.78, blue: 1, alpha: 1)
+            .font: NSFont.systemFont(ofSize: mode == .tools ? 7.5 : 8.5, weight: .bold),
+            .foregroundColor: modeAccentColor
         ]
         let modeSize = modeTitle.size(withAttributes: modeAttributes)
         modeTitle.draw(at: NSPoint(x: center.x - modeSize.width / 2, y: center.y + 11), withAttributes: modeAttributes)
