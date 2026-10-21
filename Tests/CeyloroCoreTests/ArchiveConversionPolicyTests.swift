@@ -15,5 +15,7 @@ final class ArchiveConversionPolicyTests: XCTestCase {
 
         XCTAssertTrue(policy.targets(for: FileFormat(fileExtension: "mp4", kind: .video)).isEmpty)
         XCTAssertTrue(policy.targets(for: FileFormat(fileExtension: "txt", kind: .document)).isEmpty)
+        XCTAssertTrue(policy.targets(for: FileFormat(fileExtension: "rar", kind: .archive)).isEmpty)
+        XCTAssertTrue(policy.targets(for: FileFormat(fileExtension: "7z", kind: .archive)).isEmpty)
     }
 }
