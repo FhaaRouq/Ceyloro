@@ -147,7 +147,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
         var items = wheelItems(for: files, mode: currentMode)
         if items.isEmpty {
             if currentMode == .tools {
-                showError("Tool tambahan belum tersedia pada versi ini.")
+                showToast("Tool tambahan belum tersedia pada versi ini.", systemImage: "sparkles")
                 activeFiles.removeAll()
                 return
             }
@@ -197,12 +197,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
         switch finderSelectionReader.readSelection() {
         case .success(let files):
             guard !files.isEmpty else {
-                showError("Pilih satu atau beberapa file di Finder terlebih dahulu.")
+                showToast("Pilih satu atau beberapa file di Finder terlebih dahulu.", systemImage: "hand.tap")
                 return
             }
             showWheel(files: files, at: NSEvent.mouseLocation, flags: [.shift])
         case .noSelection:
-            showError("Pilih satu atau beberapa file di Finder terlebih dahulu.")
+            showToast("Pilih satu atau beberapa file di Finder terlebih dahulu.", systemImage: "hand.tap")
         case .permissionDenied(let reason):
             showPermissionAlert(
                 title: "Izin Otomatisasi Diperlukan",
@@ -339,7 +339,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
             progressWindow.show(jobID: id, cancel: { [weak self] id in self?.runner.cancel(id: id) })
             log("Job \(id.uuidString) submitted: \(target.title) for \(files.count) file(s)")
         case .tools:
-            showError("Tool ini akan tersedia pada fase berikutnya.")
+            showToast("Tool ini akan tersedia pada fase berikutnya.", systemImage: "sparkles")
         case .actions:
             perform(action: item.action, files: files)
         }
@@ -458,12 +458,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
             NSWorkspace.shared.open(folders, withApplicationAt: terminal, configuration: configuration)
         case .airDrop:
             guard let service = NSSharingService(named: .sendViaAirDrop), service.canPerform(withItems: files) else {
-                showError("AirDrop tidak tersedia untuk file yang dipilih.")
+                showToast("AirDrop tidak tersedia untuk file yang dipilih.", systemImage: "exclamationmark.triangle")
                 return
             }
             service.perform(withItems: files)
         case .move, .float:
-            showError("Aksi ini belum diaktifkan pada MVP.")
+            showToast("Aksi ini belum diaktifkan pada MVP.", systemImage: "info.circle")
         }
     }
 
@@ -494,6 +494,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         runner.cancelAll()
         NSApp.terminate(nil)
+    }
+
+    private func showToast(_ message: String, systemImage: String = "info.circle") {
+        ToastWindow.show(message: message, systemImage: systemImage)
     }
 
     private func showError(_ message: String) {
