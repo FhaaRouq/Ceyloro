@@ -74,3 +74,32 @@ operasional belum dapat diberikan tanpa pengujian langsung pada Windows x64
 serta ARM64. CI saat ini tidak memiliki test project Windows; signing dan
 installer juga tetap menjadi pekerjaan distribusi sebelum rilis publik.
 
+## Tindak lanjut audit source code 22 Oktober 2026 — Windows saja
+
+Sumber: `Audit_Ceyloro_Source_Code_Review_2026-10-22.docx`. Temuan khusus
+macOS tidak diterapkan pada source Windows. Status di bawah membedakan perubahan
+kode dari verifikasi yang tetap membutuhkan desktop/perangkat.
+
+| Temuan | Status | Perubahan atau bukti |
+| --- | --- | --- |
+| W-1 hit-test sektor | Diperbaiki dan diuji | Hit-test memakai pusat sektor dan celah yang sama dengan geometri petal. Pemeriksaan mencakup pusat dan tepi sektor untuk 1–11 target, hub, dan luar roda. |
+| W-2 area transparan | Perlu uji GUI Windows | Tidak diubah tanpa reproduksi karena penanganan area klik tembus bergantung pada perilaku window manager. Matriks manual mencakup petal, hub, transparansi, monitor ganda, dan drop di luar roda. |
+| M-3 / M-6 probe saat drag | Diperbaiki pada jalur UI | Target dan validasi arsip/frame GIF dihitung pada worker. Explorer menerima `None` sampai hasil siap; validasi penuh arsip tetap berjalan di job konversi. |
+| M-4 protokol FFmpeg | Diperketat; perlu uji format | Input dibatasi ke protokol `file`; argumen diuji agar whitelist diterapkan sebelum `-i`. Playlist dan input jaringan tidak didukung oleh kebijakan ini. Uji file media nyata tetap diperlukan dengan FFmpeg paket rilis. |
+| M-5 GIF | Diperbaiki pada command builder | GIF memakai `palettegen`/`paletteuse`, 12 fps, dan lebar maksimum 720 px dengan rasio aspek terjaga. Output aktual 1080p/4K belum diverifikasi secara visual. |
+| M-7 pesan batas ZIP | Diperbaiki dan diuji | Batas entri menyebut jumlah 100.000, terpisah dari batas ukuran ekstraksi 2 GB. |
+| M-8 nama PDF multipage | Diselaraskan dan diuji pada fungsi penamaan | Windows mengikuti pola folder dan nama halaman macOS (`nama/nama-01.jpg`); konten render/ZIP perlu uji integrasi pada Windows. |
+| M-9 cleanup temp | Diperbaiki dan diuji | Startup hanya menghapus direktori anak bernama GUID yang berumur lebih dari 24 jam; reparse point dan nama lain dilewati. |
+| M-10 single instance | Diperbaiki pada startup | Mutex per user/session mencegah duplikat; peluncuran kedua mengirim pesan ke instance utama agar roda terbuka. Perlu smoke test desktop. |
+| M-14 kualitas JPEG PDF | Diperbaiki dan diuji pada kebijakan kualitas | Kedua jalur JPEG PDF memakai encoder eksplisit: 85 untuk balanced dan 92 untuk original. Ukuran/visual output belum dibandingkan pada fixture PDF nyata. |
+| M-15 konfirmasi keyboard | Affordance ambigu dihapus | Navigasi angka/panah dan nomor pada petal dihapus karena overlay tidak memiliki sumber file untuk menjalankan pilihan dengan Enter. Alur tetap drag-and-drop; Esc membatalkan. |
+| M-16 Windows ARM64 | Belum dapat ditutup | Build ARM64 bukan bukti runtime. Smoke test pada perangkat Windows ARM64 tetap diperlukan. |
+| M-17 signing | Belum ditandatangani | Workflow release Windows membuat dan menerbitkan SHA-256 untuk ZIP x64/ARM64. Authenticode memerlukan sertifikat penandatanganan yang tidak tersedia pada pekerjaan ini. |
+| M-18 test GUI | Diperbaiki sebagian | Logika sektor dipisahkan sebagai fungsi murni dan masuk pemeriksaan otomatis. Drag/drop, DPI, monitor ganda, fokus, dan hit-test area transparan masih perlu matriks manual. |
+
+Validasi lokal untuk perubahan ini: build `win-x64` berhasil dan 12/12
+pemeriksaan Windows lulus. Restore menampilkan peringatan NU1900 karena sumber
+data audit kerentanan NuGet tidak dapat dijangkau; tidak ada error build. Hasil
+ini tidak menutup uji GUI, validasi FFmpeg output, Authenticode, atau runtime
+ARM64.
+
