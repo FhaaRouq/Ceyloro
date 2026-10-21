@@ -460,9 +460,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
         return message.replacingOccurrences(of: homeDirectory, with: "~")
     }
 
+    private static let logDateFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
+
     private func log(_ message: String) {
         let sanitized = Self.sanitizeLogMessage(message)
-        let line = "[\(ISO8601DateFormatter().string(from: Date()))] \(sanitized)\n"
+        let line = "[\(Self.logDateFormatter.string(from: Date()))] \(sanitized)\n"
         if let data = line.data(using: .utf8), let handle = try? FileHandle(forWritingTo: logURL) {
             handle.seekToEndOfFile()
             handle.write(data)
