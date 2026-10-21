@@ -21,6 +21,8 @@ final class FFmpegConversionTests: XCTestCase {
         XCTAssertFalse(arguments.contains("libx264"))
         XCTAssertTrue(arguments.contains("+faststart"))
         XCTAssertEqual(arguments.last, "/output.mp4")
+        XCTAssertTrue(arguments.contains("-progress"))
+        XCTAssertTrue(arguments.contains("pipe:1"))
     }
 
     func testUnsupportedSourceHasNoFFmpegTargets() {
