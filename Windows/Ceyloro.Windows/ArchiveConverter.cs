@@ -45,7 +45,7 @@ internal static class ArchiveConverter
             if (archive.Entries.Count > MaximumEntries)
                 throw new InvalidDataException("Arsip melebihi batas ukuran ekstraksi 2 GB.");
             var root = Path.GetFullPath(destination) + Path.DirectorySeparatorChar;
-            long expanded = 0;
+            long zipExpanded = 0;
             foreach (var entry in archive.Entries)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -67,7 +67,7 @@ internal static class ArchiveConverter
                 Directory.CreateDirectory(Path.GetDirectoryName(target)!);
                 using var source = entry.Open();
                 using var output = new FileStream(target, FileMode.CreateNew, FileAccess.Write, FileShare.None);
-                expanded += CopyWithLimit(source, output, cancellationToken, MaximumExpandedBytes - expanded);
+                zipExpanded += CopyWithLimit(source, output, cancellationToken, MaximumExpandedBytes - zipExpanded);
             }
             return;
         }
@@ -78,7 +78,7 @@ internal static class ArchiveConverter
             : file;
         using var reader = new TarReader(archiveStream, leaveOpen: true);
         var destinationRoot = Path.GetFullPath(destination) + Path.DirectorySeparatorChar;
-        long expanded = 0;
+        long tarExpanded = 0;
         var entries = 0;
         TarEntry? tarEntry;
         while ((tarEntry = reader.GetNextEntry()) is not null)
@@ -103,7 +103,7 @@ internal static class ArchiveConverter
                 throw new InvalidDataException("Arsip berisi tipe file khusus yang tidak didukung.");
             Directory.CreateDirectory(Path.GetDirectoryName(target)!);
             using var output = new FileStream(target, FileMode.CreateNew, FileAccess.Write, FileShare.None);
-            expanded += CopyWithLimit(tarEntry.DataStream ?? Stream.Null, output, cancellationToken, MaximumExpandedBytes - expanded);
+            tarExpanded += CopyWithLimit(tarEntry.DataStream ?? Stream.Null, output, cancellationToken, MaximumExpandedBytes - tarExpanded);
         }
     }
 

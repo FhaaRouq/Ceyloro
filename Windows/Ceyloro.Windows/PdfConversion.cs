@@ -29,7 +29,7 @@ internal static class PdfConversion
             throw new InvalidOperationException("Target PDF ini tidak didukung.");
 
         var storageFile = await StorageFile.GetFileFromPathAsync(input);
-        using var document = await PdfDocument.LoadFromFileAsync(storageFile);
+        var document = await PdfDocument.LoadFromFileAsync(storageFile);
         if (document.IsPasswordProtected)
             throw new InvalidDataException("PDF dilindungi kata sandi. Buka kunci file terlebih dahulu.");
         if (document.PageCount == 0)
@@ -195,7 +195,9 @@ internal static class PdfConversion
         try
         {
             if (!image.PropertyIdList.Contains(orientationId)) return;
-            var orientation = BitConverter.ToUInt16(image.GetPropertyItem(orientationId).Value, 0);
+            var orientationValue = image.GetPropertyItem(orientationId).Value;
+            if (orientationValue is null || orientationValue.Length < 2) return;
+            var orientation = BitConverter.ToUInt16(orientationValue, 0);
             var rotate = orientation switch
             {
                 2 => RotateFlipType.RotateNoneFlipX,

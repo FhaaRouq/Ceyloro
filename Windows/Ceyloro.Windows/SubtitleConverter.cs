@@ -53,11 +53,11 @@ internal static partial class SubtitleConverter
         if (bytes.Length == 0)
             throw new InvalidDataException("File subtitle kosong.");
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-        if (bytes.AsSpan().StartsWith([0xEF, 0xBB, 0xBF]))
+        if (bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF)
             return Encoding.UTF8.GetString(bytes, 3, bytes.Length - 3);
-        if (bytes.AsSpan().StartsWith([0xFF, 0xFE]))
+        if (bytes.Length >= 2 && bytes[0] == 0xFF && bytes[1] == 0xFE)
             return Encoding.Unicode.GetString(bytes, 2, bytes.Length - 2);
-        if (bytes.AsSpan().StartsWith([0xFE, 0xFF]))
+        if (bytes.Length >= 2 && bytes[0] == 0xFE && bytes[1] == 0xFF)
             return Encoding.BigEndianUnicode.GetString(bytes, 2, bytes.Length - 2);
         try
         {
