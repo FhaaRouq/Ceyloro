@@ -40,7 +40,7 @@ internal static class PdfConversion
         var pageCount = checked((int)document.PageCount);
         var baseName = Path.GetFileNameWithoutExtension(input);
         var directory = Path.GetDirectoryName(outputPath)!;
-        var pageFolder = UniqueDirectory(directory, baseName + " pages");
+        var pageFolder = UniqueDirectory(directory, baseName);
         var useZip = pageCount > 1 && options.MultiPageOutput.Equals("zip", StringComparison.OrdinalIgnoreCase);
         var useFolder = pageCount > 1 && !useZip;
         var zipPath = UniquePath(Path.ChangeExtension(outputPath, ".zip"));
@@ -66,7 +66,7 @@ internal static class PdfConversion
                 var bytes = await ReadAllAsync(stream);
                 var output = pageCount == 1
                     ? outputPath
-                    : Path.Combine(pageFolder, $"{baseName} {index + 1:D2}.{target}");
+                    : Path.Combine(pageFolder, $"{baseName}-{index + 1:D2}.{target}");
                 WriteRaster(bytes, output, target);
                 pagePaths.Add(output);
                 progress((index + 1d) / pageCount);
