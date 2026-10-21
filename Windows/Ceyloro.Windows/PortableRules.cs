@@ -45,7 +45,7 @@ public static class PortablePlanner
             [PortableMediaKind.Image] = ["jpg", "png", "heic", "tiff", "pdf"],
             [PortableMediaKind.Pdf] = ["jpg", "png"],
             [PortableMediaKind.Audio] = ["mp3", "m4a", "wav", "flac", "ogg", "opus", "aiff"],
-            [PortableMediaKind.Video] = ["mp4", "mov", "mkv", "webm", "avi", "wmv", "gif"],
+            [PortableMediaKind.Video] = ["mp4", "mov", "mkv", "webm", "avi", "wmv", "gif", "mp3", "m4a", "wav", "flac", "ogg", "opus", "aiff"],
             [PortableMediaKind.Subtitle] = ["srt", "vtt"]
         };
 

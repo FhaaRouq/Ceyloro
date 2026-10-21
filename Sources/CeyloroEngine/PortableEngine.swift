@@ -123,7 +123,7 @@ public enum ConversionPlanner {
         case .image: candidates = [.jpg, .png, .heic, .tiff, .pdf]
         case .pdf: candidates = [.jpg, .png, .txt]
         case .audio: candidates = [.mp3, .m4a, .wav, .flac, .ogg, .opus, .aiff]
-        case .video: candidates = [.mp4, .mov, .mkv, .webm, .avi, .wmv, .gif]
+        case .video: candidates = [.mp4, .mov, .mkv, .webm, .avi, .wmv, .gif, .mp3, .m4a, .wav, .flac, .ogg, .opus, .aiff]
         case .subtitle: candidates = [.srt, .vtt, .txt]
         case .archive: candidates = [.zip, .tar, .gzip]
         case .document, .unknown: candidates = []

@@ -19,8 +19,9 @@ Pasang Visual Studio 2022 dengan workload **.NET desktop development**, lalu:
 dotnet build .\Windows\Ceyloro.Windows\Ceyloro.Windows.csproj -c Release
 ```
 
-Letakkan `ffmpeg.exe` build LGPL di samping `Ceyloro.exe`, atau pilih file itu
-melalui menu **Pengaturan**. Binary FFmpeg tidak disertakan dalam source tree.
+Paket release resmi sudah membawa `ffmpeg.exe` build LGPL di samping `Ceyloro.exe`.
+Build dari source tree tidak membawa binary itu; letakkan `ffmpeg.exe` build LGPL
+di samping executable atau pilih file tersebut melalui menu **Pengaturan**.
 
 Alur penggunaan saat ini: jalankan Ceyloro, tekan `Ctrl+Alt+Space`, lalu tarik
 file dari Explorer ke roda dan lepaskan pada target yang diinginkan. `Esc`

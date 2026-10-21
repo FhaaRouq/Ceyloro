@@ -38,7 +38,7 @@ Untuk membuka roda tanpa drag, gunakan hotkey cadangan yang dikonfigurasi di apl
 3. Tekan `Ctrl + Alt + Space` untuk membuka roda.
 4. Tarik file dari Explorer ke roda, lalu lepaskan pada format tujuan.
 
-Shell Windows menggunakan FFmpeg untuk konversi media. Pilih `ffmpeg.exe` melalui menu **Pengaturan**. Binary FFmpeg tidak disertakan dalam repository ini.
+Paket release Windows sudah membawa FFmpeg LGPL yang sudah diverifikasi. Untuk build dari source, letakkan `ffmpeg.exe` LGPL di samping `Ceyloro.exe` atau pilih lokasinya melalui menu **Pengaturan**.
 
 ## Yang bisa dilakukan
 
@@ -47,7 +47,7 @@ Shell Windows menggunakan FFmpeg untuk konversi media. Pilih `ffmpeg.exe` melalu
 | Gambar | JPG, PNG, HEIC, TIFF, PDF |
 | PDF | JPG, PNG per halaman, TXT untuk PDF yang berisi teks |
 | Audio | MP3, M4A, WAV, FLAC, OGG, OPUS, AIFF |
-| Video | MP4, MOV, MKV, WebM, AVI, WMV, GIF |
+| Video | MP4, MOV, MKV, WebM, AVI, WMV, GIF, MP3, M4A, WAV, FLAC, OGG, OPUS, AIFF |
 | Subtitle | SRT, VTT |
 | Arsip | ZIP, TAR, TAR.GZ |
 

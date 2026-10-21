@@ -26,6 +26,17 @@ final class PortableEngineTests: XCTestCase {
         XCTAssertEqual(plan.request.target, .webm)
     }
 
+    func testVideoCanBeConvertedToAudioOnPortableShell() {
+        let capabilities = EngineCapabilities(platform: .windows, backends: [.ffmpeg], supportedTargets: allTargets)
+        let source = PortableFileFormat(fileExtension: "mov", kind: .video)
+        let targets = ConversionPlanner.targets(for: source, capabilities: capabilities)
+
+        XCTAssertTrue(targets.contains(.mp3))
+        XCTAssertTrue(targets.contains(.m4a))
+        XCTAssertTrue(targets.contains(.wav))
+        XCTAssertFalse(targets.contains(.mov))
+    }
+
     func testNativeBackendIsPreferredWhenAvailable() throws {
         let capabilities = EngineCapabilities(platform: .macOS, backends: [.native, .ffmpeg], supportedTargets: allTargets)
         let request = ConversionRequest(input: URL(fileURLWithPath: "/tmp/voice.wav"), target: .m4a)
