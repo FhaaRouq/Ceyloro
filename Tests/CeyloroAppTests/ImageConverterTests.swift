@@ -1,4 +1,5 @@
 import AppKit
+import AVFoundation
 import CoreGraphics
 import ImageIO
 import PDFKit
@@ -8,6 +9,29 @@ import XCTest
 @testable import Ceyloro
 
 final class ImageConverterTests: XCTestCase {
+    func testNativeAudioCanExportToM4AWhenSupported() throws {
+        let source = URL(fileURLWithPath: "/System/Library/Sounds/Glass.aiff")
+        guard FileManager.default.isReadableFile(atPath: source.path) else {
+            throw XCTSkip("Audio fixture macOS tidak tersedia")
+        }
+        let converter = AudioConverter()
+        guard converter.supportedTargets(for: [source], candidates: [.m4a]).contains(.m4a) else {
+            throw XCTSkip("AVFoundation tidak menawarkan ekspor M4A pada sistem ini")
+        }
+
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("CeyloroAudio-\(UUID().uuidString)")
+        let temporaryDirectory = root.appendingPathComponent("temporary", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let result = try converter.convert(input: source, target: .m4a, temporaryDirectory: temporaryDirectory, progress: { _ in }, isCancelled: { false })
+        let output = try XCTUnwrap(result.first)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: output.path))
+        let size = try XCTUnwrap(FileManager.default.attributesOfItem(atPath: output.path)[.size] as? NSNumber).intValue
+        XCTAssertGreaterThan(size, 0)
+        XCTAssertNotNil(try AVAudioFile(forReading: output))
+    }
+
     func testJPEGExifOrientationIsAppliedWhenConvertingToJPG() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("CeyloroImage-\(UUID().uuidString)")
         let sourceURL = root.appendingPathComponent("portrait-source.jpg")

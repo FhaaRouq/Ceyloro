@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
     private let matrix = ConversionMatrix()
     private let runner = JobRunner()
     private let converter = ImageConverter()
+    private let audioConverter = AudioConverter()
     private let engineProbe = RuntimeEngineProbe()
     private var progressWindows: [UUID: ProgressWindowController] = [:]
     private var settingsWindow: SettingsWindowController?
@@ -108,6 +109,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
         switch mode {
         case .convert:
             let formats = matrix.commonTargets(for: files.map(FileFormat.detect(url:)))
+            if files.allSatisfy({ FileFormat.detect(url: $0).kind == .audio }) {
+                return audioConverter.supportedTargets(for: files, candidates: formats).map { WheelItem(title: $0.title, target: $0, action: nil) }
+            }
             return converter.supportedTargets(for: files, candidates: formats).map { WheelItem(title: $0.title, target: $0, action: nil) }
         case .tools:
             return []
@@ -141,7 +145,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
                 )
             )
             let id = runner.submit(inputs: files, target: target, outputDirectory: outputDirectory, multiPageOutput: multiPageOutput, processor: { [converter] input, target, temp, progress, cancelled in
-                try converter.convert(input: input, target: target, temporaryDirectory: temp.appendingPathComponent(UUID().uuidString), progress: progress, isCancelled: cancelled, options: imageOptions)
+                if FileFormat.detect(url: input).kind == .audio {
+                    return try AudioConverter().convert(input: input, target: target, temporaryDirectory: temp.appendingPathComponent(UUID().uuidString), progress: progress, isCancelled: cancelled)
+                }
+                return try converter.convert(input: input, target: target, temporaryDirectory: temp.appendingPathComponent(UUID().uuidString), progress: progress, isCancelled: cancelled, options: imageOptions)
             }) { [weak self] snapshot in
                 self?.handle(snapshot: snapshot)
             }

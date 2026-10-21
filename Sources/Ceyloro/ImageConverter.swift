@@ -226,6 +226,7 @@ enum ConversionError: LocalizedError {
     case invalidInput
     case noText
     case encodingFailed
+    case audioEngineUnavailable
     case unsupportedConversion
 
     var errorDescription: String? {
@@ -233,6 +234,7 @@ enum ConversionError: LocalizedError {
         case .invalidInput: return "File tidak valid, terkunci, atau tidak dapat dibaca."
         case .noText: return "PDF tidak berisi teks, mungkin hasil scan."
         case .encodingFailed: return "Ceyloro tidak dapat menulis hasil konversi."
+        case .audioEngineUnavailable: return "Mesin audio macOS tidak mendukung format ini."
         case .unsupportedConversion: return "Format ini belum didukung di MVP."
         }
     }
