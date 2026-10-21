@@ -211,9 +211,15 @@ public final class JobRunner {
                 if operation?.isCancelled == true { throw CancellationError() }
                 let folder = outputDirectory ?? inputsInOrder.first?.deletingLastPathComponent() ?? self.fileManager.homeDirectoryForCurrentUser
                 try self.fileManager.createDirectory(at: folder, withIntermediateDirectories: true)
-                let destination = OutputNaming().uniqueURL(baseName: outputName, fileExtension: "pdf", in: folder, fileManager: self.fileManager)
-                try self.moveSafely(from: result, to: destination)
-                self.emit(JobSnapshot(id: id, state: .completed, progress: 1, message: "Selesai", outputs: [destination]), update: update)
+                let destination = OutputNaming().reserveUniqueURL(baseName: outputName, fileExtension: "pdf", in: folder, fileManager: self.fileManager)
+                do {
+                    try? self.fileManager.removeItem(at: destination)
+                    try self.moveSafely(from: result, to: destination)
+                    self.emit(JobSnapshot(id: id, state: .completed, progress: 1, message: "Selesai", outputs: [destination]), update: update)
+                } catch {
+                    try? self.fileManager.removeItem(at: destination)
+                    throw error
+                }
             } catch is CancellationError {
                 try? self.fileManager.removeItem(at: tempRoot)
                 self.emit(JobSnapshot(id: id, state: .cancelled, progress: 0, message: "Dibatalkan"), update: update)
@@ -251,17 +257,22 @@ public final class JobRunner {
             var committed: [URL] = []
             for temporaryURL in temporaryFiles {
                 if operation?.isCancelled == true { throw CancellationError() }
-                let destination = naming.uniqueURL(for: input, target: target, in: destinationFolder, fileManager: fileManager)
-                try moveSafely(from: temporaryURL, to: destination)
-                committed.append(destination)
+                let destination = naming.reserveUniqueURL(for: input, target: target, in: destinationFolder, fileManager: fileManager)
+                do {
+                    try? fileManager.removeItem(at: destination)
+                    try moveSafely(from: temporaryURL, to: destination)
+                    committed.append(destination)
+                } catch {
+                    try? fileManager.removeItem(at: destination)
+                    throw error
+                }
             }
             return committed
         }
 
         switch multiPageOutput {
         case .folder:
-            let folder = naming.uniqueFolderURL(baseName: collectionName, in: destinationFolder, fileManager: fileManager)
-            try fileManager.createDirectory(at: folder, withIntermediateDirectories: true)
+            let folder = naming.reserveUniqueFolderURL(baseName: collectionName, in: destinationFolder, fileManager: fileManager)
             do {
                 for (index, temporaryURL) in temporaryFiles.enumerated() {
                     if operation?.isCancelled == true { throw CancellationError() }
@@ -275,16 +286,17 @@ public final class JobRunner {
                 throw error
             }
         case .zip:
-            let staging = temporaryRoot.appendingPathComponent("zip", isDirectory: true)
+            let staging = temporaryRoot.appendingPathComponent("zip-\(UUID().uuidString)", isDirectory: true)
             let folder = staging.appendingPathComponent(collectionName, isDirectory: true)
             try fileManager.createDirectory(at: folder, withIntermediateDirectories: true)
-            let zipURL = naming.uniqueURL(baseName: collectionName, fileExtension: "zip", in: destinationFolder, fileManager: fileManager)
+            for (index, temporaryURL) in temporaryFiles.enumerated() {
+                if operation?.isCancelled == true { throw CancellationError() }
+                let fileName = naming.pageFileName(baseName: collectionName, index: index, total: temporaryFiles.count, fileExtension: target.fileExtension)
+                try moveSafely(from: temporaryURL, to: folder.appendingPathComponent(fileName))
+            }
+            let zipURL = naming.reserveUniqueURL(baseName: collectionName, fileExtension: "zip", in: destinationFolder, fileManager: fileManager)
             do {
-                for (index, temporaryURL) in temporaryFiles.enumerated() {
-                    if operation?.isCancelled == true { throw CancellationError() }
-                    let fileName = naming.pageFileName(baseName: collectionName, index: index, total: temporaryFiles.count, fileExtension: target.fileExtension)
-                    try moveSafely(from: temporaryURL, to: folder.appendingPathComponent(fileName))
-                }
+                try? fileManager.removeItem(at: zipURL)
                 try archive(folder: folder, to: zipURL, operation: operation)
                 return [zipURL]
             } catch {

@@ -165,4 +165,57 @@ final class JobRunnerTests: XCTestCase {
         }
         wait(for: [completed], timeout: 3)
     }
+
+    func testConcurrentJobsWithSameBaseNameDoNotCollide() throws {
+        let runner = JobRunner(maxConcurrentJobs: 2)
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("CeyloroCollision-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let input1 = root.appendingPathComponent("image.png")
+        let input2 = root.appendingPathComponent("image.png") // same base name
+        try Data("img1".utf8).write(to: input1)
+
+        let exp1 = expectation(description: "job 1 finished")
+        let exp2 = expectation(description: "job 2 finished")
+        var out1: URL?
+        var out2: URL?
+
+        runner.submit(inputs: [input1], target: .jpg, outputDirectory: root, processor: { _, _, temp, _, _ in
+            try FileManager.default.createDirectory(at: temp, withIntermediateDirectories: true)
+            let file = temp.appendingPathComponent("output.jpg")
+            try Data("converted1".utf8).write(to: file)
+            return .files([file])
+        }) { snapshot in
+            if snapshot.state == .completed {
+                out1 = snapshot.outputs.first
+                exp1.fulfill()
+            } else if snapshot.state == .failed {
+                XCTFail("Job 1 failed: \(snapshot.message), failures: \(snapshot.failures)")
+                exp1.fulfill()
+            }
+        }
+
+        runner.submit(inputs: [input2], target: .jpg, outputDirectory: root, processor: { _, _, temp, _, _ in
+            try FileManager.default.createDirectory(at: temp, withIntermediateDirectories: true)
+            let file = temp.appendingPathComponent("output.jpg")
+            try Data("converted2".utf8).write(to: file)
+            return .files([file])
+        }) { snapshot in
+            if snapshot.state == .completed {
+                out2 = snapshot.outputs.first
+                exp2.fulfill()
+            } else if snapshot.state == .failed {
+                XCTFail("Job 2 failed: \(snapshot.message), failures: \(snapshot.failures)")
+                exp2.fulfill()
+            }
+        }
+
+        wait(for: [exp1, exp2], timeout: 5)
+        XCTAssertNotNil(out1)
+        XCTAssertNotNil(out2)
+        XCTAssertNotEqual(out1, out2)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: out1!.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: out2!.path))
+    }
 }

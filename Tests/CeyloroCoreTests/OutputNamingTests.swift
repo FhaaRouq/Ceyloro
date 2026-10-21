@@ -44,4 +44,34 @@ final class OutputNamingTests: XCTestCase {
         XCTAssertEqual(result.deletingLastPathComponent().path, directory.path)
         XCTAssertEqual(result.lastPathComponent, "..-hasil-tersembunyi.pdf")
     }
+
+    func testReserveUniqueURLAtomicallyCreatesZeroBytePlaceholder() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("CeyloroReserve-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let naming = OutputNaming()
+        let reserved1 = naming.reserveUniqueURL(baseName: "document", fileExtension: "pdf", in: directory)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: reserved1.path))
+        XCTAssertEqual(reserved1.lastPathComponent, "document.pdf")
+
+        let reserved2 = naming.reserveUniqueURL(baseName: "document", fileExtension: "pdf", in: directory)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: reserved2.path))
+        XCTAssertEqual(reserved2.lastPathComponent, "document 2.pdf")
+    }
+
+    func testReserveUniqueFolderURLAtomicallyCreatesDirectory() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("CeyloroReserveDir-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let naming = OutputNaming()
+        let reserved1 = naming.reserveUniqueFolderURL(baseName: "output", in: directory)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: reserved1.path))
+        XCTAssertEqual(reserved1.lastPathComponent, "output")
+
+        let reserved2 = naming.reserveUniqueFolderURL(baseName: "output", in: directory)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: reserved2.path))
+        XCTAssertEqual(reserved2.lastPathComponent, "output 2")
+    }
 }
