@@ -56,6 +56,11 @@ yang tersedia dapat membaca format sumber tersebut. PDF multi-halaman dapat
 disimpan sebagai folder atau ZIP. RAR/7Z, OCR untuk PDF hasil
 scan, serta format yang tidak didukung encoder lokal tidak ditawarkan.
 
+Konversi JPG, PNG, TIFF, BMP, dan GIF memakai decoder gambar Windows. TIFF multi-halaman
+menghasilkan satu file per halaman, seperti alur macOS. WEBP, HEIC, dan AVIF memakai FFmpeg
+untuk membuat PNG perantara; ini menjaga transparansi saat target akhirnya JPG, PNG, TIFF,
+atau PDF.
+
 Jika Windows SmartScreen muncul saat pertama kali membuka aplikasi, pilih
 **More info**, lalu **Run anyway** hanya untuk paket yang diunduh dari GitHub
 Release resmi Ceyloro.
