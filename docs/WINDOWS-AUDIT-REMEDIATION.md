@@ -9,9 +9,9 @@ Lingkup: shell Windows, backend konversi, pengaturan, UI, CI, dan paket x64/ARM6
 Temuan W-01–W-22 sudah ditinjau satu per satu, lalu audit lanjutan menambahkan
 W-23–W-25 untuk penanganan format dan TIFF multi-halaman. Perbaikan source
 dikerjakan pada PR Windows. Build lokal tidak dapat dilakukan karena .NET
-SDK/MSBuild tidak tersedia; pembaruan parity ini menunggu hasil CI untuk
-`win-x64` dan `win-arm64`. CI memeriksa kompilasi, bukan konversi atau UI ketika
-aplikasi berjalan.
+SDK/MSBuild tidak tersedia. GitHub Actions lulus untuk `win-x64` dan
+`win-arm64` pada commit `81b43c39`; CI memeriksa kompilasi, bukan konversi atau
+UI ketika aplikasi berjalan.
 
 | ID | Status | Penanganan |
 | --- | --- | --- |
@@ -57,7 +57,7 @@ aplikasi berjalan.
 
 ## Validasi yang masih diperlukan sebelum menyatakan rilis lulus
 
-1. Jalankan kembali build CI `win-x64` dan `win-arm64` setelah commit parity terbaru.
+1. Build CI `win-x64` dan `win-arm64` lulus pada commit parity `81b43c39`.
 2. Pada Windows x64 dan ARM64, uji overlay dan Explorer drag-drop pada PNG, MP4,
    MP3, PDF, SRT, serta file tidak dikenal.
 3. Uji konversi representatif, termasuk TIFF multi-halaman dan gambar-ke-PDF untuk semua format yang ditawarkan,
