@@ -136,36 +136,68 @@ final class AudioConverter {
         progress(0)
 
         var lastProgress = 0.0
-        while reader.status == .reading {
-            if isCancelled() {
-                reader.cancelReading()
-                writer.cancelWriting()
-                try? FileManager.default.removeItem(at: output)
-                throw CancellationError()
-            }
-            if writerInput.isReadyForMoreMediaData {
-                guard let sample = readerOutput.copyNextSampleBuffer() else { break }
-                guard writerInput.append(sample) else {
+        let writeQueue = DispatchQueue(label: "ceyloro.audio.pcm.writer", qos: .userInitiated)
+        let group = DispatchGroup()
+        group.enter()
+        var conversionError: Error?
+        var hasFinished = false
+
+        writerInput.requestMediaDataWhenReady(on: writeQueue) {
+            while writerInput.isReadyForMoreMediaData {
+                if hasFinished { return }
+
+                if isCancelled() {
+                    hasFinished = true
+                    writerInput.markAsFinished()
+                    reader.cancelReading()
                     writer.cancelWriting()
-                    try? FileManager.default.removeItem(at: output)
-                    throw writer.error ?? ConversionError.encodingFailed
+                    conversionError = CancellationError()
+                    group.leave()
+                    return
                 }
-                if duration.isFinite, duration > 0 {
-                    let timestamp = CMSampleBufferGetPresentationTimeStamp(sample).seconds
-                    let raw = min(max(timestamp / duration, 0), 0.99)
-                    lastProgress = max(lastProgress, raw)
-                    progress(lastProgress)
+
+                if reader.status != .reading {
+                    hasFinished = true
+                    writerInput.markAsFinished()
+                    group.leave()
+                    return
                 }
-            } else {
-                Thread.sleep(forTimeInterval: 0.01)
+
+                if let sample = readerOutput.copyNextSampleBuffer() {
+                    if !writerInput.append(sample) {
+                        hasFinished = true
+                        writerInput.markAsFinished()
+                        writer.cancelWriting()
+                        conversionError = writer.error ?? ConversionError.encodingFailed
+                        group.leave()
+                        return
+                    }
+                    if duration.isFinite, duration > 0 {
+                        let timestamp = CMSampleBufferGetPresentationTimeStamp(sample).seconds
+                        let raw = min(max(timestamp / duration, 0), 0.99)
+                        lastProgress = max(lastProgress, raw)
+                        progress(lastProgress)
+                    }
+                } else {
+                    hasFinished = true
+                    writerInput.markAsFinished()
+                    group.leave()
+                    return
+                }
             }
         }
+        group.wait()
+
+        if let error = conversionError {
+            try? FileManager.default.removeItem(at: output)
+            throw error
+        }
+
         guard reader.status == .completed else {
             writer.cancelWriting()
             try? FileManager.default.removeItem(at: output)
             throw reader.error ?? ConversionError.encodingFailed
         }
-        writerInput.markAsFinished()
         let finished = DispatchSemaphore(value: 0)
         writer.finishWriting { finished.signal() }
         finished.wait()
