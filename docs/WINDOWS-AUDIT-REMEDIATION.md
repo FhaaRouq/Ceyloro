@@ -33,7 +33,7 @@ UI ketika aplikasi berjalan.
 | W-16 | Diperbaiki; perlu validasi Windows | Manifest menyatakan DPI-aware PerMonitorV2. Perilaku scaling tetap perlu diuji pada perangkat. |
 | W-17 | Diperbaiki | Form progres menampilkan nama file; ringkasan memuat kegagalan per file dan menawarkan membuka folder output. |
 | W-18 | Diperbaiki sebagian | Ikon tray Ceyloro dibuat khusus; roda mendukung navigasi panah dan teks target tetap terlihat. High-contrast dan aksesibilitas perlu diperiksa langsung di Windows. |
-| W-19 | Belum selesai | CI membangun x64 dan ARM64, tetapi belum ada test project Windows atau tes otomatis yang dijalankan. |
+| W-19 | Diperbaiki sebagian | `Ceyloro.Windows.Tests` menjalankan pemeriksaan otomatis di runner Windows x64 untuk normalisasi target, deteksi/konversi TAR.GZ, TIFF multi-halaman, transparansi PNG/JPG, dan pembatalan; CI tetap membangun app x64 serta ARM64. Tes belum berjalan native pada ARM64. |
 | W-20 | Diperbaiki; perlu validasi Windows | Target framework Windows 10 2004/API 19041; workflow build dan release membuat paket terpisah `win-x64` dan `win-arm64`. Kelayakan runtime kedua arsitektur masih harus diuji. |
 | W-21 | Belum selesai untuk distribusi publik | Paket tetap ZIP dan belum code-signed/installer. README memperingatkan pengguna tentang SmartScreen. |
 | W-22 | Diperbaiki | Pengaturan rusak disalin sebagai backup, default dimuat, dan pengguna diberi pesan serta log lokal. |
@@ -57,7 +57,7 @@ UI ketika aplikasi berjalan.
 
 ## Validasi yang masih diperlukan sebelum menyatakan rilis lulus
 
-1. Build CI `win-x64` dan `win-arm64` lulus pada commit parity `81b43c39`.
+1. Build CI `win-x64` dan `win-arm64` lulus pada commit parity `81b43c39`; tes otomatis baru ditambahkan dan masih menunggu hasil CI.
 2. Pada Windows x64 dan ARM64, uji overlay dan Explorer drag-drop pada PNG, MP4,
    MP3, PDF, SRT, serta file tidak dikenal.
 3. Uji konversi representatif, termasuk TIFF multi-halaman dan gambar-ke-PDF untuk semua format yang ditawarkan,

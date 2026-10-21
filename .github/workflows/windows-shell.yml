@@ -21,3 +21,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build Ceyloro Windows shell for ${{ matrix.architecture }}
         run: dotnet build Windows/Ceyloro.Windows/Ceyloro.Windows.csproj --configuration Release -r win-${{ matrix.architecture }} --no-self-contained
+      - name: Run Windows conversion checks
+        if: matrix.architecture == 'x64'
+        run: dotnet run --project Windows/Ceyloro.Windows.Tests/Ceyloro.Windows.Tests.csproj --configuration Release -r win-x64
+
