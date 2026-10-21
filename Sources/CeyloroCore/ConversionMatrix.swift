@@ -9,6 +9,14 @@ public struct ConversionMatrix: Sendable {
             return [.jpg, .png, .heic, .tiff, .pdf].filter { $0.fileExtension != source.fileExtension }
         case .pdf:
             return [.jpg, .png, .txt]
+        case .audio:
+            return [.mp3, .m4a, .wav, .flac, .ogg, .opus, .aiff].filter { $0.fileExtension != source.fileExtension }
+        case .video:
+            return [.mp4, .mov, .mkv, .webm, .avi, .wmv, .gif].filter { $0.fileExtension != source.fileExtension }
+        case .subtitle:
+            return [.srt, .vtt, .txt].filter { $0.fileExtension != source.fileExtension }
+        case .archive:
+            return [.zip, .tar, .gzip].filter { $0.fileExtension != source.fileExtension }
         default:
             return []
         }

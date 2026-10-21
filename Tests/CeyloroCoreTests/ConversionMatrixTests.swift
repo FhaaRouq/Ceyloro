@@ -20,7 +20,23 @@ final class ConversionMatrixTests: XCTestCase {
     }
 
     func testUnsupportedKindHasNoTargets() {
-        XCTAssertTrue(ConversionMatrix().targets(for: FileFormat(fileExtension: "mp4", kind: .video)).isEmpty)
+        XCTAssertTrue(ConversionMatrix().targets(for: FileFormat(fileExtension: "docx", kind: .document)).isEmpty)
+    }
+
+    func testMediaTargetsExcludeTheSourceExtension() {
+        let matrix = ConversionMatrix()
+        let audioTargets = matrix.targets(for: FileFormat(fileExtension: "mp3", kind: .audio))
+        let videoTargets = matrix.targets(for: FileFormat(fileExtension: "mp4", kind: .video))
+        XCTAssertFalse(audioTargets.contains(.mp3))
+        XCTAssertTrue(audioTargets.contains(.flac))
+        XCTAssertFalse(videoTargets.contains(.mp4))
+        XCTAssertTrue(videoTargets.contains(.mov))
+    }
+
+    func testSubtitleAndArchiveTargetsAreCategorized() {
+        let matrix = ConversionMatrix()
+        XCTAssertEqual(Set(matrix.targets(for: FileFormat(fileExtension: "srt", kind: .subtitle))), Set([.vtt, .txt]))
+        XCTAssertEqual(Set(matrix.targets(for: FileFormat(fileExtension: "zip", kind: .archive))), Set([.tar, .gzip]))
     }
 
     func testEquivalentImageExtensionsAreCanonicalized() {

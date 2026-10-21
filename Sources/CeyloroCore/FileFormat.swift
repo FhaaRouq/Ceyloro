@@ -57,6 +57,25 @@ public enum TargetFormat: String, CaseIterable, Codable, Sendable {
     case tiff
     case pdf
     case txt
+    case mp3
+    case m4a
+    case wav
+    case flac
+    case ogg
+    case opus
+    case aiff
+    case mp4
+    case mov
+    case mkv
+    case webm
+    case avi
+    case wmv
+    case gif
+    case srt
+    case vtt
+    case zip
+    case tar
+    case gzip
 
     public var title: String {
         switch self {
@@ -66,6 +85,25 @@ public enum TargetFormat: String, CaseIterable, Codable, Sendable {
         case .tiff: return "TIFF"
         case .pdf: return "PDF"
         case .txt: return "TXT"
+        case .mp3: return "MP3"
+        case .m4a: return "M4A"
+        case .wav: return "WAV"
+        case .flac: return "FLAC"
+        case .ogg: return "OGG"
+        case .opus: return "OPUS"
+        case .aiff: return "AIFF"
+        case .mp4: return "MP4"
+        case .mov: return "MOV"
+        case .mkv: return "MKV"
+        case .webm: return "WebM"
+        case .avi: return "AVI"
+        case .wmv: return "WMV"
+        case .gif: return "GIF"
+        case .srt: return "SRT"
+        case .vtt: return "VTT"
+        case .zip: return "ZIP"
+        case .tar: return "TAR"
+        case .gzip: return "GZIP"
         }
     }
 

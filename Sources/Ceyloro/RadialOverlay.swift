@@ -35,7 +35,10 @@ struct WheelItem {
             switch target {
             case .jpg, .png, .heic, .tiff: return "photo"
             case .pdf: return "doc.richtext"
-            case .txt: return "doc.text"
+            case .txt, .srt, .vtt: return "doc.text"
+            case .mp3, .m4a, .wav, .flac, .ogg, .opus, .aiff: return "waveform"
+            case .mp4, .mov, .mkv, .webm, .avi, .wmv, .gif: return "film"
+            case .zip, .tar, .gzip: return "archivebox"
             }
         }
         switch action {
