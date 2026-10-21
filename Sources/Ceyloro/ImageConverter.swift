@@ -230,6 +230,8 @@ enum ConversionError: LocalizedError {
     case videoEngineUnavailable
     case archiveEngineUnavailable
     case archiveConversionFailed
+    case ffmpegUnavailable
+    case ffmpegFailed
     case unsupportedConversion
 
     var errorDescription: String? {
@@ -241,6 +243,8 @@ enum ConversionError: LocalizedError {
         case .videoEngineUnavailable: return "Mesin video macOS tidak mendukung format ini."
         case .archiveEngineUnavailable: return "Mesin arsip macOS tidak tersedia untuk format ini."
         case .archiveConversionFailed: return "Ceyloro tidak dapat membuat arsip hasil."
+        case .ffmpegUnavailable: return "FFmpeg belum tersedia untuk format ini."
+        case .ffmpegFailed: return "FFmpeg gagal memproses file ini."
         case .unsupportedConversion: return "Format ini belum didukung di MVP."
         }
     }

@@ -14,6 +14,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
     private let videoConverter = VideoConverter()
     private let subtitleConverter = SubtitleConverter()
     private let archiveConverter = ArchiveConverter()
+    private let ffmpegConverter = FFmpegConverter()
+    private var ffmpegURL: URL?
     private let engineProbe = RuntimeEngineProbe()
     private var progressWindows: [UUID: ProgressWindowController] = [:]
     private var settingsWindow: SettingsWindowController?
@@ -53,6 +55,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
         hotKeyMonitor.onTrigger = { [weak self] in self?.showWheelFromHotKey() }
         hotKeyMonitor.start()
         let engineStatus = engineProbe.inspect()
+        ffmpegURL = engineStatus.ffmpegURL
         log("Engine AVFoundation: tersedia; FFmpeg: \(engineStatus.ffmpegURL?.path ?? "tidak ditemukan")")
         log("Ceyloro started")
     }
@@ -113,10 +116,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
         case .convert:
             let formats = matrix.commonTargets(for: files.map(FileFormat.detect(url:)))
             if files.allSatisfy({ FileFormat.detect(url: $0).kind == .audio }) {
-                return audioConverter.supportedTargets(for: files, candidates: formats).map { WheelItem(title: $0.title, target: $0, action: nil) }
+                let native = Set(audioConverter.supportedTargets(for: files, candidates: formats))
+                let ffmpeg = Set(ffmpegConverter.supportedTargets(for: files, candidates: formats, ffmpegURL: ffmpegURL))
+                return formats.filter { native.contains($0) || ffmpeg.contains($0) }.map { WheelItem(title: $0.title, target: $0, action: nil) }
             }
             if files.allSatisfy({ FileFormat.detect(url: $0).kind == .video }) {
-                return videoConverter.supportedTargets(for: files, candidates: formats).map { WheelItem(title: $0.title, target: $0, action: nil) }
+                let native = Set(videoConverter.supportedTargets(for: files, candidates: formats))
+                let ffmpeg = Set(ffmpegConverter.supportedTargets(for: files, candidates: formats, ffmpegURL: ffmpegURL))
+                return formats.filter { native.contains($0) || ffmpeg.contains($0) }.map { WheelItem(title: $0.title, target: $0, action: nil) }
             }
             if files.allSatisfy({ FileFormat.detect(url: $0).kind == .subtitle }) {
                 return subtitleConverter.supportedTargets(for: files, candidates: formats).map { WheelItem(title: $0.title, target: $0, action: nil) }
@@ -156,12 +163,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
                     quality: PDFMergeOptions.Quality(rawValue: UserDefaults.standard.string(forKey: "mergePDF.quality") ?? "") ?? .balanced
                 )
             )
-            let id = runner.submit(inputs: files, target: target, outputDirectory: outputDirectory, multiPageOutput: multiPageOutput, processor: { [converter] input, target, temp, progress, cancelled in
+            let audioConverter = self.audioConverter
+            let videoConverter = self.videoConverter
+            let ffmpegConverter = self.ffmpegConverter
+            let ffmpegURL = self.ffmpegURL
+            let id = runner.submit(inputs: files, target: target, outputDirectory: outputDirectory, multiPageOutput: multiPageOutput, processor: { [converter, audioConverter, videoConverter, ffmpegConverter, ffmpegURL] input, target, temp, progress, cancelled in
                 if FileFormat.detect(url: input).kind == .audio {
-                    return try AudioConverter().convert(input: input, target: target, temporaryDirectory: temp.appendingPathComponent(UUID().uuidString), progress: progress, isCancelled: cancelled)
+                    let audioTemp = temp.appendingPathComponent(UUID().uuidString)
+                    if audioConverter.supportedTargets(for: [input], candidates: [target]).contains(target) {
+                        return try audioConverter.convert(input: input, target: target, temporaryDirectory: audioTemp, progress: progress, isCancelled: cancelled)
+                    }
+                    return try ffmpegConverter.convert(input: input, target: target, temporaryDirectory: audioTemp, ffmpegURL: ffmpegURL, progress: progress, isCancelled: cancelled)
                 }
                 if FileFormat.detect(url: input).kind == .video {
-                    return try VideoConverter().convert(input: input, target: target, temporaryDirectory: temp.appendingPathComponent(UUID().uuidString), progress: progress, isCancelled: cancelled)
+                    let videoTemp = temp.appendingPathComponent(UUID().uuidString)
+                    if videoConverter.supportedTargets(for: [input], candidates: [target]).contains(target) {
+                        return try videoConverter.convert(input: input, target: target, temporaryDirectory: videoTemp, progress: progress, isCancelled: cancelled)
+                    }
+                    return try ffmpegConverter.convert(input: input, target: target, temporaryDirectory: videoTemp, ffmpegURL: ffmpegURL, progress: progress, isCancelled: cancelled)
                 }
                 if FileFormat.detect(url: input).kind == .subtitle {
                     return try SubtitleConverter().convert(input: input, target: target, temporaryDirectory: temp.appendingPathComponent(UUID().uuidString), progress: progress, isCancelled: cancelled)
