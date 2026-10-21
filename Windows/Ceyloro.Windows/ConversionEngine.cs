@@ -30,12 +30,7 @@ public sealed class ConversionEngine
         if (files.Length == 0) return targets;
         var formats = files.Select(PortableFileFormat.Detect).ToArray();
         if (formats.All(format => format.Kind is PortableMediaKind.Pdf or PortableMediaKind.Subtitle or PortableMediaKind.Archive))
-        {
-            if (Enumerable.Range(0, files.Length).Any(index =>
-                    formats[index].Kind == PortableMediaKind.Archive && !ArchiveConverter.IsSupportedArchive(files[index])))
-                return [];
             return targets;
-        }
 
         var capabilities = TryGetCapabilities();
         var hasAnimatedGif = formats.All(format => format.Extension == "gif") && files.Any(IsAnimatedGif);
