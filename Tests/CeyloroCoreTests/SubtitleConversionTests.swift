@@ -28,4 +28,12 @@ final class SubtitleConversionTests: XCTestCase {
             XCTAssertEqual(error as? SubtitleConversionError, .invalidCue)
         }
     }
+
+    func testVTTSkipsMetadataBlocksAndAcceptsHeaderText() throws {
+        let source = "WEBVTT - Ceyloro\n\nNOTE\nmetadata\n\nSTYLE\n::cue { color: white; }\n\ncue-1\n00:00:01.000 --> 00:00:02.000\nHalo"
+
+        let cues = try SubtitleTranscoder.parse(source, format: .vtt)
+
+        XCTAssertEqual(cues, [SubtitleCue(startMilliseconds: 1_000, endMilliseconds: 2_000, text: "Halo")])
+    }
 }

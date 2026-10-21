@@ -21,7 +21,15 @@ final class SubtitleConverter {
         try FileManager.default.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
         let text: String
         do {
-            text = try String(contentsOf: input, encoding: .utf8)
+            let data = try Data(contentsOf: input)
+            guard let decoded = String(data: data, encoding: .utf8)
+                ?? String(data: data, encoding: .utf16)
+                ?? String(data: data, encoding: .utf16LittleEndian)
+                ?? String(data: data, encoding: .utf16BigEndian)
+                ?? String(data: data, encoding: .windowsCP1252) else {
+                throw ConversionError.invalidInput
+            }
+            text = decoded
         } catch {
             throw ConversionError.invalidInput
         }

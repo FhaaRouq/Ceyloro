@@ -314,7 +314,10 @@ public final class JobRunner {
         }
     }
 
-    private func moveSafely(from source: URL, to destination: URL) throws {
+    // Keep an existing destination intact if a cross-volume copy fails.
+    // The caller already chooses unique destination names, so deleting the
+    // destination here could destroy an unrelated file in a race.
+    func moveSafely(from source: URL, to destination: URL) throws {
         do {
             try fileManager.moveItem(at: source, to: destination)
         } catch let moveError {
@@ -322,7 +325,6 @@ public final class JobRunner {
                 try fileManager.copyItem(at: source, to: destination)
                 try fileManager.removeItem(at: source)
             } catch {
-                try? fileManager.removeItem(at: destination)
                 throw moveError
             }
         }

@@ -32,6 +32,11 @@ final class HotKeyMonitor {
     }
 
     private static func isFallbackHotKey(_ event: NSEvent) -> Bool {
+        // The fallback shortcut is intended for Finder selections. Without
+        // this guard, Shift+Space hijacks typing and shortcuts in every app.
+        guard NSWorkspace.shared.frontmostApplication?.bundleIdentifier == "com.apple.finder" else {
+            return false
+        }
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         return event.keyCode == 49 && flags == .shift
     }

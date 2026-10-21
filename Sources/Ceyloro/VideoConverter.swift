@@ -25,7 +25,7 @@ final class VideoConverter {
             throw ConversionError.invalidInput
         }
         try FileManager.default.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
-        let output = temporaryDirectory.appendingPathComponent("output.(target.fileExtension)")
+        let output = temporaryDirectory.appendingPathComponent("output.\(target.fileExtension)")
         let asset = AVURLAsset(url: input)
         guard let session = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetHighestQuality),
               let fileType = fileType(for: target),

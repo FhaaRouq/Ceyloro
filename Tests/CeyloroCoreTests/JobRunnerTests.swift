@@ -2,6 +2,22 @@ import XCTest
 @testable import CeyloroCore
 
 final class JobRunnerTests: XCTestCase {
+    func testFailedCrossVolumeMoveDoesNotDeleteExistingDestination() throws {
+        let runner = JobRunner()
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("CeyloroMove-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let source = root.appendingPathComponent("source.bin")
+        let destination = root.appendingPathComponent("destination.bin")
+        try Data([0x01, 0x02]).write(to: source)
+        try Data([0xAA, 0xBB]).write(to: destination)
+
+        XCTAssertThrowsError(try runner.moveSafely(from: source, to: destination))
+        XCTAssertEqual(try Data(contentsOf: destination), Data([0xAA, 0xBB]))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: source.path))
+    }
+
     func testCancelledQueuedJobPublishesCancelledSnapshot() {
         let runner = JobRunner(maxConcurrentJobs: 1)
         let firstStarted = expectation(description: "first job started")

@@ -48,11 +48,12 @@ public enum SubtitleTranscoder {
             while lines.first?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == true {
                 lines.removeFirst()
             }
-            guard lines.first?.trimmingCharacters(in: .whitespacesAndNewlines) == "WEBVTT" else {
+            guard let header = lines.first?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  header == "WEBVTT" || header.hasPrefix("WEBVTT ") else {
                 throw SubtitleConversionError.invalidCue
             }
             lines.removeFirst()
-            while let first = lines.first, !first.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            while !lines.isEmpty, !lines[0].trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 lines.removeFirst()
             }
         }
@@ -65,7 +66,14 @@ public enum SubtitleTranscoder {
             }
             guard cursor < lines.count else { break }
 
-            if !lines[cursor].contains("-->") {
+            if format == .vtt, ["NOTE", "STYLE", "REGION"].contains(where: { lines[cursor].hasPrefix($0) }) {
+                repeat {
+                    cursor += 1
+                } while cursor < lines.count && !lines[cursor].trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                continue
+            }
+
+            while cursor < lines.count, !lines[cursor].contains("-->") {
                 cursor += 1
             }
             guard cursor < lines.count, lines[cursor].contains("-->") else {

@@ -40,6 +40,8 @@
     <string>Ceyloro memerlukan akses untuk membaca dan menyimpan hasil konversi di Downloads.</string>
     <key>NSRemovableVolumesUsageDescription</key>
     <string>Ceyloro memerlukan akses untuk memproses file dari volume yang kamu pilih.</string>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>Ceyloro memerlukan akses untuk membaca file yang sedang dipilih di Finder.</string>
     <key>LSMinimumSystemVersion</key>
     <string>13.0</string>
 </dict>
