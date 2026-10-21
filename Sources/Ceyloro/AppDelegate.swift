@@ -92,10 +92,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
 
     private func refreshEngine() {
         let customPath = UserDefaults.standard.string(forKey: "ffmpegPath")
-        let engineStatus = engineProbe.inspect(customFFmpegPath: customPath)
-        ffmpegURL = engineStatus.ffmpegURL
-        ffmpegEncoders = engineStatus.encoders
-        log("Engine AVFoundation: \(engineStatus.avFoundation ? "tersedia" : "tidak tersedia"); FFmpeg: \(engineStatus.ffmpegURL?.path ?? "tidak ditemukan") (encoders: \(engineStatus.encoders.count))")
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self else { return }
+            let engineStatus = self.engineProbe.inspect(customFFmpegPath: customPath)
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.ffmpegURL = engineStatus.ffmpegURL
+                self.ffmpegEncoders = engineStatus.encoders
+                self.log("Engine AVFoundation: \(engineStatus.avFoundation ? "tersedia" : "tidak tersedia"); FFmpeg: \(engineStatus.ffmpegURL?.path ?? "tidak ditemukan") (encoders: \(engineStatus.encoders.count))")
+            }
+        }
     }
 
     private func showWheel(files: [URL], at point: NSPoint, flags: NSEvent.ModifierFlags) {
