@@ -36,4 +36,12 @@ final class OutputNamingTests: XCTestCase {
         XCTAssertEqual(OutputNaming().uniqueFolderURL(baseName: "report", in: directory).lastPathComponent, "report 2")
         XCTAssertEqual(OutputNaming().uniqueURL(baseName: "report", fileExtension: "zip", in: directory).lastPathComponent, "report 2.zip")
     }
+
+    func testUserOutputNameCannotEscapeOutputDirectory() {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("CeyloroNaming-\(UUID().uuidString)")
+        let result = OutputNaming().uniqueURL(baseName: "../hasil/tersembunyi", fileExtension: "pdf", in: directory)
+
+        XCTAssertEqual(result.deletingLastPathComponent().path, directory.path)
+        XCTAssertEqual(result.lastPathComponent, "..-hasil-tersembunyi.pdf")
+    }
 }

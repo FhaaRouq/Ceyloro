@@ -22,7 +22,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
     private var pdfMergeWindow: PDFMergeWindowController?
     private var activeFiles: [URL] = []
     private var currentMode: WheelMode = .convert
-    private var dragActivity: NSObjectProtocol?
     private let logURL: URL = {
         let folder = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Ceyloro", isDirectory: true)
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -37,7 +36,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
         }
         cleanupOldTemporaryDirectories()
         rotateLogIfNeeded()
-        dragActivity = ProcessInfo.processInfo.beginActivity(options: [.userInitiatedAllowingIdleSystemSleep], reason: "Drag monitoring")
         NSApp.setActivationPolicy(.accessory)
         setupStatusItem()
         overlay.overlayDelegate = self
@@ -64,10 +62,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
     func applicationWillTerminate(_ notification: Notification) {
         monitor.stop()
         hotKeyMonitor.stop()
-        if let dragActivity {
-            ProcessInfo.processInfo.endActivity(dragActivity)
-            self.dragActivity = nil
-        }
     }
 
     private func setupStatusItem() {
@@ -103,6 +97,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
         currentMode = flags.contains(.control) ? .actions : flags.contains(.option) ? .tools : .convert
         var items = wheelItems(for: files, mode: currentMode)
         if items.isEmpty {
+            if currentMode == .tools {
+                showError("Tool tambahan belum tersedia pada versi ini.")
+                activeFiles.removeAll()
+                return
+            }
             currentMode = .actions
             items = wheelItems(for: files, mode: .actions)
         }

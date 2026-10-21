@@ -12,6 +12,7 @@ final class DragMonitor {
     private var lastChangeCount = -1
     private var lastFlags: NSEvent.ModifierFlags = []
     private var lastURLs: [URL] = []
+    private var dragActivity: NSObjectProtocol?
     private var localMouseMonitor: Any?
     private var globalMouseMonitor: Any?
 
@@ -24,6 +25,7 @@ final class DragMonitor {
     func stop() {
         timer?.invalidate()
         timer = nil
+        endDragActivity()
         if let localMouseMonitor {
             NSEvent.removeMonitor(localMouseMonitor)
             self.localMouseMonitor = nil
@@ -52,6 +54,12 @@ final class DragMonitor {
         lastFlags = []
         lastURLs.removeAll()
         downPoint = NSEvent.mouseLocation
+        if dragActivity == nil {
+            dragActivity = ProcessInfo.processInfo.beginActivity(
+                options: [.userInitiatedAllowingIdleSystemSleep],
+                reason: "Ceyloro drag monitoring"
+            )
+        }
         useActiveDragTimer()
     }
 
@@ -62,6 +70,7 @@ final class DragMonitor {
                 mouseWasDown = false
                 baselineChangeCount = -1
                 lastChangeCount = -1
+                endDragActivity()
                 restoreIdleTimer()
             }
             if wasDragging {
@@ -122,5 +131,11 @@ final class DragMonitor {
         let newTimer = Timer(timeInterval: interval, repeats: true) { [weak self] _ in self?.poll() }
         timer = newTimer
         RunLoop.main.add(newTimer, forMode: .common)
+    }
+
+    private func endDragActivity() {
+        guard let dragActivity else { return }
+        ProcessInfo.processInfo.endActivity(dragActivity)
+        self.dragActivity = nil
     }
 }
