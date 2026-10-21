@@ -18,9 +18,19 @@ capability, request, dan kontrak backend yang dipakai kedua platform.
 - [x] Deteksi format tanpa UniformTypeIdentifiers.
 - [x] Planner dapat memilih native atau FFmpeg berdasarkan capability.
 - [x] Test capability Windows dan pemilihan backend.
-- [ ] Shell Windows dan drag-and-drop Explorer.
+- [x] Shell Windows awal: system tray, hotkey, overlay radial, drag-and-drop Explorer, Settings, progres, pembatalan, dan batch FFmpeg.
 - [ ] Binary FFmpeg Windows x64.
 - [ ] Installer, auto-update, dan code signing Windows.
+
+## Status shell Windows awal
+
+Proyek shell berada di `Windows/Ceyloro.Windows`. Ia sengaja terpisah dari
+target AppKit macOS dan memakai WinForms bawaan .NET 8, sehingga dapat dibangun
+di Windows tanpa menambah paket NuGet. Alur pertama sudah mencakup konversi
+media melalui FFmpeg, dengan output unik dan laporan per file. PDF native,
+integrasi Explorer yang otomatis membuka roda saat drag dimulai, installer, dan
+code signing menjadi pekerjaan lanjutan setelah build Windows pertama tervalidasi
+di CI.
 
 Build portable product di macOS:
 

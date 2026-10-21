@@ -5,3 +5,5 @@ Sources/Ceyloro/Resources/ffmpeg
 .DS_Store
 *.xcuserstate
 xcuserdata/
+Windows/**/bin/
+Windows/**/obj/

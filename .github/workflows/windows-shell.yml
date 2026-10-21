@@ -1,0 +1,19 @@
+name: Windows shell
+
+on:
+  push:
+    paths:
+      - "Windows/**"
+      - ".github/workflows/windows-shell.yml"
+  pull_request:
+    paths:
+      - "Windows/**"
+      - ".github/workflows/windows-shell.yml"
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Ceyloro Windows shell
+        run: dotnet build Windows/Ceyloro.Windows/Ceyloro.Windows.csproj --configuration Release
