@@ -7,6 +7,7 @@ internal static class ArchiveConverter
 {
     private const long MaximumExpandedBytes = 2_000_000_000;
     private const int MaximumEntries = 100_000;
+    internal const string MaximumEntriesMessage = "Arsip melebihi batas jumlah entri (100.000).";
 
     public static bool IsSupportedArchive(string input)
     {
@@ -74,7 +75,7 @@ internal static class ArchiveConverter
         {
             using var archive = ZipFile.OpenRead(input);
             if (archive.Entries.Count > MaximumEntries)
-                throw new InvalidDataException("Arsip melebihi batas ukuran ekstraksi 2 GB.");
+                throw new InvalidDataException(MaximumEntriesMessage);
             var root = Path.GetFullPath(destination) + Path.DirectorySeparatorChar;
             long zipExpanded = 0;
             foreach (var entry in archive.Entries)
@@ -116,7 +117,7 @@ internal static class ArchiveConverter
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (++entries > MaximumEntries)
-                throw new InvalidDataException("Arsip berisi terlalu banyak file.");
+                throw new InvalidDataException(MaximumEntriesMessage);
             var relative = tarEntry.Name.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
             if (relative.Contains(':'))
                 throw new InvalidDataException("Arsip berisi nama jalur yang tidak aman.");
