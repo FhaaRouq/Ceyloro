@@ -23,6 +23,7 @@ public sealed record PortableFileFormat(string Extension, PortableMediaKind Kind
             "tif" => "tiff",
             "heif" => "heic",
             "tgz" => "gzip",
+            "gz" => "gzip",
             _ => extension
         };
 

@@ -48,11 +48,11 @@ atau dibundel.
 | MP4, MOV, MKV, WEBM, AVI, WMV | MP4, MOV, MKV, WEBM, AVI, WMV, GIF, serta target audio yang tersedia |
 | GIF animasi | Target video dan audio yang tersedia |
 | SRT, VTT | SRT, VTT, TXT |
-| ZIP, TAR, TAR.GZ | ZIP, TAR, TAR.GZ |
+| ZIP, TAR, TAR.GZ | ZIP, TAR, TAR.GZ (termasuk `.tgz` dan `.gz` yang berisi TAR) |
 
 Selain itu, JPG, PNG, TIFF, BMP, dan GIF dapat dijadikan PDF; satu atau beberapa gambar
-dapat digabung menjadi PDF. WEBP, HEIC, dan AVIF belum ditawarkan untuk PDF karena
-backend Windows saat ini tidak dapat membacanya secara andal. PDF multi-halaman dapat
+dapat digabung menjadi PDF. WEBP, HEIC, dan AVIF juga dapat dijadikan PDF jika FFmpeg
+yang tersedia dapat membaca format sumber tersebut. PDF multi-halaman dapat
 disimpan sebagai folder atau ZIP. RAR/7Z, OCR untuk PDF hasil
 scan, serta format yang tidak didukung encoder lokal tidak ditawarkan.
 

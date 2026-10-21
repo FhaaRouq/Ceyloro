@@ -6,12 +6,12 @@ Lingkup: shell Windows, backend konversi, pengaturan, UI, CI, dan paket x64/ARM6
 
 ## Hasil
 
-Temuan W-01–W-22 sudah ditinjau satu per satu, lalu audit lanjutan menemukan
-dua kasus format yang belum tertutup (W-23–W-24). Perbaikan kode yang dapat
-dikerjakan dari source sudah diterapkan pada PR Windows. Build lokal tidak
-dapat dilakukan karena .NET SDK/MSBuild tidak tersedia di lingkungan ini;
-GitHub Actions berhasil membangun `win-x64` dan `win-arm64` pada commit PR
-`837bc055`. Build itu belum menguji konversi atau UI ketika aplikasi berjalan.
+Temuan W-01–W-22 sudah ditinjau satu per satu, lalu audit lanjutan menambahkan
+W-23–W-25 untuk penanganan format dan TIFF multi-halaman. Perbaikan source
+dikerjakan pada PR Windows. Build lokal tidak dapat dilakukan karena .NET
+SDK/MSBuild tidak tersedia; pembaruan parity ini menunggu hasil CI untuk
+`win-x64` dan `win-arm64`. CI memeriksa kompilasi, bukan konversi atau UI ketika
+aplikasi berjalan.
 
 | ID | Status | Penanganan |
 | --- | --- | --- |
@@ -37,8 +37,9 @@ GitHub Actions berhasil membangun `win-x64` dan `win-arm64` pada commit PR
 | W-20 | Diperbaiki; perlu validasi Windows | Target framework Windows 10 2004/API 19041; workflow build dan release membuat paket terpisah `win-x64` dan `win-arm64`. Kelayakan runtime kedua arsitektur masih harus diuji. |
 | W-21 | Belum selesai untuk distribusi publik | Paket tetap ZIP dan belum code-signed/installer. README memperingatkan pengguna tentang SmartScreen. |
 | W-22 | Diperbaiki | Pengaturan rusak disalin sebagai backup, default dimuat, dan pengguna diberi pesan serta log lokal. |
-| W-23 | Diperbaiki di PR Windows berikutnya | `.gz` biasa sebelumnya salah dianggap TAR.GZ; sekarang hanya `.tar.gz` dan `.tgz` menjadi arsip gzip yang didukung. |
-| W-24 | Diperbaiki sebagian di PR Windows berikutnya | Target gambar-ke-PDF disembunyikan untuk WEBP, HEIC, dan AVIF karena backend PDF Windows memakai GDI+ dan belum dapat membaca format tersebut secara andal. JPG, PNG, TIFF, BMP, dan GIF tetap ditawarkan. |
+| W-23 | Diperbaiki di PR Windows berikutnya | `.gz` didukung sebagai arsip hanya jika isinya TAR; stream gzip biasa tidak ditawarkan. `.tar.gz` dan `.tgz` juga dipetakan ke target TAR.GZ. |
+| W-24 | Diperbaiki; perlu validasi Windows | WEBP, HEIC, dan AVIF disiapkan dengan FFmpeg ke PNG sebelum masuk backend PDF atau konversi JPG/PNG/TIFF. PNG menjaga transparansi sampai backend menentukan hasil akhir. Target hanya ditawarkan bila FFmpeg lokal memiliki encoder PNG dan decoder gambar terkait. |
+| W-25 | Diperbaiki; perlu validasi Windows | TIFF multi-halaman dibaca per halaman dan seluruh halaman dikeluarkan sebagai koleksi seperti di macOS. Konversi gambar Windows memakai GDI+ untuk JPG/PNG/TIFF; JPG meratakan transparansi ke latar putih. |
 
 ## Fitur Windows yang masuk dalam remediasi
 
@@ -56,10 +57,10 @@ GitHub Actions berhasil membangun `win-x64` dan `win-arm64` pada commit PR
 
 ## Validasi yang masih diperlukan sebelum menyatakan rilis lulus
 
-1. Build CI `win-x64` dan `win-arm64` lulus pada commit `837bc055`.
+1. Jalankan kembali build CI `win-x64` dan `win-arm64` setelah commit parity terbaru.
 2. Pada Windows x64 dan ARM64, uji overlay dan Explorer drag-drop pada PNG, MP4,
    MP3, PDF, SRT, serta file tidak dikenal.
-3. Uji konversi representatif, gambar-ke-PDF untuk semua format yang ditawarkan,
+3. Uji konversi representatif, termasuk TIFF multi-halaman dan gambar-ke-PDF untuk semua format yang ditawarkan,
    PDF multi-halaman folder/ZIP, arsip rusak dan
    path berbahaya, batch campuran, direktori output read-only, pembatalan, dan
    jalur Unicode/panjang.

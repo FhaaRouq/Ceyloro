@@ -8,6 +8,37 @@ internal static class ArchiveConverter
     private const long MaximumExpandedBytes = 2_000_000_000;
     private const int MaximumEntries = 100_000;
 
+    public static bool IsSupportedArchive(string input)
+    {
+        var extension = PortableFileFormat.Detect(input).Extension;
+        try
+        {
+            if (extension == "zip")
+            {
+                using var archive = ZipFile.OpenRead(input);
+                return true;
+            }
+            if (extension == "tar")
+            {
+                using var file = File.OpenRead(input);
+                using var reader = new TarReader(file);
+                return reader.GetNextEntry() is not null;
+            }
+            if (extension == "gzip")
+            {
+                using var file = File.OpenRead(input);
+                using var gzip = new GZipStream(file, CompressionMode.Decompress);
+                using var reader = new TarReader(gzip);
+                return reader.GetNextEntry() is not null;
+            }
+        }
+        catch
+        {
+            return false;
+        }
+        return false;
+    }
+
     public static void Convert(string input, string target, string output, CancellationToken cancellationToken, Action<double> progress)
     {
         var source = PortableFileFormat.Detect(input).Extension;
@@ -191,3 +222,4 @@ internal static class ArchiveConverter
         catch { }
     }
 }
+

@@ -191,7 +191,7 @@ internal static class PdfConversion
         return new JpegImage(memory.ToArray(), width, height);
     }
 
-    private static void ApplyExifOrientation(Image image)
+    internal static void ApplyExifOrientation(Image image)
     {
         const int orientationId = 0x0112;
         try
