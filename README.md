@@ -136,7 +136,6 @@ Target `CeyloroCore` tersedia di bawah MIT. Aplikasi, UI, branding, integrasi de
 
 - installer dan auto-update untuk Windows;
 - code signing dan notarization untuk distribusi publik;
-- pengelolaan FFmpeg yang lebih sederhana pada Windows;
 - parity fitur penuh antara shell macOS dan Windows;
 - opsi komersial dan fitur premium.
 
