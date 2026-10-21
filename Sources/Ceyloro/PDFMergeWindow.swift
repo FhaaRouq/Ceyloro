@@ -38,9 +38,8 @@ final class PDFMergeViewModel: ObservableObject {
                 }
             }
             if Task.isCancelled { return }
-            let finalLoaded = loaded
-            await MainActor.run { [weak self] in
-                self?.thumbnails = finalLoaded
+            DispatchQueue.main.async { [weak self] in
+                self?.thumbnails = loaded
             }
         }
     }
