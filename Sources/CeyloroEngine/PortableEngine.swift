@@ -133,3 +133,49 @@ public enum ConversionPlanner {
         return ConversionPlan(request: request, backend: backend)
     }
 }
+
+public typealias ConversionProgressHandler = @Sendable (Double) -> Void
+public typealias ConversionCancellationHandler = @Sendable () -> Bool
+
+/// Adapter yang diimplementasikan oleh shell/platform. Implementasi native
+/// macOS, native Windows, dan FFmpeg dapat hidup terpisah tanpa mengubah planner.
+public protocol ConversionBackendAdapter: Sendable {
+    var backend: ConversionBackend { get }
+    func supports(_ request: ConversionRequest) -> Bool
+    func convert(
+        _ request: ConversionRequest,
+        progress: @escaping ConversionProgressHandler,
+        isCancelled: @escaping ConversionCancellationHandler
+    ) async throws -> URL
+}
+
+public enum ConversionExecutionError: Error, Equatable, Sendable {
+    case backendUnavailable(ConversionBackend)
+    case backendRejected(ConversionBackend)
+}
+
+/// Koordinator portable yang tidak mengetahui UI atau API media platform.
+public actor ConversionCoordinator {
+    private let capabilities: EngineCapabilities
+    private let adapters: [any ConversionBackendAdapter]
+
+    public init(capabilities: EngineCapabilities, adapters: [any ConversionBackendAdapter]) {
+        self.capabilities = capabilities
+        self.adapters = adapters
+    }
+
+    public func execute(
+        _ request: ConversionRequest,
+        progress: @escaping ConversionProgressHandler = { _ in },
+        isCancelled: @escaping ConversionCancellationHandler = { false }
+    ) async throws -> URL {
+        let plan = try ConversionPlanner.plan(request, capabilities: capabilities)
+        guard let adapter = adapters.first(where: { $0.backend == plan.backend }) else {
+            throw ConversionExecutionError.backendUnavailable(plan.backend)
+        }
+        guard adapter.supports(request) else {
+            throw ConversionExecutionError.backendRejected(plan.backend)
+        }
+        return try await adapter.convert(request, progress: progress, isCancelled: isCancelled)
+    }
+}
