@@ -45,6 +45,18 @@ final class OutputNamingTests: XCTestCase {
         XCTAssertEqual(result.lastPathComponent, "..-hasil-tersembunyi.pdf")
     }
 
+    func testCompoundArchiveExtensionsAreStrippedCorrectly() {
+        let naming = OutputNaming()
+        let tarGz = URL(fileURLWithPath: "/tmp/backup.tar.gz")
+        let tgz = URL(fileURLWithPath: "/tmp/assets.tgz")
+        let tarBz2 = URL(fileURLWithPath: "/tmp/archive.tar.bz2")
+
+        XCTAssertEqual(naming.uniqueURL(for: tarGz, target: .zip).lastPathComponent, "backup.zip")
+        XCTAssertEqual(naming.uniqueURL(for: tgz, target: .zip).lastPathComponent, "assets.zip")
+        XCTAssertEqual(naming.uniqueURL(for: tarBz2, target: .tar).lastPathComponent, "archive.tar")
+        XCTAssertEqual(naming.reserveUniqueURL(for: tarGz, target: .zip).lastPathComponent, "backup.zip")
+    }
+
     func testReserveUniqueURLAtomicallyCreatesZeroBytePlaceholder() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("CeyloroReserve-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

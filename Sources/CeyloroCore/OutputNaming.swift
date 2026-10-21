@@ -3,9 +3,27 @@ import Foundation
 public struct OutputNaming {
     public init() {}
 
+    public static func strippedBaseName(for input: URL) -> String {
+        let name = input.lastPathComponent
+        let lower = name.lowercased()
+        if lower.hasSuffix(".tar.gz") {
+            return String(name.dropLast(7))
+        } else if lower.hasSuffix(".tar.bz2") {
+            return String(name.dropLast(8))
+        } else if lower.hasSuffix(".tar.xz") {
+            return String(name.dropLast(7))
+        } else if lower.hasSuffix(".tgz") {
+            return String(name.dropLast(4))
+        } else if lower.hasSuffix(".tbz2") {
+            return String(name.dropLast(5))
+        } else {
+            return input.deletingPathExtension().lastPathComponent
+        }
+    }
+
     public func uniqueURL(for input: URL, target: TargetFormat, in directory: URL? = nil, suffix: String = "", fileManager: FileManager = .default) -> URL {
         let folder = directory ?? input.deletingLastPathComponent()
-        let base = safeBaseName(input.deletingPathExtension().lastPathComponent)
+        let base = safeBaseName(Self.strippedBaseName(for: input))
         let cleanSuffix = suffix.isEmpty ? "" : "-\(suffix.trimmingCharacters(in: CharacterSet(charactersIn: "-")))"
         var candidate = folder.appendingPathComponent("\(base)\(cleanSuffix).\(target.fileExtension)")
         var number = 2
@@ -49,7 +67,7 @@ public struct OutputNaming {
     /// between simultaneous conversion jobs targeting the same destination filename.
     public func reserveUniqueURL(for input: URL, target: TargetFormat, in directory: URL? = nil, suffix: String = "", fileManager: FileManager = .default) -> URL {
         let folder = directory ?? input.deletingLastPathComponent()
-        let base = safeBaseName(input.deletingPathExtension().lastPathComponent)
+        let base = safeBaseName(Self.strippedBaseName(for: input))
         let cleanSuffix = suffix.isEmpty ? "" : "-\(suffix.trimmingCharacters(in: CharacterSet(charactersIn: "-")))"
         let targetExt = target.fileExtension
         return reserveUniqueURL(baseName: "\(base)\(cleanSuffix)", fileExtension: targetExt, in: folder, fileManager: fileManager)
