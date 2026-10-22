@@ -74,10 +74,21 @@ public static class PortablePlanner
         {
             if (format.Kind != PortableMediaKind.Pdf)
                 common.Remove(format.Extension);
+            if (format.Kind == PortableMediaKind.Document)
+                common.IntersectWith(DocumentTargets(format.Extension));
             if (format.Kind == PortableMediaKind.Archive && format.Extension is "rar" or "7z")
                 return [];
         }
         return common.OrderBy(value => value).ToArray();
     }
+
+    private static IReadOnlySet<string> DocumentTargets(string extension) => extension switch
+    {
+        "doc" or "odt" or "rtf" => new HashSet<string>(["pdf", "docx"], StringComparer.OrdinalIgnoreCase),
+        "docx" => new HashSet<string>(["pdf", "odt", "rtf", "md", "html", "txt"], StringComparer.OrdinalIgnoreCase),
+        "xls" or "xlsx" or "ods" or "ppt" or "pptx" or "odp" => new HashSet<string>(["pdf"], StringComparer.OrdinalIgnoreCase),
+        "md" or "html" or "txt" => new HashSet<string>(["docx", "pdf"], StringComparer.OrdinalIgnoreCase),
+        _ => new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    };
 }
 
