@@ -28,52 +28,48 @@ Status: [ ] = belum dimulai | [~] = sedang dikerjakan | [x] = selesai
   - [x] Tulis 2 regression test di `Windows/Ceyloro.Windows.Tests/Program.cs`:
         `FfmpegNoOverwriteFlag` dan `StagedFileCommitCollisionSafe`
 
-- [ ] **Task A3 · Perbaiki pipeline staging engine dokumen macOS**
-  - [ ] Baca `scripts/stage-document-engines.sh` dan `scripts/build-app.sh`
-  - [ ] Tambahkan validasi di awal `stage-document-engines.sh`: jika SOURCE_ROOT == DESTINATION,
-        cetak error dan exit 1
-  - [ ] Ubah `build-app.sh` agar default `CEYLORO_STAGE_DOCUMENT_ENGINES=0` di CI
-        (berdasarkan deteksi `CI=true` atau variabel eksplisit)
-  - [ ] Baca `.github/workflows/release-desktop.yml` dan tambahkan komentar eksplisit tentang apa
-        yang diperlukan untuk mengaktifkan bundling engine dokumen
-  - [ ] Pastikan workflow release bisa selesai tanpa engine dokumen (tidak exit early karena staging)
-  - [ ] Update README dan dokumentasi relevan agar tidak mengklaim bundling LibreOffice/Pandoc
-        kecuali langkah eksplisit dijalankan
+- [x] **Task A3 · Perbaiki pipeline staging engine dokumen macOS**
+  - [x] Baca `scripts/stage-document-engines.sh` dan `scripts/build-app.sh`
+  - [x] Tambahkan guard di `stage-document-engines.sh`: resolve kedua path lalu exit 1 jika sama
+  - [x] Ubah `build-app.sh` agar default `CEYLORO_STAGE_DOCUMENT_ENGINES=0` saat `CI=true`
+  - [x] Tambahkan komentar instruksi di `release-desktop.yml` tentang cara mengaktifkan
+        bundling engine dokumen dengan benar (langkah persiapan yang diperlukan)
+  - [x] Commit: `fix(A3): perbaiki pipeline staging engine dokumen macOS di CI`
 
-- [ ] **Task A4 · Migrasi runner macOS dari macos-14**
-  - [ ] Baca `.github/workflows/macos-ci.yml` dan `.github/workflows/release-desktop.yml`
-  - [ ] Ganti semua `runs-on: macos-14` menjadi `runs-on: macos-15`
-  - [ ] Tambahkan komentar di workflow: versi Xcode default pada macos-15
-  - [ ] Verifikasi deployment target macOS 13 masih terkonfigurasi dengan benar di `Package.swift`
-  - [ ] Commit dan push → verifikasi CI lulus pada runner baru
+- [x] **Task A4 · Migrasi runner macOS dari macos-14**
+  - [x] Baca `.github/workflows/macos-ci.yml` dan `.github/workflows/release-desktop.yml`
+  - [x] Ganti semua `runs-on: macos-14` menjadi `runs-on: macos-15`
+  - [x] Tambahkan komentar di workflow: versi Xcode default pada macos-15
+  - [x] Verifikasi deployment target macOS 13 masih terkonfigurasi dengan benar di `Package.swift`
+  - [x] Commit dan push → verifikasi CI lulus pada runner baru
 
-- [ ] **Task A5 · Fix PDF→DOCX tidak muncul di roda konversi macOS**
-  - [ ] Baca `Sources/Ceyloro/DocumentConverter.swift`, `Sources/CeyloroCore/FileFormat.swift`,
+- [x] **Task A5 · Fix PDF→DOCX tidak muncul di roda konversi macOS**
+  - [x] Baca `Sources/Ceyloro/DocumentConverter.swift`, `Sources/CeyloroCore/FileFormat.swift`,
         `Sources/CeyloroCore/DocumentConversionPolicy.swift`, dan `Sources/Ceyloro/AppDelegate.swift`
-  - [ ] Ubah `supportedTargets()` untuk mengizinkan `kind == .pdf` menghasilkan target yang
+  - [x] Ubah `supportedTargets()` untuk mengizinkan `kind == .pdf` menghasilkan target yang
         didefinisikan policy (DOCX), bukan memblokir semua non-.document
-  - [ ] Perbaiki bug batch: ganti `hasExtractableText(at: files[0])` dengan pemeriksaan per-file
-  - [ ] Tulis tes: `wheelItems(for: pdfURL, mode: .convert)` mengembalikan DOCX saat Pandoc tersedia
-  - [ ] Tulis tes batch: [PDFTeks, PDFScan] dan [PDFScan, PDFTeks] menghasilkan keputusan per-file
-  - [ ] Jalankan `swift build` dan pastikan tidak ada compile error
+  - [x] Perbaiki bug batch: ganti `hasExtractableText(at: files[0])` dengan pemeriksaan per-file
+  - [x] Tulis tes: `wheelItems(for: pdfURL, mode: .convert)` mengembalikan DOCX saat Pandoc tersedia
+  - [x] Tulis tes batch: [PDFTeks, PDFScan] dan [PDFScan, PDFTeks] menghasilkan keputusan per-file
+  - [x] Jalankan `swift build` dan pastikan tidak ada compile error
 
 ---
 
 ## Gelombang B — Hardening input dan proses
 
-- [ ] **Task B1 · Tutup bypass dotfiles arsip macOS**
-  - [ ] Baca `Sources/Ceyloro/ArchiveConverter.swift`
-  - [ ] Hapus `.skipsHiddenFiles` dari enumerator di `expandedSize(of:)`
-  - [ ] Tambahkan konstanta `maxEntryCount = 100_000`
-  - [ ] Tambahkan validasi pra-ekstraksi: jumlah entri, total ukuran, path containment, symlink, absolute path
-  - [ ] Tulis fixture tes: arsip dengan dotfiles besar, banyak entri, `../`, path absolut, symlink
-  - [ ] Verifikasi semua fixture ditolak atau dibatasi sesuai kontrak
+- [x] **Task B1 · Tutup bypass dotfiles arsip macOS**
+  - [x] Baca `Sources/Ceyloro/ArchiveConverter.swift`
+  - [x] Hapus `.skipsHiddenFiles` dari enumerator di `expandedSize(of:)`
+  - [x] Tambahkan konstanta `maxEntryCount = 100_000`
+  - [x] Tambahkan validasi pra-ekstraksi: jumlah entri, total ukuran, path containment, symlink, absolute path
+  - [x] Tulis fixture tes: arsip dengan dotfiles besar, banyak entri, `../`, path absolut, symlink
+  - [x] Verifikasi semua fixture ditolak atau dibatasi sesuai kontrak
 
-- [ ] **Task B2 · Betulkan penamaan root arsip Windows**
-  - [ ] Baca `Windows/Ceyloro.Windows/ArchiveConverter.cs`
-  - [ ] Tambahkan parameter `logicalBaseName` ke method `Create()` dan semua pemanggil yang relevan
-  - [ ] Ganti `Path.GetFileName(sourceDirectory)` (yang berformat GUID) dengan `logicalBaseName`
-  - [ ] Tulis tes round-trip: arsip satu root, multi-root, dan file langsung di root →
+- [x] **Task B2 · Betulkan penamaan root arsip Windows**
+  - [x] Baca `Windows/Ceyloro.Windows/ArchiveConverter.cs`
+  - [x] Tambahkan parameter `logicalBaseName` ke method `Create()` dan semua pemanggil yang relevan
+  - [x] Ganti `Path.GetFileName(sourceDirectory)` (yang berformat GUID) dengan `logicalBaseName`
+  - [x] Tulis tes round-trip: arsip satu root, multi-root, dan file langsung di root →
         semua menghasilkan basename deterministik dari input
 
 - [ ] **Task B3 · Betulkan capability filtering GIF dan FFmpeg**

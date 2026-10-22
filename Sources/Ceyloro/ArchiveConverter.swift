@@ -176,7 +176,7 @@ final class ArchiveConverter {
         process.waitUntilExit()
     }
 
-    private func isSupportedArchive
+    private func isSupportedArchive(_ source: FileFormat, at url: URL) -> Bool {
         guard ["gz", "gzip", "tgz"].contains(source.fileExtension) else { return true }
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/tar")

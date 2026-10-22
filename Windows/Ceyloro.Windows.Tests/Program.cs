@@ -29,7 +29,11 @@ var tests = new (string Name, Action Run)[]
     ("cancels image conversion before writing output", ImageConversionCancellation),
     ("radial geometry hit tests sectors and boundaries correctly", RadialGeometryHitTesting),
     ("tracks shift-drag gesture transitions accurately", DragGestureTrackerTransitions),
-    ("clamps radial wheel center within monitor working area", WheelCenterClamping)
+    ("clamps radial wheel center within monitor working area", WheelCenterClamping),
+    // B2 regression: root nama arsip harus deterministik dari nama file input, bukan GUID staging
+    ("archive root naming uses input basename for single root", ArchiveRootNamingSingleRoot),
+    ("archive root naming uses input basename for multi root", ArchiveRootNamingMultiRoot),
+    ("archive root naming uses input basename for direct files", ArchiveRootNamingDirectFiles)
 };
 
 var failures = new List<string>();
@@ -410,6 +414,86 @@ static void WheelCenterClamping()
     var secondaryWorkArea = new Rectangle(-1920, 0, 1920, 1080);
     var clampedSec = RadialGeometry.ClampWheelCenter(new Point(-1900, 50), secondaryWorkArea, radius);
     Ensure(clampedSec == new Point(-1920 + 160, 160), "Negative coordinate clamp failed.");
+}
+
+// B2 regression: arsip satu root → root diganti dengan basename input, bukan GUID staging
+static void ArchiveRootNamingSingleRoot()
+{
+    using var temp = new TestDirectory();
+    var inputPath = Path.Combine(temp.Path, "myarchive.zip");
+    WriteZip(inputPath,
+        ("original-dir/file1.txt", "content1"),
+        ("original-dir/subdir/file2.txt", "content2"));
+    var outputPath = Path.Combine(temp.Path, "result.zip");
+    ArchiveConverter.Convert(inputPath, "zip", outputPath, CancellationToken.None, _ => { });
+    using var archive = ZipFile.OpenRead(outputPath);
+    var fullNames = archive.Entries.Select(e => e.FullName).ToList();
+    Ensure(fullNames.Count > 0, "Output archive should not be empty.");
+    foreach (var name in fullNames)
+        Ensure(name.StartsWith("myarchive/", StringComparison.Ordinal),
+            $"Entry '{name}' should be prefixed with input basename 'myarchive/', not a GUID or original directory name.");
+    Ensure(!fullNames.Any(n => n.Contains("original-dir", StringComparison.Ordinal)),
+        "Original single-root directory name should be replaced by input basename.");
+    Ensure(fullNames.Any(n => n == "myarchive/file1.txt"),
+        "File from single root should appear directly under logical basename.");
+    Ensure(fullNames.Any(n => n == "myarchive/subdir/file2.txt"),
+        "Nested file from single root should appear under logical basename.");
+}
+
+// B2 regression: arsip multi-root → semua entri tetap diawali basename input
+static void ArchiveRootNamingMultiRoot()
+{
+    using var temp = new TestDirectory();
+    var inputPath = Path.Combine(temp.Path, "myarchive.zip");
+    WriteZip(inputPath,
+        ("dir1/file1.txt", "content1"),
+        ("dir2/file2.txt", "content2"));
+    var outputPath = Path.Combine(temp.Path, "result.zip");
+    ArchiveConverter.Convert(inputPath, "zip", outputPath, CancellationToken.None, _ => { });
+    using var archive = ZipFile.OpenRead(outputPath);
+    var fullNames = archive.Entries.Select(e => e.FullName).ToList();
+    Ensure(fullNames.Count > 0, "Output archive should not be empty.");
+    foreach (var name in fullNames)
+        Ensure(name.StartsWith("myarchive/", StringComparison.Ordinal),
+            $"Entry '{name}' should be prefixed with input basename 'myarchive/', not a GUID.");
+    Ensure(fullNames.Any(n => n == "myarchive/dir1/file1.txt"),
+        "Multi-root directory 1 should be preserved under logical basename.");
+    Ensure(fullNames.Any(n => n == "myarchive/dir2/file2.txt"),
+        "Multi-root directory 2 should be preserved under logical basename.");
+}
+
+// B2 regression: file langsung di root arsip → tetap diawali basename input
+static void ArchiveRootNamingDirectFiles()
+{
+    using var temp = new TestDirectory();
+    var inputPath = Path.Combine(temp.Path, "myarchive.zip");
+    WriteZip(inputPath,
+        ("file1.txt", "content1"),
+        ("file2.txt", "content2"));
+    var outputPath = Path.Combine(temp.Path, "result.zip");
+    ArchiveConverter.Convert(inputPath, "zip", outputPath, CancellationToken.None, _ => { });
+    using var archive = ZipFile.OpenRead(outputPath);
+    var fullNames = archive.Entries.Select(e => e.FullName).ToList();
+    Ensure(fullNames.Count > 0, "Output archive should not be empty.");
+    foreach (var name in fullNames)
+        Ensure(name.StartsWith("myarchive/", StringComparison.Ordinal),
+            $"Entry '{name}' should be prefixed with input basename 'myarchive/', not a GUID.");
+    Ensure(fullNames.Any(n => n == "myarchive/file1.txt"),
+        "Direct file should appear under logical basename.");
+    Ensure(fullNames.Any(n => n == "myarchive/file2.txt"),
+        "Direct file should appear under logical basename.");
+}
+
+static void WriteZip(string path, params (string Name, string Content)[] entries)
+{
+    using var file = File.Create(path);
+    using var archive = new ZipArchive(file, ZipArchiveMode.Create);
+    foreach (var (name, content) in entries)
+    {
+        var entry = archive.CreateEntry(name);
+        using var writer = new StreamWriter(entry.Open(), new UTF8Encoding(false));
+        writer.Write(content);
+    }
 }
 
 static void Ensure(bool condition, string message)

@@ -51,6 +51,11 @@ internal static class ArchiveConverter
         if (source is "rar" or "7z" || target is not ("zip" or "tar" or "gzip"))
             throw new InvalidOperationException("Format arsip ini tidak didukung.");
 
+        // logicalBaseName berasal dari nama file input — bukan dari direktori staging GUID.
+        // Ini mencegah arsip output berisi prefix GUID sebagai root (temuan B2).
+        var logicalBaseName = Path.GetFileNameWithoutExtension(input);
+        if (string.IsNullOrWhiteSpace(logicalBaseName)) logicalBaseName = "archive";
+
         var partial = output + ".ceyloro-partial";
         var staging = Path.Combine(Path.GetTempPath(), "Ceyloro", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(staging);
@@ -61,7 +66,7 @@ internal static class ArchiveConverter
             progress(0.55);
             cancellationToken.ThrowIfCancellationRequested();
             var content = SelectContentRoot(staging);
-            Create(target, content, partial, cancellationToken);
+            Create(target, content, logicalBaseName, partial, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             File.Move(partial, output);
             progress(1);
@@ -144,13 +149,14 @@ internal static class ArchiveConverter
         }
     }
 
-    private static void Create(string target, string sourceDirectory, string output, CancellationToken cancellationToken)
+    private static void Create(string target, string sourceDirectory, string logicalBaseName, string output, CancellationToken cancellationToken)
     {
         if (target == "zip")
         {
             using var file = new FileStream(output, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None);
             using var archive = new ZipArchive(file, ZipArchiveMode.Create, leaveOpen: true);
-            var baseName = Path.GetFileName(sourceDirectory.TrimEnd(Path.DirectorySeparatorChar));
+            // Gunakan logicalBaseName (dari nama file input) bukan Path.GetFileName(staging GUID)
+            var baseName = logicalBaseName;
             foreach (var path in Directory.EnumerateFileSystemEntries(sourceDirectory, "*", SearchOption.AllDirectories))
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -173,7 +179,8 @@ internal static class ArchiveConverter
         using (tarStream)
         using (var writer = new TarWriter(tarStream, TarEntryFormat.Pax, leaveOpen: true))
         {
-            var baseName = Path.GetFileName(sourceDirectory.TrimEnd(Path.DirectorySeparatorChar));
+            // Gunakan logicalBaseName (dari nama file input) bukan Path.GetFileName(staging GUID)
+            var baseName = logicalBaseName;
             var entries = Directory.EnumerateFileSystemEntries(sourceDirectory, "*", SearchOption.AllDirectories)
                 .OrderBy(path => path, StringComparer.OrdinalIgnoreCase);
             foreach (var path in entries)
