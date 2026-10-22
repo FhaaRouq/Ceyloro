@@ -1,6 +1,8 @@
 import CeyloroCore
 import Foundation
+import ImageIO
 import PDFKit
+import UniformTypeIdentifiers
 
 final class DocumentConverter {
     private let fileManager: FileManager
@@ -34,6 +36,14 @@ final class DocumentConverter {
         }
         try fileManager.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
         if isCancelled() { throw CancellationError() }
+
+        if isSpreadsheet(source), target == .csv {
+            return try convertSpreadsheetToCSV(input: input, temporaryDirectory: temporaryDirectory, libreOfficeURL: libreOfficeURL, progress: progress, isCancelled: isCancelled, timeout: timeout)
+        }
+
+        if isPresentation(source), target == .png {
+            return try convertPresentationToPNG(input: input, temporaryDirectory: temporaryDirectory, libreOfficeURL: libreOfficeURL, progress: progress, isCancelled: isCancelled, timeout: timeout)
+        }
 
         if source.kind == .pdf && target == .docx {
             guard let pandocURL,
@@ -91,6 +101,152 @@ final class DocumentConverter {
         if source.kind == .pdf && target == .docx { return pandocURL != nil }
         if usesPandoc(source: source, target: target) { return pandocURL != nil }
         return libreOfficeURL != nil
+    }
+
+    private func isSpreadsheet(_ source: FileFormat) -> Bool {
+        ["xls", "xlsx", "ods"].contains(source.fileExtension)
+    }
+
+    private func isPresentation(_ source: FileFormat) -> Bool {
+        ["ppt", "pptx", "odp"].contains(source.fileExtension)
+    }
+
+    private func convertSpreadsheetToCSV(input: URL, temporaryDirectory: URL, libreOfficeURL: URL?, progress: @escaping (Double) -> Void, isCancelled: @escaping () -> Bool, timeout: TimeInterval) throws -> ConversionResult {
+        guard let libreOfficeURL else { throw ConversionError.unsupportedConversion }
+        let outputDirectory = temporaryDirectory.appendingPathComponent("csv", isDirectory: true)
+        try fileManager.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
+        let scriptURL = temporaryDirectory.appendingPathComponent("export-sheets.py")
+        try spreadsheetExportScript.write(to: scriptURL, atomically: true, encoding: .utf8)
+        try runSpreadsheetScript(input: input, outputDirectory: outputDirectory, baseName: OutputNaming.strippedBaseName(for: input), scriptURL: scriptURL, libreOfficeURL: libreOfficeURL, temporaryDirectory: temporaryDirectory, timeout: timeout, isCancelled: isCancelled)
+        let files = try fileManager.contentsOfDirectory(at: outputDirectory, includingPropertiesForKeys: [.fileSizeKey], options: [.skipsHiddenFiles])
+            .filter { $0.pathExtension.lowercased() == "csv" }
+            .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
+        guard !files.isEmpty, files.allSatisfy({ ((try? $0.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0) > 0 }) else {
+            throw ConversionError.encodingFailed
+        }
+        progress(1)
+        return .collection(name: OutputNaming.strippedBaseName(for: input), files: files)
+    }
+
+    private func convertPresentationToPNG(input: URL, temporaryDirectory: URL, libreOfficeURL: URL?, progress: @escaping (Double) -> Void, isCancelled: @escaping () -> Bool, timeout: TimeInterval) throws -> ConversionResult {
+        guard let libreOfficeURL else { throw ConversionError.unsupportedConversion }
+        let safeInput = temporaryDirectory.appendingPathComponent("presentation.\(input.pathExtension.lowercased())")
+        try fileManager.copyItem(at: input, to: safeInput)
+        let pdfURL = temporaryDirectory.appendingPathComponent("presentation.pdf")
+        try runLibreOffice(input: safeInput, target: .pdf, output: pdfURL, executable: libreOfficeURL, temporaryDirectory: temporaryDirectory, timeout: timeout, isCancelled: isCancelled)
+        guard let document = PDFDocument(url: pdfURL), !document.isLocked, document.pageCount > 0 else { throw ConversionError.invalidInput }
+        let outputDirectory = temporaryDirectory.appendingPathComponent("slides", isDirectory: true)
+        try fileManager.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
+        var outputs: [URL] = []
+        for index in 0..<document.pageCount {
+            if isCancelled() { throw CancellationError() }
+            try autoreleasepool {
+                guard let page = document.page(at: index), let image = renderSlide(page: page) else { throw ConversionError.encodingFailed }
+                let name = OutputNaming().pageFileName(baseName: OutputNaming.strippedBaseName(for: input), index: index, total: document.pageCount, fileExtension: "png")
+                let output = outputDirectory.appendingPathComponent(name)
+                guard let destination = CGImageDestinationCreateWithURL(output as CFURL, UTType.png.identifier as CFString, 1, nil) else { throw ConversionError.encodingFailed }
+                CGImageDestinationAddImage(destination, image, nil)
+                guard CGImageDestinationFinalize(destination) else { throw ConversionError.encodingFailed }
+                outputs.append(output)
+            }
+            progress(0.1 + 0.9 * Double(index + 1) / Double(document.pageCount))
+        }
+        return .collection(name: OutputNaming.strippedBaseName(for: input), files: outputs)
+    }
+
+    private func renderSlide(page: PDFPage) -> CGImage? {
+        let bounds = page.bounds(for: .mediaBox)
+        let scale = min(2.0, 2400.0 / max(bounds.width, bounds.height, 1))
+        let width = max(Int((bounds.width * scale).rounded()), 1)
+        let height = max(Int((bounds.height * scale).rounded()), 1)
+        let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB()
+        guard let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0, space: colorSpace, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
+        context.setFillColor(CGColor(gray: 1, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        context.saveGState()
+        context.translateBy(x: 0, y: CGFloat(height))
+        context.scaleBy(x: scale, y: -scale)
+        page.draw(with: .mediaBox, to: context)
+        context.restoreGState()
+        return context.makeImage()
+    }
+
+    private func runSpreadsheetScript(input: URL, outputDirectory: URL, baseName: String, scriptURL: URL, libreOfficeURL: URL, temporaryDirectory: URL, timeout: TimeInterval, isCancelled: @escaping () -> Bool) throws {
+        let profile = temporaryDirectory.appendingPathComponent("lo-calc-profile", isDirectory: true)
+        try fileManager.createDirectory(at: profile, withIntermediateDirectories: true)
+        let profileURL = profile.absoluteString.hasPrefix("file://") ? profile.absoluteString : "file://\(profile.path)"
+        let port = 20000 + Int.random(in: 0..<2000)
+        let office = Process()
+        office.executableURL = libreOfficeURL
+        office.arguments = ["--headless", "--nologo", "--nodefault", "--nofirststartwizard", "--nolockcheck", "--norestore", "-env:UserInstallation=\(profileURL)", "--accept=socket,host=127.0.0.1,port=\(port);urp;StarOffice.ComponentContext"]
+        office.standardOutput = FileHandle.nullDevice
+        office.standardError = FileHandle.nullDevice
+        try office.run()
+        defer {
+            if office.isRunning { office.terminate() }
+            office.waitUntilExit()
+        }
+        let pythonURL = libreOfficeURL.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Resources/python")
+        guard fileManager.isExecutableFile(atPath: pythonURL.path) else { throw ConversionError.documentEngineFailed(reason: "Runtime Python LibreOffice tidak ditemukan.") }
+        Thread.sleep(forTimeInterval: 1.0)
+        try runProcess(executable: pythonURL, arguments: [scriptURL.path, input.path, outputDirectory.path, baseName, "\(port)"], timeout: timeout, isCancelled: isCancelled)
+    }
+
+    private var spreadsheetExportScript: String {
+        #"""
+        import os, re, sys, time, uno
+        from com.sun.star.beans import PropertyValue
+
+        def prop(name, value):
+            item = PropertyValue()
+            item.Name = name
+            item.Value = value
+            return item
+
+        input_path, output_dir, base_name, port = sys.argv[1:5]
+        local_context = uno.getComponentContext()
+        resolver = local_context.ServiceManager.createInstanceWithContext("com.sun.star.bridge.UnoUrlResolver", local_context)
+        context = None
+        for _ in range(30):
+            try:
+                context = resolver.resolve(f"uno:socket,host=127.0.0.1,port={port};urp;StarOffice.ComponentContext")
+                break
+            except Exception:
+                time.sleep(0.25)
+        if context is None:
+            raise RuntimeError("LibreOffice UNO tidak siap")
+        desktop = context.ServiceManager.createInstanceWithContext("com.sun.star.frame.Desktop", context)
+        document = desktop.loadComponentFromURL(uno.systemPathToFileUrl(input_path), "_blank", 0, (prop("Hidden", True), prop("ReadOnly", True)))
+        if document is None:
+            raise RuntimeError("Spreadsheet tidak dapat dibuka")
+        try:
+            sheets = document.getSheets()
+            count = sheets.getCount()
+            safe_base = re.sub(r"[^A-Za-z0-9._-]+", "-", base_name).strip("-") or "Hasil"
+            width = max(2, len(str(count)))
+            for index in range(count):
+                sheet = sheets.getByIndex(index)
+                cursor = sheet.createCursor()
+                cursor.gotoEndOfUsedArea(True)
+                address = cursor.getRangeAddress()
+                out_document = desktop.loadComponentFromURL("private:factory/scalc", "_blank", 0, (prop("Hidden", True),))
+                if out_document is None:
+                    raise RuntimeError("Spreadsheet sementara tidak dapat dibuat")
+                try:
+                    out_sheet = out_document.getSheets().getByIndex(0)
+                    out_sheet.Name = "Data"
+                    if address.EndColumn >= address.StartColumn and address.EndRow >= address.StartRow:
+                        values = sheet.getCellRangeByPosition(address.StartColumn, address.StartRow, address.EndColumn, address.EndRow).getDataArray()
+                        target = out_sheet.getCellRangeByPosition(0, 0, address.EndColumn - address.StartColumn, address.EndRow - address.StartRow)
+                        target.setDataArray(values)
+                    filename = f"{safe_base}-{index + 1:0{width}d}.csv"
+                    output = os.path.join(output_dir, filename)
+                    out_document.storeAsURL(uno.systemPathToFileUrl(output), (prop("FilterName", "Text - txt - csv (StarCalc)"), prop("FilterOptions", "44,34,76,1"), prop("Overwrite", True)))
+                finally:
+                    out_document.close(True)
+        finally:
+            document.close(True)
+        """#
     }
 
     private func usesPandoc(source: FileFormat, target: TargetFormat) -> Bool {

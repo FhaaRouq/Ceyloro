@@ -68,6 +68,8 @@ Paket release Windows sudah membawa FFmpeg LGPL yang sudah diverifikasi. Untuk b
 | --- | --- |
 | Gambar | JPG, PNG, HEIC, TIFF, PDF |
 | PDF | JPG, PNG per halaman, TXT dengan OCR untuk PDF scan, DOCX best-effort untuk PDF berteks |
+| Spreadsheet (XLS, XLSX, ODS) | PDF, CSV per sheet |
+| Presentasi (PPT, PPTX, ODP) | PDF, PNG per slide |
 | Audio | MP3, M4A, WAV, FLAC, OGG, OPUS, AIFF |
 | Video | MP4, MOV, MKV, WebM, AVI, WMV, GIF, MP3, M4A, WAV, FLAC, OGG, OPUS, AIFF |
 | Subtitle | SRT, VTT |
@@ -91,6 +93,9 @@ lalu disusun ulang oleh pandoc, sehingga tabel, kolom, dan posisi visual yang
 kompleks dapat berubah. PDF scan diarahkan ke OCR offline Vision dan keluaran
 teksnya dapat dicari/disalin. Laporan kemiripan visual dan alternatif PDF
 yang bisa dicari masih menjadi pekerjaan lanjutan Fase B.
+
+Spreadsheet dengan beberapa sheet menghasilkan folder atau ZIP berisi satu CSV
+per sheet. Presentasi menghasilkan folder atau ZIP berisi satu PNG per slide.
 
 ### Kompresi
 

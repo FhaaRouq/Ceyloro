@@ -1,6 +1,6 @@
 import Foundation
 
-/// Matriks konversi dokumen untuk Fase A dan PDF teks ke DOCX pada Fase B.
+/// Matriks konversi dokumen untuk Fase A, PDF teks ke DOCX pada Fase B, dan ekspor spreadsheet/presentasi pada Fase C.
 /// Kebijakan ini murni; ketersediaan LibreOffice/pandoc diperiksa oleh shell.
 public struct DocumentConversionPolicy: Sendable {
     public init() {}
