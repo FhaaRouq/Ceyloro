@@ -20,4 +20,8 @@ final class DocumentConversionPolicyTests: XCTestCase {
     func testUnsupportedDocumentExtensionIsEmpty() {
         XCTAssertTrue(policy.targets(for: FileFormat(fileExtension: "pages", kind: .document)).isEmpty)
     }
+
+    func testTextPDFExposesBestEffortDOCXTarget() {
+        XCTAssertEqual(policy.targets(for: FileFormat(fileExtension: "pdf", kind: .pdf)), [.docx])
+    }
 }

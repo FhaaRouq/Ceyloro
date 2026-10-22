@@ -8,7 +8,7 @@ public struct ConversionMatrix: Sendable {
         case .image:
             return [.jpg, .png, .heic, .tiff, .pdf].filter { $0.fileExtension != source.fileExtension }
         case .pdf:
-            return [.jpg, .png, .txt]
+            return [.jpg, .png, .txt, .docx]
         case .audio:
             return [.mp3, .m4a, .wav, .flac, .ogg, .opus, .aiff].filter { $0.fileExtension != source.fileExtension }
         case .video:

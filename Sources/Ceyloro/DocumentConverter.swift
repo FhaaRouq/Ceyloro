@@ -1,5 +1,6 @@
 import CeyloroCore
 import Foundation
+import PDFKit
 
 final class DocumentConverter {
     private let fileManager: FileManager
@@ -13,7 +14,14 @@ final class DocumentConverter {
               files.allSatisfy({ FileFormat.detect(url: $0).kind == .document && fileManager.isReadableFile(atPath: $0.path) }) else { return [] }
         let policy = DocumentConversionPolicy()
         return candidates.filter { target in
-            files.map(FileFormat.detect(url:)).allSatisfy { canConvert(source: $0, target: target, libreOfficeURL: libreOfficeURL, pandocURL: pandocURL) && policy.targets(for: $0).contains(target) }
+            files.map(FileFormat.detect(url:)).allSatisfy { source in
+                guard policy.targets(for: source).contains(target),
+                      canConvert(source: source, target: target, libreOfficeURL: libreOfficeURL, pandocURL: pandocURL) else { return false }
+                if source.kind == .pdf && target == .docx {
+                    return hasExtractableText(at: files[0])
+                }
+                return true
+            }
         }
     }
 
@@ -27,6 +35,22 @@ final class DocumentConverter {
         try fileManager.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
         defer { try? fileManager.removeItem(at: temporaryDirectory) }
         if isCancelled() { throw CancellationError() }
+
+        if source.kind == .pdf && target == .docx {
+            guard let pandocURL,
+                  let document = PDFDocument(url: input),
+                  !document.isLocked,
+                  let text = extractText(from: document),
+                  !text.isEmpty else { throw ConversionError.noText }
+            let textInput = temporaryDirectory.appendingPathComponent("input.txt")
+            try text.write(to: textInput, atomically: true, encoding: .utf8)
+            let output = temporaryDirectory.appendingPathComponent("output.\(target.fileExtension)")
+            try runPandoc(input: textInput, from: "plain", output: output, target: target, executable: pandocURL, temporaryDirectory: temporaryDirectory, timeout: timeout, isCancelled: isCancelled)
+            let outputSize = (try? output.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+            guard fileManager.fileExists(atPath: output.path), outputSize > 0 else { throw ConversionError.encodingFailed }
+            progress(1)
+            return .files([output])
+        }
 
         let safeExtension = source.fileExtension.isEmpty ? "bin" : source.fileExtension
         let safeInput = temporaryDirectory.appendingPathComponent("input.\(safeExtension)")
@@ -65,6 +89,7 @@ final class DocumentConverter {
 
     private func canConvert(source: FileFormat, target: TargetFormat, libreOfficeURL: URL?, pandocURL: URL?) -> Bool {
         if needsPandocPDF(source: source, target: target) { return pandocURL != nil && libreOfficeURL != nil }
+        if source.kind == .pdf && target == .docx { return pandocURL != nil }
         if usesPandoc(source: source, target: target) { return pandocURL != nil }
         return libreOfficeURL != nil
     }
@@ -75,6 +100,19 @@ final class DocumentConverter {
         case ("md", .docx), ("html", .docx), ("txt", .docx): return true
         default: return false
         }
+    }
+
+    private func hasExtractableText(at url: URL) -> Bool {
+        guard let document = PDFDocument(url: url), !document.isLocked else { return false }
+        return extractText(from: document) != nil
+    }
+
+    private func extractText(from document: PDFDocument) -> String? {
+        let pages = (0..<document.pageCount).compactMap { index in
+            document.page(at: index)?.string?.trimmingCharacters(in: .whitespacesAndNewlines)
+        }.filter { !$0.isEmpty }
+        guard !pages.isEmpty else { return nil }
+        return pages.joined(separator: "\n\n") + "\n"
     }
 
     private func needsPandocPDF(source: FileFormat, target: TargetFormat) -> Bool {
@@ -92,7 +130,10 @@ final class DocumentConverter {
     }
 
     private func runPandoc(input: URL, source: FileFormat, output: URL, target: TargetFormat, executable: URL, temporaryDirectory: URL, timeout: TimeInterval, isCancelled: @escaping () -> Bool) throws {
-        let sourceFormat = pandocInputFormat(for: source)
+        try runPandoc(input: input, from: pandocInputFormat(for: source), output: output, target: target, executable: executable, temporaryDirectory: temporaryDirectory, timeout: timeout, isCancelled: isCancelled)
+    }
+
+    private func runPandoc(input: URL, from sourceFormat: String, output: URL, target: TargetFormat, executable: URL, temporaryDirectory: URL, timeout: TimeInterval, isCancelled: @escaping () -> Bool) throws {
         let targetFormat = pandocOutputFormat(for: target)
         let arguments = ["--from", sourceFormat, "--to", targetFormat, "--output", output.path, input.path]
         try runProcess(executable: executable, arguments: arguments, timeout: timeout, isCancelled: isCancelled)

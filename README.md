@@ -67,7 +67,7 @@ Paket release Windows sudah membawa FFmpeg LGPL yang sudah diverifikasi. Untuk b
 | Jenis file | Format tujuan |
 | --- | --- |
 | Gambar | JPG, PNG, HEIC, TIFF, PDF |
-| PDF | JPG, PNG per halaman, TXT untuk PDF yang berisi teks |
+| PDF | JPG, PNG per halaman, TXT dengan OCR untuk PDF scan, DOCX best-effort untuk PDF berteks |
 | Audio | MP3, M4A, WAV, FLAC, OGG, OPUS, AIFF |
 | Video | MP4, MOV, MKV, WebM, AVI, WMV, GIF, MP3, M4A, WAV, FLAC, OGG, OPUS, AIFF |
 | Subtitle | SRT, VTT |
@@ -85,6 +85,12 @@ Fitur lain yang tersedia:
 - progres, pembatalan, serta penamaan output anti-timpa;
 - kompresi gambar, audio, video, PDF, dan dokumen umum;
 - navigasi roda menggunakan keyboard dan angka `1`–`9`.
+
+Konversi PDF ke DOCX adalah upaya terbaik: PDF berteks diekstrak per halaman
+lalu disusun ulang oleh pandoc, sehingga tabel, kolom, dan posisi visual yang
+kompleks dapat berubah. PDF scan diarahkan ke OCR offline Vision dan keluaran
+teksnya dapat dicari/disalin. Laporan kemiripan visual dan alternatif PDF
+yang bisa dicari masih menjadi pekerjaan lanjutan Fase B.
 
 ### Kompresi
 

@@ -291,6 +291,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
             if detected.allSatisfy({ $0.kind == .document }) {
                 return documentConverter.supportedTargets(for: files, candidates: formats, libreOfficeURL: libreOfficeURL, pandocURL: pandocURL).map { WheelItem(title: $0.title, target: $0, action: nil) }
             }
+            if detected.allSatisfy({ $0.kind == .pdf }) {
+                let nativeTargets = converter.supportedTargets(for: files, candidates: formats)
+                let documentTargets = documentConverter.supportedTargets(for: files, candidates: formats, libreOfficeURL: libreOfficeURL, pandocURL: pandocURL)
+                return (nativeTargets + documentTargets).map { WheelItem(title: $0.title, target: $0, action: nil) }
+            }
             return converter.supportedTargets(for: files, candidates: formats).map { WheelItem(title: $0.title, target: $0, action: nil) }
         case .tools:
             guard compressionConverter.supports(files: files, ffmpegURL: ffmpegURL, encoders: ffmpegEncoders) else { return [] }
@@ -335,6 +340,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
             let id = runner.submit(inputs: files, target: target, outputDirectory: outputDirectory, multiPageOutput: multiPageOutput, processor: { [converter, audioConverter, videoConverter, subtitleConverter, archiveConverter, ffmpegConverter, ffmpegURL, ffmpegEncoders, documentConverter, libreOfficeURL, pandocURL] input, target, temp, progress, cancelled in
                 let inputFormat = FileFormat.detect(url: input)
                 if inputFormat.kind == .document {
+                    return try documentConverter.convert(input: input, target: target, temporaryDirectory: temp.appendingPathComponent(UUID().uuidString), libreOfficeURL: libreOfficeURL, pandocURL: pandocURL, progress: progress, isCancelled: cancelled)
+                }
+                if inputFormat.kind == .pdf && target == .docx {
                     return try documentConverter.convert(input: input, target: target, temporaryDirectory: temp.appendingPathComponent(UUID().uuidString), libreOfficeURL: libreOfficeURL, pandocURL: pandocURL, progress: progress, isCancelled: cancelled)
                 }
                 if inputFormat.kind == .audio {
