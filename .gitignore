@@ -2,6 +2,8 @@
 DerivedData/
 Ceyloro.app/
 Sources/Ceyloro/Resources/ffmpeg
+Sources/Ceyloro/Resources/DocumentEngines/
+document-engines/
 .DS_Store
 *.xcuserstate
 xcuserdata/

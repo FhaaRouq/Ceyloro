@@ -64,7 +64,16 @@ else
     echo "FFmpeg tidak dibundel; target yang memerlukannya akan disembunyikan."
 fi
 DOCUMENT_ENGINES_SOURCE="${CEYLORO_DOCUMENT_ENGINES_PATH:-$ROOT/Sources/Ceyloro/Resources/DocumentEngines}"
-if [ -d "$DOCUMENT_ENGINES_SOURCE" ]; then
+if [ "${CEYLORO_STAGE_DOCUMENT_ENGINES:-1}" = "1" ]; then
+    if ! sh "$ROOT/scripts/stage-document-engines.sh" "$DOCUMENT_ENGINES_SOURCE"; then
+        if [ "${CEYLORO_REQUIRE_DOCUMENT_ENGINES:-0}" = "1" ] || [ "${CI:-}" = "true" ]; then
+            echo "Error: build ini mewajibkan LibreOffice dan pandoc dibundel." >&2
+            exit 1
+        fi
+        echo "Peringatan: engine dokumen tidak dibundel; target dokumen akan disembunyikan." >&2
+    fi
+fi
+if [ -x "$DOCUMENT_ENGINES_SOURCE/LibreOffice.app/Contents/MacOS/soffice" ] && [ -x "$DOCUMENT_ENGINES_SOURCE/pandoc/pandoc" ]; then
     mkdir -p "$APP/Contents/Resources/DocumentEngines"
     cp -R "$DOCUMENT_ENGINES_SOURCE"/. "$APP/Contents/Resources/DocumentEngines/"
     echo "Engine dokumen dibundel dari $DOCUMENT_ENGINES_SOURCE"

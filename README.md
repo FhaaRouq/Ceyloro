@@ -138,6 +138,23 @@ Jika Xcode tidak berada di lokasi standar:
 DEVELOPER_DIR=/path/to/Xcode.app/Contents/Developer swift test
 ```
 
+#### Membundel engine dokumen
+
+Untuk build development, LibreOffice dan pandoc dapat dipasang manual di Mac.
+Sebelum membuat paket yang akan dibagikan, jalankan staging agar keduanya ikut
+masuk ke dalam `Ceyloro.app` dan pengguna akhir tidak perlu memasang engine:
+
+```sh
+sh ./scripts/stage-document-engines.sh
+./scripts/build-app.sh
+```
+
+Script juga menerima folder yang sudah disiapkan sendiri melalui
+`CEYLORO_DOCUMENT_ENGINES_PATH`. Folder tersebut harus berisi
+`LibreOffice.app/Contents/MacOS/soffice` dan `pandoc/pandoc`. Binary engine
+tidak disimpan di Git karena ukurannya besar dan masing-masing memiliki
+ketentuan redistribusi pihak ketiga.
+
 ### Windows
 
 Kebutuhan:
@@ -156,6 +173,18 @@ dotnet build Windows/Ceyloro.Windows/Ceyloro.Windows.csproj -c Release -r win-ar
 # Jalankan unit & integration tests Windows
 dotnet run --project Windows/Ceyloro.Windows.Tests/Ceyloro.Windows.Tests.csproj -c Release -r win-x64
 ```
+
+Untuk paket Windows yang sudah mandiri, pasang LibreOffice dan pandoc di mesin
+build lalu jalankan staging berikut sebelum `dotnet publish`:
+
+```powershell
+.\scripts\stage-document-engines.ps1 -Destination document-engines
+dotnet publish Windows/Ceyloro.Windows/Ceyloro.Windows.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true --output publish
+```
+
+Salin folder `document-engines` ke samping `Ceyloro.exe` sebagai
+`DocumentEngines`. Shell akan memprioritaskan engine yang dibundel; instalasi
+LibreOffice/pandoc pengguna tidak diperlukan.
 
 Workflow GitHub Actions membangun shell Windows untuk x64 dan ARM64 setiap ada perubahan terkait Windows. Workflow rilis membuat paket desktop untuk kedua arsitektur pada setiap tag `v*`.
 
