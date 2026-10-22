@@ -86,8 +86,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          release_args=("$GITHUB_REF_NAME" "dist/Ceyloro-macOS-universal.zip" "dist/Ceyloro-Windows-x64.zip" "dist/Ceyloro-Windows-x64.zip.sha256" "dist/Ceyloro-Windows-arm64.zip" "dist/Ceyloro-Windows-arm64.zip.sha256" "--repo" "$GITHUB_REPOSITORY" "--title" "Ceyloro $GITHUB_REF_NAME" "--generate-notes")
+          release_args=("$GITHUB_REF_NAME" "dist/Ceyloro-macOS-universal.zip" "dist/Ceyloro-Windows-x64.zip" "dist/Ceyloro-Windows-x64.zip.sha256" "dist/Ceyloro-Windows-arm64.zip" "dist/Ceyloro-Windows-arm64.zip.sha256" "--repo" "$GITHUB_REPOSITORY" "--title" "Ceyloro $GITHUB_REF_NAME" "--generate-notes" "--latest")
           case "$GITHUB_REF_NAME" in
-            *-*) release_args+=("--prerelease") ;;
+            *-preview*|*-alpha*|*-beta*|*-rc*) release_args+=("--prerelease") ;;
           esac
           gh release create "${release_args[@]}"
