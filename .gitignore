@@ -1,6 +1,7 @@
 .build/
 DerivedData/
 Ceyloro.app/
+Ceyloro-macOS-universal.zip*
 Sources/Ceyloro/Resources/ffmpeg
 Sources/Ceyloro/Resources/DocumentEngines/
 document-engines/
