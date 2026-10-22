@@ -17,10 +17,14 @@ public sealed class RadialOverlayForm : Form
     private bool waitingForTargets;
     private int dragGeneration;
 
-    public RadialOverlayForm(ConversionEngine engine, Action<string> showMessage)
+    public bool OpenedByGesture { get; }
+    public bool IsConverting => isConverting;
+
+    public RadialOverlayForm(ConversionEngine engine, Action<string> showMessage, bool openedByGesture = false)
     {
         this.engine = engine;
         this.showMessage = showMessage;
+        OpenedByGesture = openedByGesture;
         virtualBounds = SystemInformation.VirtualScreen;
         Bounds = virtualBounds;
         StartPosition = FormStartPosition.Manual;
@@ -32,15 +36,53 @@ public sealed class RadialOverlayForm : Form
         BackColor = Color.Magenta;
         TransparencyKey = Color.Magenta;
         DoubleBuffered = true;
-        center = new Point(Cursor.Position.X - virtualBounds.Left, Cursor.Position.Y - virtualBounds.Top);
+
+        var initialPos = Cursor.Position;
+        var screen = Screen.FromPoint(initialPos);
+        var clamped = RadialGeometry.ClampWheelCenter(initialPos, screen.WorkingArea);
+        center = new Point(clamped.X - virtualBounds.Left, clamped.Y - virtualBounds.Top);
+
         DragEnter += OnDragEnter;
         DragOver += OnDragOver;
-        DragLeave += (_, _) => { dragGeneration++; waitingForTargets = false; selectedIndex = -1; Invalidate(); };
+        DragLeave += (_, _) =>
+        {
+            dragGeneration++;
+            waitingForTargets = false;
+            selectedIndex = -1;
+            if (OpenedByGesture && !isConverting)
+                Close();
+            else
+                Invalidate();
+        };
         DragDrop += OnDragDrop;
         KeyDown += OnKeyDown;
         MouseMove += (_, _) => { UpdateSelection(Cursor.Position); Invalidate(); };
         MouseClick += OnMouseClick;
-        Shown += (_, _) => Focus();
+        if (!openedByGesture)
+            Shown += (_, _) => Focus();
+    }
+
+    public void RepositionTo(Point cursorPosition)
+    {
+        var screen = Screen.FromPoint(cursorPosition);
+        var clamped = RadialGeometry.ClampWheelCenter(cursorPosition, screen.WorkingArea);
+        center = new Point(clamped.X - virtualBounds.Left, clamped.Y - virtualBounds.Top);
+        Invalidate();
+    }
+
+    protected override bool ShowWithoutActivation => OpenedByGesture;
+
+    protected override CreateParams CreateParams
+    {
+        get
+        {
+            var cp = base.CreateParams;
+            if (OpenedByGesture)
+                cp.ExStyle |= 0x08000000; // WS_EX_NOACTIVATE
+            cp.ExStyle |= 0x00000080; // WS_EX_TOOLWINDOW
+            cp.ExStyle |= 0x00000008; // WS_EX_TOPMOST
+            return cp;
+        }
     }
 
     private void OnDragEnter(object? sender, DragEventArgs e)
@@ -56,14 +98,14 @@ public sealed class RadialOverlayForm : Form
         AppLog.Write($"DragEnter fileDrop={e.Data?.GetDataPresent(DataFormats.FileDrop) == true} files={draggedFiles.Length} extensions={string.Join(",", extensions)} targets={string.Join(",", availableTargets)} state={emptyStateMessage}");
         dragOverLogged = false;
         UpdateSelection(Cursor.Position);
-        e.Effect = draggedFiles.Length > 0 && availableTargets.Length > 0 && selectedIndex >= 0 ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Effect = draggedFiles.Length > 0 ? DragDropEffects.Copy : DragDropEffects.None;
         Invalidate();
     }
 
     private void OnDragOver(object? sender, DragEventArgs e)
     {
         UpdateSelection(Cursor.Position);
-        e.Effect = availableTargets.Length > 0 && selectedIndex >= 0 ? DragDropEffects.Copy : DragDropEffects.None;
+        e.Effect = (availableTargets.Length > 0 || waitingForTargets) ? DragDropEffects.Copy : DragDropEffects.None;
         if (!dragOverLogged)
         {
             AppLog.Write($"DragOver effect={e.Effect} targets={availableTargets.Length}");

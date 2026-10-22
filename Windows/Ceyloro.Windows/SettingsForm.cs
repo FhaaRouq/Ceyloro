@@ -16,12 +16,13 @@ public sealed class SettingsForm : Form
     private readonly NumericUpDown heicQuality = new() { Minimum = 10, Maximum = 100, Increment = 5, Width = 86 };
     private readonly CheckBox startAtLogin = new() { Text = "Mulai saat login" };
     private readonly CheckBox askPdfMerge = new() { Text = "Tanyakan opsi saat menggabungkan beberapa gambar ke PDF" };
+    private readonly CheckBox enableShiftDrag = new() { Text = "Buka roda saat Shift-drag dari Explorer" };
 
     public SettingsForm(SettingsStore store)
     {
         this.store = store;
         Text = "Pengaturan Ceyloro";
-        ClientSize = new Size(660, 515);
+        ClientSize = new Size(660, 555);
         StartPosition = FormStartPosition.CenterScreen;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
@@ -39,7 +40,7 @@ public sealed class SettingsForm : Form
             Dock = DockStyle.Fill,
             Padding = new Padding(18, 14, 18, 8),
             ColumnCount = 3,
-            RowCount = 10,
+            RowCount = 11,
             AutoSize = false
         };
         grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 165));
@@ -61,6 +62,10 @@ public sealed class SettingsForm : Form
         grid.Controls.Add(askPdfMerge, 0, 9);
         grid.SetColumnSpan(askPdfMerge, 3);
         askPdfMerge.Dock = DockStyle.Fill;
+        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
+        grid.Controls.Add(enableShiftDrag, 0, 10);
+        grid.SetColumnSpan(enableShiftDrag, 3);
+        enableShiftDrag.Dock = DockStyle.Fill;
         Controls.Add(grid);
 
         var save = new Button { Text = "Simpan", AutoSize = true };
@@ -86,6 +91,7 @@ public sealed class SettingsForm : Form
         jpgQuality.Value = ClampQuality(current.JpgQuality);
         heicQuality.Value = ClampQuality(current.HeicQuality);
         askPdfMerge.Checked = current.AskPdfMergeEveryTime;
+        enableShiftDrag.Checked = current.EnableShiftDragGesture;
         startAtLogin.Checked = IsStartAtLoginEnabled();
     }
 
@@ -106,6 +112,7 @@ public sealed class SettingsForm : Form
             current.JpgQuality = (double)jpgQuality.Value / 100;
             current.HeicQuality = (double)heicQuality.Value / 100;
             current.AskPdfMergeEveryTime = askPdfMerge.Checked;
+            current.EnableShiftDragGesture = enableShiftDrag.Checked;
             store.Save();
             DialogResult = DialogResult.OK;
             Close();

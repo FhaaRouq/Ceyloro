@@ -21,7 +21,9 @@ var tests = new (string Name, Action Run)[]
     ("exports every TIFF page and preserves PNG alpha", MultiPageTiffConversion),
     ("flattens transparent pixels to white in JPEG output", JpegTransparencyFlattening),
     ("cancels image conversion before writing output", ImageConversionCancellation),
-    ("radial geometry hit tests sectors and boundaries correctly", RadialGeometryHitTesting)
+    ("radial geometry hit tests sectors and boundaries correctly", RadialGeometryHitTesting),
+    ("tracks shift-drag gesture transitions accurately", DragGestureTrackerTransitions),
+    ("clamps radial wheel center within monitor working area", WheelCenterClamping)
 };
 
 var failures = new List<string>();
@@ -293,6 +295,56 @@ static void RadialGeometryHitTesting()
     Ensure(RadialGeometry.HitTest(center, new Point(610, 500), 4) == 1, "N=4 right should be sector 1.");
     Ensure(RadialGeometry.HitTest(center, new Point(500, 610), 4) == 2, "N=4 bottom should be sector 2.");
     Ensure(RadialGeometry.HitTest(center, new Point(390, 500), 4) == 3, "N=4 left should be sector 3.");
+}
+
+static void DragGestureTrackerTransitions()
+{
+    var tracker = new DragGestureTracker(threshold: 6);
+
+    Ensure(!tracker.OnMouseDown(new Point(100, 100), shiftPressed: false, isExplorer: true), "Tracker should not track without Shift.");
+    Ensure(!tracker.IsTracking, "Tracker state should be idle.");
+    Ensure(!tracker.OnMouseMove(new Point(120, 120), out _), "MouseMove should not trigger without active tracking.");
+    Ensure(!tracker.OnMouseUp(), "MouseUp should return false if not triggered.");
+
+    Ensure(!tracker.OnMouseDown(new Point(100, 100), shiftPressed: true, isExplorer: false), "Tracker should not track outside Explorer.");
+    Ensure(!tracker.IsTracking, "Tracker state should remain idle.");
+
+    Ensure(tracker.OnMouseDown(new Point(100, 100), shiftPressed: true, isExplorer: true), "Tracker should start tracking.");
+    Ensure(tracker.IsTracking, "Tracker should be in tracking state.");
+    Ensure(!tracker.OnMouseMove(new Point(102, 103), out _), "Small drag should not trigger gesture.");
+    Ensure(tracker.IsTracking, "Tracker should still be tracking.");
+    Ensure(!tracker.OnMouseUp(), "MouseUp before threshold should not indicate triggered gesture.");
+    Ensure(!tracker.IsTracking && !tracker.GestureTriggered, "Tracker should reset after MouseUp.");
+
+    tracker.OnMouseDown(new Point(100, 100), shiftPressed: true, isExplorer: true);
+    Ensure(tracker.OnMouseMove(new Point(108, 108), out var triggerPoint), "Drag > threshold should trigger gesture.");
+    Ensure(triggerPoint == new Point(108, 108), "Trigger point should match move point.");
+    Ensure(tracker.GestureTriggered, "Tracker should mark gesture as triggered.");
+    Ensure(!tracker.IsTracking, "Tracker should leave active tracking after trigger.");
+
+    Ensure(!tracker.OnMouseMove(new Point(150, 150), out _), "Subsequent movement must not re-trigger.");
+
+    Ensure(tracker.OnMouseUp(), "MouseUp should return true for completed gesture.");
+    Ensure(!tracker.GestureTriggered, "GestureTriggered should reset on MouseUp.");
+}
+
+static void WheelCenterClamping()
+{
+    var workArea = new Rectangle(0, 0, 1920, 1080);
+    const int radius = 160;
+
+    var center = RadialGeometry.ClampWheelCenter(new Point(500, 500), workArea, radius);
+    Ensure(center == new Point(500, 500), "Interior point should not be modified.");
+
+    var nearTopLeft = RadialGeometry.ClampWheelCenter(new Point(50, 40), workArea, radius);
+    Ensure(nearTopLeft == new Point(160, 160), "Top-left clamp failed.");
+
+    var nearBottomRight = RadialGeometry.ClampWheelCenter(new Point(1900, 1050), workArea, radius);
+    Ensure(nearBottomRight == new Point(1920 - 160, 1080 - 160), "Bottom-right clamp failed.");
+
+    var secondaryWorkArea = new Rectangle(-1920, 0, 1920, 1080);
+    var clampedSec = RadialGeometry.ClampWheelCenter(new Point(-1900, 50), secondaryWorkArea, radius);
+    Ensure(clampedSec == new Point(-1920 + 160, 160), "Negative coordinate clamp failed.");
 }
 
 static void Ensure(bool condition, string message)

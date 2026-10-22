@@ -9,6 +9,7 @@ public sealed class TrayApplicationContext : ApplicationContext
     private readonly ConversionEngine engine;
     private readonly NotifyIcon trayIcon;
     private readonly HotKeyWindow hotKeyWindow;
+    private readonly ShiftDragMonitor shiftDragMonitor;
     private readonly Icon brandedIcon;
     private RadialOverlayForm? overlay;
     private SettingsForm? settingsForm;
@@ -28,6 +29,14 @@ public sealed class TrayApplicationContext : ApplicationContext
         hotKeyWindow = new HotKeyWindow(OpenOverlay);
         if (!hotKeyWindow.Register())
             trayIcon.ShowBalloonTip(3000, "Ceyloro", "Hotkey Ctrl+Alt+Space tidak tersedia.", ToolTipIcon.Warning);
+        shiftDragMonitor = new ShiftDragMonitor(SynchronizationContext.Current);
+        shiftDragMonitor.GestureTriggered += OnShiftDragGesture;
+        shiftDragMonitor.DragCompleted += OnShiftDragCompleted;
+        if (settings.Current.EnableShiftDragGesture)
+        {
+            if (!shiftDragMonitor.Start())
+                trayIcon.ShowBalloonTip(3000, "Ceyloro", "Gesture Shift-drag tidak dapat didaftarkan.", ToolTipIcon.Warning);
+        }
         if (settings.LoadWarning is not null)
         {
             AppLog.Write(settings.LoadWarning);
@@ -65,6 +74,40 @@ public sealed class TrayApplicationContext : ApplicationContext
         overlay.Show();
     }
 
+    private void OnShiftDragGesture(Point screenPoint)
+    {
+        if (overlay is { IsDisposed: false })
+        {
+            overlay.RepositionTo(screenPoint);
+            return;
+        }
+        overlay = new RadialOverlayForm(engine, ShowMessage, openedByGesture: true);
+        overlay.FormClosed += (_, _) => overlay = null;
+        overlay.RepositionTo(screenPoint);
+        overlay.Show();
+    }
+
+    private void OnShiftDragCompleted()
+    {
+        if (overlay is { IsDisposed: false, OpenedByGesture: true, IsConverting: false })
+        {
+            overlay.Close();
+        }
+    }
+
+    private void UpdateShiftDragMonitorState()
+    {
+        if (settings.Current.EnableShiftDragGesture && !shiftDragMonitor.IsActive)
+        {
+            if (!shiftDragMonitor.Start())
+                trayIcon.ShowBalloonTip(3000, "Ceyloro", "Gesture Shift-drag tidak dapat didaftarkan.", ToolTipIcon.Warning);
+        }
+        else if (!settings.Current.EnableShiftDragGesture && shiftDragMonitor.IsActive)
+        {
+            shiftDragMonitor.Stop();
+        }
+    }
+
     private void OpenSettings()
     {
         if (settingsForm is { IsDisposed: false })
@@ -73,7 +116,11 @@ public sealed class TrayApplicationContext : ApplicationContext
             return;
         }
         settingsForm = new SettingsForm(settings);
-        settingsForm.FormClosed += (_, _) => settingsForm = null;
+        settingsForm.FormClosed += (_, _) =>
+        {
+            settingsForm = null;
+            UpdateShiftDragMonitorState();
+        };
         settingsForm.Show();
         settingsForm.Activate();
     }
@@ -85,6 +132,7 @@ public sealed class TrayApplicationContext : ApplicationContext
 
     protected override void ExitThreadCore()
     {
+        shiftDragMonitor.Dispose();
         hotKeyWindow.Dispose();
         trayIcon.Visible = false;
         trayIcon.Dispose();
@@ -168,4 +216,3 @@ internal sealed class HotKeyWindow : NativeWindow, IDisposable
     private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
 
 }
-

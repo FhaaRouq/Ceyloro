@@ -14,6 +14,7 @@ public sealed class AppSettings
     public double JpgQuality { get; set; } = 0.92;
     public double HeicQuality { get; set; } = 0.92;
     public bool AskPdfMergeEveryTime { get; set; } = true;
+    public bool EnableShiftDragGesture { get; set; } = true;
 }
 
 public sealed class SettingsStore

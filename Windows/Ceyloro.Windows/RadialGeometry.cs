@@ -36,4 +36,17 @@ public static class RadialGeometry
         var halfPetal = Math.Max(0, step - gapDegrees) / 2;
         return Math.Abs(delta) <= halfPetal ? index : -1;
     }
+
+    public static Point ClampWheelCenter(Point cursorPosition, Rectangle workingArea, int wheelRadius = 160)
+    {
+        var minX = workingArea.Left + wheelRadius;
+        var maxX = workingArea.Right - wheelRadius;
+        var minY = workingArea.Top + wheelRadius;
+        var maxY = workingArea.Bottom - wheelRadius;
+
+        var clampedX = minX <= maxX ? Math.Clamp(cursorPosition.X, minX, maxX) : (workingArea.Left + workingArea.Width / 2);
+        var clampedY = minY <= maxY ? Math.Clamp(cursorPosition.Y, minY, maxY) : (workingArea.Top + workingArea.Height / 2);
+
+        return new Point(clampedX, clampedY);
+    }
 }
