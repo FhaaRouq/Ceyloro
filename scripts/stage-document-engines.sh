@@ -6,6 +6,18 @@ DESTINATION=${1:-"$ROOT/Sources/Ceyloro/Resources/DocumentEngines"}
 SOURCE_ROOT=${CEYLORO_DOCUMENT_ENGINES_PATH:-}
 PANDOC_SOURCE=${CEYLORO_PANDOC_PATH:-}
 
+# Guard A3: SOURCE_ROOT dan DESTINATION tidak boleh menunjuk ke path yang sama.
+# Jika sama, cp -R akan menyalin folder ke dirinya sendiri dan dapat merusak isi.
+if [ -n "$SOURCE_ROOT" ]; then
+    RESOLVED_SOURCE=$(CDPATH= cd -- "$SOURCE_ROOT" 2>/dev/null && pwd || echo "$SOURCE_ROOT")
+    RESOLVED_DEST=$(mkdir -p "$DESTINATION" && CDPATH= cd -- "$DESTINATION" && pwd)
+    if [ "$RESOLVED_SOURCE" = "$RESOLVED_DEST" ]; then
+        echo "Error: CEYLORO_DOCUMENT_ENGINES_PATH dan DESTINATION menunjuk ke path yang sama: $RESOLVED_SOURCE" >&2
+        echo "Pisahkan source dan destination agar cp -R tidak menyalin folder ke dirinya sendiri." >&2
+        exit 1
+    fi
+fi
+
 if [ -n "$SOURCE_ROOT" ] && [ ! -d "$SOURCE_ROOT" ]; then
     echo "Folder engine dokumen tidak ditemukan: $SOURCE_ROOT" >&2
     exit 1

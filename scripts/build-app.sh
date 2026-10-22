@@ -70,7 +70,15 @@ else
     echo "FFmpeg tidak dibundel; target yang memerlukannya akan disembunyikan."
 fi
 DOCUMENT_ENGINES_SOURCE="${CEYLORO_DOCUMENT_ENGINES_PATH:-$ROOT/Sources/Ceyloro/Resources/DocumentEngines}"
-if [ "${CEYLORO_STAGE_DOCUMENT_ENGINES:-1}" = "1" ]; then
+# Di lingkungan CI, staging engine dokumen dinonaktifkan secara default karena LibreOffice dan
+# Pandoc tidak tersedia di image runner standar. Aktifkan secara eksplisit dengan
+# CEYLORO_STAGE_DOCUMENT_ENGINES=1 hanya jika langkah persiapan engine sudah dijalankan sebelumnya.
+# Lihat komentar di .github/workflows/release-desktop.yml untuk instruksi lengkapnya.
+_default_stage=1
+if [ "${CI:-}" = "true" ]; then
+    _default_stage=0
+fi
+if [ "${CEYLORO_STAGE_DOCUMENT_ENGINES:-$_default_stage}" = "1" ]; then
     if ! sh "$ROOT/scripts/stage-document-engines.sh" "$DOCUMENT_ENGINES_SOURCE"; then
         if [ "${CEYLORO_REQUIRE_DOCUMENT_ENGINES:-0}" = "1" ] || [ "${CI:-}" = "true" ]; then
             echo "Error: build ini mewajibkan LibreOffice dan pandoc dibundel." >&2

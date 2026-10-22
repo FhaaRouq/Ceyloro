@@ -23,6 +23,19 @@ jobs:
           CEYLORO_VERSION: ${{ github.ref_name }}
           CEYLORO_BUILD: ${{ github.run_number }}
         run: |
+          # CATATAN: engine dokumen (LibreOffice + Pandoc) TIDAK dibundel secara default di CI
+          # karena tidak tersedia di image runner macos-15. Build tetap menghasilkan .app yang
+          # berfungsi — fitur konversi dokumen hanya tersembunyi dari UI, bukan error.
+          #
+          # Untuk mengaktifkan bundling engine dokumen pada release tertentu:
+          # 1. Tambahkan langkah sebelum ini yang mengunduh dan menyiapkan engine ke sebuah
+          #    direktori, misalnya ./document-engines-staging/
+          # 2. Set env: CEYLORO_DOCUMENT_ENGINES_PATH=./document-engines-staging/
+          #             CEYLORO_STAGE_DOCUMENT_ENGINES=1
+          # 3. Pastikan SOURCE_ROOT dan DESTINATION berbeda (lihat stage-document-engines.sh)
+          #
+          # Jangan set CEYLORO_STAGE_DOCUMENT_ENGINES=1 tanpa langkah persiapan di atas —
+          # build akan exit dengan error karena LibreOffice dan Pandoc tidak ditemukan.
           version="${CEYLORO_VERSION#v}"
           CEYLORO_VERSION="$version" CEYLORO_BUILD="$CEYLORO_BUILD" ./scripts/build-app.sh
       - name: Verify FFmpeg is bundled
