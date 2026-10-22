@@ -318,6 +318,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
                 requestPDFMerge(files: files)
                 return
             }
+            if target == .docx, files.allSatisfy({ FileFormat.detect(url: $0).fileExtension == "pdf" }), !confirmPDFToDOCXRisk() {
+                return
+            }
             let outputDirectory = UserDefaults.standard.string(forKey: "outputDirectory").map(URL.init(fileURLWithPath:))
             let multiPageOutput = MultiPageOutput(rawValue: UserDefaults.standard.string(forKey: "multiPageOutput") ?? "") ?? .folder
             let imageOptions = ImageConversionOptions(
@@ -405,6 +408,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
         }
         pdfMergeWindow = controller
         controller.show(at: NSEvent.mouseLocation)
+    }
+
+    private func confirmPDFToDOCXRisk() -> Bool {
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = "PDF ke DOCX adalah upaya terbaik"
+        alert.informativeText = "Teks PDF akan diekstrak menjadi DOCX. Tabel, kolom, gambar, dan tata letak kompleks dapat berubah. PDF hasil scan perlu OCR dan mungkin tidak menghasilkan dokumen yang sepenuhnya dapat diedit."
+        alert.addButton(withTitle: "Lanjutkan")
+        alert.addButton(withTitle: "Batal")
+        return alert.runModal() == .alertFirstButtonReturn
     }
 
     private func submitPDFMerge(files: [URL], mode: PDFMergeMode, options: PDFMergeOptions, outputName: String, remember: Bool = false) {

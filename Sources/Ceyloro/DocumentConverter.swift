@@ -33,7 +33,6 @@ final class DocumentConverter {
             throw ConversionError.unsupportedConversion
         }
         try fileManager.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
-        defer { try? fileManager.removeItem(at: temporaryDirectory) }
         if isCancelled() { throw CancellationError() }
 
         if source.kind == .pdf && target == .docx {
@@ -45,7 +44,7 @@ final class DocumentConverter {
             let textInput = temporaryDirectory.appendingPathComponent("input.txt")
             try text.write(to: textInput, atomically: true, encoding: .utf8)
             let output = temporaryDirectory.appendingPathComponent("output.\(target.fileExtension)")
-            try runPandoc(input: textInput, from: "plain", output: output, target: target, executable: pandocURL, temporaryDirectory: temporaryDirectory, timeout: timeout, isCancelled: isCancelled)
+            try runPandoc(input: textInput, from: "markdown", output: output, target: target, executable: pandocURL, temporaryDirectory: temporaryDirectory, timeout: timeout, isCancelled: isCancelled)
             let outputSize = (try? output.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
             guard fileManager.fileExists(atPath: output.path), outputSize > 0 else { throw ConversionError.encodingFailed }
             progress(1)
@@ -143,7 +142,7 @@ final class DocumentConverter {
         switch source.fileExtension {
         case "md": return "markdown"
         case "html": return "html"
-        case "txt": return "plain"
+        case "txt": return "markdown"
         default: return source.fileExtension
         }
     }
@@ -152,7 +151,7 @@ final class DocumentConverter {
         switch target {
         case .md: return "gfm"
         case .html: return "html"
-        case .txt: return "plain"
+        case .txt: return "markdown"
         default: return target.fileExtension
         }
     }
@@ -162,7 +161,8 @@ final class DocumentConverter {
         process.executableURL = executable
         process.arguments = arguments
         process.standardOutput = FileHandle.nullDevice
-        process.standardError = FileHandle.nullDevice
+        let errorPipe = Pipe()
+        process.standardError = errorPipe
         try process.run()
         let deadline = Date().addingTimeInterval(timeout)
         while process.isRunning {
@@ -178,6 +178,9 @@ final class DocumentConverter {
             }
             Thread.sleep(forTimeInterval: 0.05)
         }
-        guard process.terminationStatus == 0 else { throw ConversionError.documentEngineFailed }
+        let errorOutput = String(data: errorPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)
+        guard process.terminationStatus == 0 else {
+            throw ConversionError.documentEngineFailed(reason: errorOutput)
+        }
     }
 }

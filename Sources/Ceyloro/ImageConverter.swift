@@ -315,12 +315,12 @@ enum ConversionError: LocalizedError {
     case ffmpegFailed(reason: String? = nil)
     case unsupportedConversion
     case documentTimeout
-    case documentEngineFailed
+    case documentEngineFailed(reason: String? = nil)
 
     var errorDescription: String? {
         switch self {
         case .invalidInput: return "File tidak valid, terkunci, atau tidak dapat dibaca."
-        case .noText: return "PDF tidak berisi teks (hasil scan/gambar). Ceyloro belum menyertakan pengenalan teks (OCR)."
+        case .noText: return "PDF tidak berisi teks yang dapat dikenali oleh OCR."
         case .encodingFailed: return "Ceyloro tidak dapat menulis hasil konversi."
         case .audioEngineUnavailable: return "Mesin audio macOS tidak mendukung format ini."
         case .videoEngineUnavailable: return "Mesin video macOS tidak mendukung format ini."
@@ -335,7 +335,11 @@ enum ConversionError: LocalizedError {
             return "FFmpeg gagal memproses file ini."
         case .unsupportedConversion: return "Format ini belum didukung di MVP."
         case .documentTimeout: return "Konversi dokumen melewati batas waktu 180 detik."
-        case .documentEngineFailed: return "Mesin dokumen gagal memproses file ini."
+        case let .documentEngineFailed(reason):
+            if let reason, !reason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return "Mesin dokumen gagal memproses file ini: \(reason.trimmingCharacters(in: .whitespacesAndNewlines))"
+            }
+            return "Mesin dokumen gagal memproses file ini."
         }
     }
 }
