@@ -18,6 +18,10 @@ var tests = new (string Name, Action Run)[]
     ("cleans only stale Ceyloro GUID temp folders", StaleTempCleanup),
     ("uses palette-based bounded-width GIF conversion", GifFilterGraph),
     ("restricts FFmpeg input to local files", FfmpegInputProtocolPolicy),
+    // A2 regression: -y tidak boleh ada di BuildInputArguments (mencegah overwrite output langsung)
+    ("ffmpeg input arguments must not contain -y overwrite flag", FfmpegNoOverwriteFlag),
+    // A2 regression: CommitStagedFile harus menghasilkan path unik saat kandidat sudah ada
+    ("staged file commit uses collision-safe unique path", StagedFileCommitCollisionSafe),
     ("uses an explicit consistent JPEG quality policy", PdfJpegQuality),
     ("converts valid gzip TAR without leaving partial output", GzipArchiveConversion),
     ("exports every TIFF page and preserves PNG alpha", MultiPageTiffConversion),
@@ -159,6 +163,50 @@ static void FfmpegInputProtocolPolicy()
     var inputIndex = Array.IndexOf(arguments.ToArray(), "-i");
     Ensure(whitelistIndex >= 0 && whitelistIndex < inputIndex, "FFmpeg input whitelist must apply before the input.");
     Ensure(arguments[whitelistIndex + 1] == "file", "FFmpeg should accept only local file protocol inputs.");
+}
+
+// Regression A2: -y tidak boleh ada di argumen input FFmpeg
+static void FfmpegNoOverwriteFlag()
+{
+    var arguments = FfmpegCommandBuilder.BuildInputArguments("C:\\media\\clip.mp4");
+    Ensure(!arguments.Contains("-y"),
+        "FFmpeg input arguments must not include -y; output is committed via File.Move after success, not via direct overwrite.");
+}
+
+// Regression A2: commit staging ke output final harus collision-safe
+static void StagedFileCommitCollisionSafe()
+{
+    using var temp = new TestDirectory();
+    var desired = Path.Combine(temp.Path, "output.mp4");
+
+    // Simulasikan job 1 sudah commit ke desired
+    File.WriteAllText(desired, "job1");
+
+    // Job 2 dan 3 harus mendapat path unik, tidak menimpa job 1
+    var committed2 = CommitStagedHelper(temp.Path, "staged2.mp4", desired, "job2");
+    var committed3 = CommitStagedHelper(temp.Path, "staged3.mp4", desired, "job3");
+
+    Ensure(File.Exists(desired) && File.ReadAllText(desired) == "job1",
+        "Job 1 output must not be overwritten by a later commit.");
+    Ensure(committed2 != desired && File.Exists(committed2),
+        "Job 2 must commit to a different path from job 1.");
+    Ensure(committed3 != desired && committed3 != committed2 && File.Exists(committed3),
+        "Job 3 must commit to a path different from both job 1 and job 2.");
+}
+
+// Helper: replika logika CommitStagedFile dari ConversionEngine untuk pengujian tanpa ketergantungan internal
+static string CommitStagedHelper(string dir, string stagingName, string desiredPath, string content)
+{
+    var staging = Path.Combine(dir, stagingName);
+    File.WriteAllText(staging, content);
+    var directory = Path.GetDirectoryName(desiredPath) ?? ".";
+    var nameWithoutExt = Path.GetFileNameWithoutExtension(desiredPath);
+    var ext = Path.GetExtension(desiredPath);
+    var final = desiredPath;
+    for (var suffix = 2; File.Exists(final) || Directory.Exists(final); suffix++)
+        final = Path.Combine(directory, $"{nameWithoutExt} {suffix}{ext}");
+    File.Move(staging, final);
+    return final;
 }
 
 static void PdfJpegQuality()

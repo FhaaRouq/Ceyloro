@@ -401,6 +401,13 @@ public sealed class ConversionEngine
         if (capabilities is null || !capabilities.Supports(target))
             throw new InvalidOperationException($"FFmpeg pada perangkat ini tidak memiliki encoder atau muxer yang diperlukan untuk {target.ToUpperInvariant()}.");
 
+        // Tulis ke staging per-job terlebih dahulu; commit ke output final hanya setelah sukses.
+        // Ini mencegah dua job dengan nama output sama saling menimpa (race condition A2).
+        var jobStaging = Path.Combine(Path.GetTempPath(), "Ceyloro", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(jobStaging);
+        var extension = target.Equals("gzip", StringComparison.OrdinalIgnoreCase) ? "tar.gz" : target;
+        var stagedOutput = Path.Combine(jobStaging, $"output.{extension}");
+
         using var process = new Process
         {
             StartInfo = new ProcessStartInfo
@@ -412,7 +419,7 @@ public sealed class ConversionEngine
                 CreateNoWindow = true
             }
         };
-        foreach (var argument in FfmpegCommandBuilder.Build(input, output, target, capabilities, settings.Current))
+        foreach (var argument in FfmpegCommandBuilder.Build(input, stagedOutput, target, capabilities, settings.Current))
             process.StartInfo.ArgumentList.Add(argument);
 
         var duration = await ProbeDurationAsync(input, cancellationToken);
@@ -420,7 +427,6 @@ public sealed class ConversionEngine
         if (!process.Start())
             throw new InvalidOperationException("FFmpeg tidak dapat dijalankan.");
 
-        var completed = false;
         try
         {
             using var cancellationRegistration = cancellationToken.Register(() =>
@@ -461,27 +467,20 @@ public sealed class ConversionEngine
                 throw new InvalidOperationException(string.IsNullOrWhiteSpace(errorOutput)
                     ? "FFmpeg gagal mengonversi file."
                     : errorOutput.Trim());
-            if (!File.Exists(output))
+            if (!File.Exists(stagedOutput))
                 throw new InvalidOperationException("FFmpeg selesai tetapi file hasil tidak ditemukan.");
-            completed = true;
-            return [output];
+
+            // Commit atomik ke output final — UniqueOutputPath dipanggil tepat sebelum File.Move
+            // agar jeda antara cek keberadaan file dan penulisan diminimalkan.
+            var finalOutput = CommitStagedFile(stagedOutput, output);
+            return [finalOutput];
         }
         finally
         {
-            if (!completed)
-            {
-                try
-                {
-                    if (!process.HasExited)
-                        process.Kill(entireProcessTree: true);
-                    await process.WaitForExitAsync();
-                }
-                catch
-                {
-                    // Preserve the original failure and best-effort cleanup.
-                }
-                TryDelete(output);
-            }
+            // Cleanup hanya menyentuh direktori staging job ini sendiri — tidak pernah menyentuh
+            // file output final yang mungkin sudah berhasil di-commit oleh job ini atau job lain.
+            try { if (Directory.Exists(jobStaging)) Directory.Delete(jobStaging, recursive: true); }
+            catch { }
         }
     }
 
@@ -713,6 +712,25 @@ public sealed class ConversionEngine
         for (var suffix = 2; File.Exists(candidate) || Directory.Exists(candidate); suffix++)
             candidate = Path.Combine(directory, $"{baseName} {suffix}.{extension}");
         return candidate;
+    }
+
+    /// <summary>
+    /// Pindahkan file dari staging ke path final secara collision-safe.
+    /// Jika path kandidat sudah ada (karena job lain commit lebih dulu), tambahkan suffix numerik.
+    /// File.Move pada volume yang sama di Windows bersifat atomik.
+    /// </summary>
+    private static string CommitStagedFile(string stagingPath, string desiredFinalPath)
+    {
+        var directory = Path.GetDirectoryName(desiredFinalPath) ?? ".";
+        var nameWithoutExt = Path.GetFileNameWithoutExtension(desiredFinalPath);
+        var ext = Path.GetExtension(desiredFinalPath);
+
+        var finalPath = desiredFinalPath;
+        for (var suffix = 2; File.Exists(finalPath) || Directory.Exists(finalPath); suffix++)
+            finalPath = Path.Combine(directory, $"{nameWithoutExt} {suffix}{ext}");
+
+        File.Move(stagingPath, finalPath);
+        return finalPath;
     }
 
     private static void TryDelete(string path)

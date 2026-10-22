@@ -8,7 +8,9 @@ internal static class FfmpegCommandBuilder
     internal const string InputProtocolWhitelist = "file";
 
     internal static IReadOnlyList<string> BuildInputArguments(string input) =>
-        ["-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-protocol_whitelist", InputProtocolWhitelist, "-i", input];
+        // Tidak menyertakan -y: FFmpeg tidak boleh menimpa file output tanpa eksklusivitas;
+        // commit ke output final dilakukan melalui File.Move atomik setelah job selesai.
+        ["-hide_banner", "-loglevel", "error", "-nostdin", "-protocol_whitelist", InputProtocolWhitelist, "-i", input];
 
     public static IReadOnlyList<string> Build(
         string input,
