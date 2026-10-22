@@ -19,16 +19,25 @@ jobs:
       - name: Build LGPL FFmpeg universal
         run: ./scripts/build-ffmpeg-universal.sh
       - name: Build universal macOS app
-        run: ./scripts/build-app.sh
+        env:
+          CEYLORO_VERSION: ${{ github.ref_name }}
+          CEYLORO_BUILD: ${{ github.run_number }}
+        run: |
+          version="${CEYLORO_VERSION#v}"
+          CEYLORO_VERSION="$version" CEYLORO_BUILD="$CEYLORO_BUILD" ./scripts/build-app.sh
       - name: Verify FFmpeg is bundled
         run: test -x Ceyloro.app/Contents/Resources/ffmpeg && ./scripts/verify-ffmpeg.sh Ceyloro.app/Contents/Resources/ffmpeg
       - name: Package macOS app
         run: ditto -c -k --keepParent Ceyloro.app Ceyloro-macOS-universal.zip
+      - name: Create macOS package checksum
+        run: shasum -a 256 Ceyloro-macOS-universal.zip | awk '{print $1"  "$2}' > Ceyloro-macOS-universal.zip.sha256
       - name: Upload macOS package
         uses: actions/upload-artifact@v4
         with:
           name: Ceyloro-macOS-universal
-          path: Ceyloro-macOS-universal.zip
+          path: |
+            Ceyloro-macOS-universal.zip
+            Ceyloro-macOS-universal.zip.sha256
 
   windows:
     runs-on: windows-latest
@@ -89,7 +98,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          release_args=("$GITHUB_REF_NAME" "dist/Ceyloro-macOS-universal.zip" "dist/Ceyloro-Windows-x64.zip" "dist/Ceyloro-Windows-x64.zip.sha256" "dist/Ceyloro-Windows-arm64.zip" "dist/Ceyloro-Windows-arm64.zip.sha256" "--repo" "$GITHUB_REPOSITORY" "--title" "Ceyloro $GITHUB_REF_NAME" "--generate-notes" "--latest")
+          release_args=("$GITHUB_REF_NAME" "dist/Ceyloro-macOS-universal.zip" "dist/Ceyloro-macOS-universal.zip.sha256" "dist/Ceyloro-Windows-x64.zip" "dist/Ceyloro-Windows-x64.zip.sha256" "dist/Ceyloro-Windows-arm64.zip" "dist/Ceyloro-Windows-arm64.zip.sha256" "--repo" "$GITHUB_REPOSITORY" "--title" "Ceyloro $GITHUB_REF_NAME" "--generate-notes" "--latest")
           case "$GITHUB_REF_NAME" in
             *-preview*|*-alpha*|*-beta*|*-rc*) release_args+=("--prerelease") ;;
           esac

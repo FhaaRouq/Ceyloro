@@ -23,6 +23,22 @@ Paket di atas adalah release build mandiri (self-contained). Build macOS bersifa
 
 Paket macOS terkompresi berukuran sekitar 364 MB dan sudah membawa Pandoc serta LibreOffice; pengguna tidak perlu memasang kedua engine itu secara manual.
 
+### Memperbarui Ceyloro
+
+Ceyloro dapat memeriksa release terbaru langsung dari GitHub resmi. Buka menu
+ikon Ceyloro di menu bar, lalu pilih **Periksa Pembaruan…**. Jika versi baru
+tersedia, dialog akan menampilkan catatan perubahan dari release tersebut.
+
+Saat kamu memilih **Perbarui Sekarang**, Ceyloro akan mengunduh paket macOS,
+memeriksa SHA-256, menutup versi lama, menggantinya di lokasi yang sama, lalu
+membuka versi baru secara otomatis. File asli dan versi lama tetap aman sampai
+paket baru selesai diverifikasi. Fitur ini memerlukan folder aplikasi yang bisa
+ditulis oleh akun pengguna; jika Ceyloro berada di folder sistem yang dilindungi,
+pindahkan ke Applications milik pengguna atau berikan izin yang diminta macOS.
+
+Updater hanya menerima paket macOS dan checksum dari release resmi repository
+Ceyloro. Jika tidak ada checksum yang cocok, pembaruan dibatalkan.
+
 ### Membuka aplikasi preview
 
 Paket preview belum ditandatangani secara resmi.

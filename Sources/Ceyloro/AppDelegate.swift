@@ -18,6 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
     private let ffmpegConverter = FFmpegConverter()
     private let compressionConverter = CompressionConverter()
     private let documentConverter = DocumentConverter()
+    private let updateService = CeyloroUpdateService()
     private var ffmpegURL: URL?
     private var ffmpegEncoders: Set<String> = []
     private var libreOfficeURL: URL?
@@ -28,6 +29,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
     private var pdfMergeWindow: PDFMergeWindowController?
     private var activeFiles: [URL] = []
     private var currentMode: WheelMode = .convert
+    private var updateMenuItem: NSMenuItem?
+    private var updateTask: Task<Void, Never>?
     private let logURL: URL = {
         let folder = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Ceyloro", isDirectory: true)
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -93,6 +96,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
         menu.addItem(NSMenuItem(title: "Ceyloro aktif", action: nil, keyEquivalent: ""))
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Pengaturan…", action: #selector(showSettings), keyEquivalent: ","))
+        let updateItem = NSMenuItem(title: "Periksa Pembaruan…", action: #selector(checkForUpdates), keyEquivalent: "u")
+        updateMenuItem = updateItem
+        menu.addItem(updateItem)
         menu.addItem(NSMenuItem(title: "Tampilkan Log", action: #selector(showLogs), keyEquivalent: "l"))
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Keluar Ceyloro", action: #selector(quit), keyEquivalent: "q"))
@@ -556,6 +562,88 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
         settingsWindow?.window?.hidesOnDeactivate = false
         settingsWindow?.showWindow(nil)
         settingsWindow?.window?.makeKeyAndOrderFront(nil)
+    }
+
+    @objc private func checkForUpdates() {
+        guard updateTask == nil else { return }
+        NSApp.activate(ignoringOtherApps: true)
+        updateMenuItem?.isEnabled = false
+        showToast("Memeriksa pembaruan…", systemImage: "arrow.triangle.2.circlepath")
+        updateTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                let release = try await self.updateService.latestRelease()
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    self.updateTask = nil
+                    self.updateMenuItem?.isEnabled = true
+                    self.presentUpdate(release)
+                }
+            } catch {
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    self.updateTask = nil
+                    self.updateMenuItem?.isEnabled = true
+                    self.log("Update check gagal: \(error.localizedDescription)")
+                    self.showError("Tidak dapat memeriksa pembaruan. Periksa koneksi internet lalu coba lagi.\n\n\(error.localizedDescription)")
+                }
+            }
+        }
+    }
+
+    private func presentUpdate(_ release: CeyloroUpdateRelease) {
+        let installedVersion = CeyloroVersion(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0")
+        guard release.version > installedVersion else {
+            log("Ceyloro sudah terbaru: \(installedVersion.displayValue)")
+            showToast("Ceyloro sudah menggunakan versi terbaru.", systemImage: "checkmark.circle")
+            return
+        }
+        guard release.macOSAsset != nil else {
+            showError("Versi \(release.version.displayValue) belum menyediakan paket macOS.")
+            return
+        }
+        let notes = release.body?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let changelog = notes?.isEmpty == false ? String(notes?.prefix(5000) ?? "") : "Tidak ada catatan perubahan pada release ini."
+        let alert = NSAlert()
+        alert.messageText = "Pembaruan Ceyloro tersedia: v\(release.version.displayValue)"
+        alert.informativeText = "Versi saat ini: v\(installedVersion.displayValue)\n\nPerubahan terbaru:\n\(changelog)"
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "Perbarui Sekarang")
+        alert.addButton(withTitle: "Lihat Changelog")
+        alert.addButton(withTitle: "Nanti")
+        let response = alert.runModal()
+        if response == .alertFirstButtonReturn {
+            installUpdate(release)
+        } else if response == .alertSecondButtonReturn {
+            NSWorkspace.shared.open(release.htmlURL)
+        }
+    }
+
+    private func installUpdate(_ release: CeyloroUpdateRelease) {
+        guard updateTask == nil else { return }
+        let currentAppURL = Bundle.main.bundleURL
+        showToast("Mengunduh pembaruan Ceyloro…", systemImage: "arrow.down.circle")
+        log("Mulai pembaruan ke v\(release.version.displayValue)")
+        updateMenuItem?.isEnabled = false
+        updateTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await self.updateService.install(release: release, currentAppURL: currentAppURL)
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    self.log("Paket v\(release.version.displayValue) siap; aplikasi akan dimulai ulang")
+                    NSApp.terminate(nil)
+                }
+            } catch {
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    self.updateTask = nil
+                    self.updateMenuItem?.isEnabled = true
+                    self.log("Pembaruan gagal: \(error.localizedDescription)")
+                    self.showError("Pembaruan gagal dan versi saat ini tetap aman.\n\n\(error.localizedDescription)")
+                }
+            }
+        }
     }
 
     @objc private func showLogs() {

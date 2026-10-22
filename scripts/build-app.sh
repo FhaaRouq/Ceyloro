@@ -37,6 +37,12 @@ lipo -create \
     "$ARM_SCRATCH/release/Ceyloro" \
     -output "$APP/Contents/MacOS/Ceyloro"
 cp "$ROOT/Sources/Ceyloro/Resources/Info.plist" "$APP/Contents/Info.plist"
+if [ -n "${CEYLORO_VERSION:-}" ]; then
+    /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $CEYLORO_VERSION" "$APP/Contents/Info.plist"
+fi
+if [ -n "${CEYLORO_BUILD:-}" ]; then
+    /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $CEYLORO_BUILD" "$APP/Contents/Info.plist"
+fi
 if [ -f "$ROOT/Sources/Ceyloro/Resources/Ceyloro.icns" ]; then
     cp "$ROOT/Sources/Ceyloro/Resources/Ceyloro.icns" "$APP/Contents/Resources/Ceyloro.icns"
 else
