@@ -10,11 +10,14 @@ final class DocumentConversionPolicyTests: XCTestCase {
         XCTAssertEqual(policy.targets(for: FileFormat(fileExtension: "md", kind: .document)), [.docx, .pdf])
     }
 
-    func testSpreadsheetsAndSlidesTargetPdf() {
-        XCTAssertEqual(policy.targets(for: FileFormat(fileExtension: "xlsx", kind: .document)), [.pdf])
-        XCTAssertEqual(policy.targets(for: FileFormat(fileExtension: "ods", kind: .document)), [.pdf])
-        XCTAssertEqual(policy.targets(for: FileFormat(fileExtension: "pptx", kind: .document)), [.pdf])
-        XCTAssertEqual(policy.targets(for: FileFormat(fileExtension: "odp", kind: .document)), [.pdf])
+    func testSpreadsheetsExposePDFAndCSVTargets() {
+        XCTAssertEqual(policy.targets(for: FileFormat(fileExtension: "xlsx", kind: .document)), [.pdf, .csv])
+        XCTAssertEqual(policy.targets(for: FileFormat(fileExtension: "ods", kind: .document)), [.pdf, .csv])
+    }
+
+    func testSlidesExposePDFAndPNGTargets() {
+        XCTAssertEqual(policy.targets(for: FileFormat(fileExtension: "pptx", kind: .document)), [.pdf, .png])
+        XCTAssertEqual(policy.targets(for: FileFormat(fileExtension: "odp", kind: .document)), [.pdf, .png])
     }
 
     func testUnsupportedDocumentExtensionIsEmpty() {

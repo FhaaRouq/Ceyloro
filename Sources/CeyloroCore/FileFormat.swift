@@ -65,6 +65,7 @@ public enum TargetFormat: String, CaseIterable, Codable, Sendable {
     case md
     case html
     case txt
+    case csv
     case mp3
     case m4a
     case wav
@@ -98,6 +99,7 @@ public enum TargetFormat: String, CaseIterable, Codable, Sendable {
         case .md: return "MD"
         case .html: return "HTML"
         case .txt: return "TXT"
+        case .csv: return "CSV"
         case .mp3: return "MP3"
         case .m4a: return "M4A"
         case .wav: return "WAV"

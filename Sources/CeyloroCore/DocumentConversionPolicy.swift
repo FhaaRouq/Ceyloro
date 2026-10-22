@@ -12,8 +12,10 @@ public struct DocumentConversionPolicy: Sendable {
             return [.pdf, .docx]
         case "docx":
             return [.pdf, .odt, .rtf, .md, .html, .txt]
-        case "xls", "xlsx", "ods", "ppt", "pptx", "odp":
-            return [.pdf]
+        case "xls", "xlsx", "ods":
+            return [.pdf, .csv]
+        case "ppt", "pptx", "odp":
+            return [.pdf, .png]
         case "md", "html", "txt":
             return [.docx, .pdf]
         case "pdf":
