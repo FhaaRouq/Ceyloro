@@ -4,6 +4,7 @@ import ImageIO
 import PDFKit
 import CeyloroCore
 import UniformTypeIdentifiers
+import Vision
 
 struct ImageConversionOptions: Sendable {
     var jpgQuality: Double
@@ -58,11 +59,13 @@ final class ImageConverter {
         case (.pdf, .txt):
             progress(0.4)
             guard let document = PDFDocument(url: input), !document.isLocked else { throw ConversionError.invalidInput }
-            guard let text = document.string, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                throw ConversionError.noText
-            }
             let output = temporaryDirectory.appendingPathComponent("output.txt")
-            try text.write(to: output, atomically: true, encoding: .utf8)
+            if let text = document.string, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                try text.write(to: output, atomically: true, encoding: .utf8)
+            } else {
+                let text = try recognizeText(in: document, progress: progress, isCancelled: isCancelled)
+                try text.write(to: output, atomically: true, encoding: .utf8)
+            }
             progress(1)
             return .files([output])
 
@@ -128,6 +131,39 @@ final class ImageConverter {
     private func pageResult(input: URL, outputs: [URL]) -> ConversionResult {
         guard outputs.count > 1 else { return .files(outputs) }
         return .collection(name: input.deletingPathExtension().lastPathComponent, files: outputs)
+    }
+
+    private func recognizeText(in document: PDFDocument, progress: @escaping (Double) -> Void, isCancelled: @escaping () -> Bool) throws -> String {
+        guard document.pageCount > 0 else { throw ConversionError.invalidInput }
+        let supportedLanguages = (try? VNRecognizeTextRequest.supportedRecognitionLanguages(for: .accurate, revision: VNRecognizeTextRequest.currentRevision)) ?? []
+        let preferredLanguages = ["id-ID", "en-US"].filter { supportedLanguages.contains($0) }
+        var pages: [String] = []
+        pages.reserveCapacity(document.pageCount)
+
+        for index in 0..<document.pageCount {
+            if isCancelled() { throw CancellationError() }
+            var rendered: CGImage?
+            autoreleasepool {
+                rendered = document.page(at: index).flatMap(render(page:))
+            }
+            guard let image = rendered else { throw ConversionError.encodingFailed }
+
+            let request = VNRecognizeTextRequest()
+            request.recognitionLevel = .accurate
+            request.usesLanguageCorrection = true
+            if !preferredLanguages.isEmpty {
+                request.recognitionLanguages = preferredLanguages
+            }
+            let handler = VNImageRequestHandler(cgImage: image, options: [:])
+            try handler.perform([request])
+            let lines = request.results?.compactMap { $0.topCandidates(1).first?.string } ?? []
+            pages.append(lines.joined(separator: "\n"))
+            progress(0.4 + 0.6 * Double(index + 1) / Double(document.pageCount))
+        }
+
+        let text = pages.joined(separator: "\n\n").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { throw ConversionError.noText }
+        return text + "\n"
     }
 
     private func render(page: PDFPage) -> CGImage? {

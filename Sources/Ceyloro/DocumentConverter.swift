@@ -43,11 +43,11 @@ final class DocumentConverter {
             try runLibreOffice(input: intermediate, target: .pdf, output: output, executable: libreOfficeURL, temporaryDirectory: temporaryDirectory, timeout: timeout, isCancelled: isCancelled)
         } else if usesPandoc(source: source, target: target) {
             guard let pandocURL else { throw ConversionError.unsupportedConversion }
-            output = temporaryDirectory.appendingPathComponent("output.(target.fileExtension)")
+            output = temporaryDirectory.appendingPathComponent("output.\(target.fileExtension)")
             try runPandoc(input: safeInput, source: source, output: output, target: target, executable: pandocURL, temporaryDirectory: temporaryDirectory, timeout: timeout, isCancelled: isCancelled)
         } else {
             guard let libreOfficeURL else { throw ConversionError.unsupportedConversion }
-            output = temporaryDirectory.appendingPathComponent("output.(target.fileExtension)")
+            output = temporaryDirectory.appendingPathComponent("output.\(target.fileExtension)")
             try runLibreOffice(input: safeInput, target: target, output: output, executable: libreOfficeURL, temporaryDirectory: temporaryDirectory, timeout: timeout, isCancelled: isCancelled)
         }
 
