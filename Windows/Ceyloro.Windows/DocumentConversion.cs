@@ -59,7 +59,12 @@ internal static class DocumentConversion
         if (!allowed.Contains(target, StringComparer.OrdinalIgnoreCase)) return false;
         if (target.Equals("pdf", StringComparison.OrdinalIgnoreCase) && TextSources.Contains(source.Extension))
             return engines.PandocPath is not null && engines.LibreOfficePath is not null;
-        if (target is "md" or "html" or "txt" || target == "docx" && TextSources.Contains(source.Extension) || source.Extension == "docx" && target is "md" or "html" or "txt")
+        var targetIsText = target.Equals("md", StringComparison.OrdinalIgnoreCase)
+            || target.Equals("html", StringComparison.OrdinalIgnoreCase)
+            || target.Equals("txt", StringComparison.OrdinalIgnoreCase);
+        var usesPandoc = (source.Extension.Equals("docx", StringComparison.OrdinalIgnoreCase) && targetIsText)
+            || (TextSources.Contains(source.Extension) && target.Equals("docx", StringComparison.OrdinalIgnoreCase));
+        if (usesPandoc)
             return engines.PandocPath is not null;
         return engines.LibreOfficePath is not null;
     }
@@ -117,9 +122,14 @@ internal static class DocumentConversion
         }
     }
 
-    private static bool UsesPandoc(string source, string target) =>
-        source.Equals("docx", StringComparison.OrdinalIgnoreCase) && target is "md" or "html" or "txt" ||
-        TextSources.Contains(source) && target.Equals("docx", StringComparison.OrdinalIgnoreCase);
+    private static bool UsesPandoc(string source, string target)
+    {
+        var targetIsText = target.Equals("md", StringComparison.OrdinalIgnoreCase)
+            || target.Equals("html", StringComparison.OrdinalIgnoreCase)
+            || target.Equals("txt", StringComparison.OrdinalIgnoreCase);
+        return (source.Equals("docx", StringComparison.OrdinalIgnoreCase) && targetIsText)
+            || (TextSources.Contains(source) && target.Equals("docx", StringComparison.OrdinalIgnoreCase));
+    }
 
     private static async Task RunLibreOfficeAsync(string input, string output, string target, string executable, AppSettings settings, CancellationToken cancellationToken)
     {

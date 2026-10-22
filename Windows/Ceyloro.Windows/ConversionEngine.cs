@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.IO.Compression;
 
 namespace Ceyloro.Windows;
 
@@ -185,11 +186,6 @@ public sealed class ConversionEngine
     {
         if (!File.Exists(input)) throw new FileNotFoundException("File sumber tidak ditemukan.", input);
         var source = PortableFileFormat.Detect(input);
-        if (source.Kind == PortableMediaKind.Document)
-        {
-            await DocumentConversion.ConvertAsync(input, target, output, settings.Current, cancellationToken, reportProgress);
-            return [output];
-        }
         if (!IsCompressible(source)) throw new InvalidOperationException("Format file ini belum dapat dikompres.");
         var outputDirectory = ResolveOutputDirectory(input);
         Directory.CreateDirectory(outputDirectory);
@@ -253,8 +249,8 @@ public sealed class ConversionEngine
     {
         cancellationToken.ThrowIfCancellationRequested();
         using var file = new FileStream(output, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None);
-        using var archive = new System.IO.Compression.ZipArchive(file, System.IO.Compression.ZipArchiveMode.Create);
-        archive.CreateEntryFromFile(input, Path.GetFileName(input), System.IO.Compression.CompressionLevel.Optimal);
+        using var archive = new ZipArchive(file, ZipArchiveMode.Create);
+        archive.CreateEntryFromFile(input, Path.GetFileName(input), CompressionLevel.Optimal);
         reportProgress(1);
     }
 
@@ -333,6 +329,11 @@ public sealed class ConversionEngine
         Directory.CreateDirectory(outputDirectory);
         var output = UniqueOutputPath(outputDirectory, Path.GetFileNameWithoutExtension(input), target);
         var source = PortableFileFormat.Detect(input);
+        if (source.Kind == PortableMediaKind.Document)
+        {
+            await DocumentConversion.ConvertAsync(input, target, output, settings.Current, cancellationToken, reportProgress);
+            return [output];
+        }
         if (source.Kind == PortableMediaKind.Image && (target is "jpg" or "png" or "tiff") && WindowsImageConverter.CanDecode(source.Extension))
         {
             var frameCount = WindowsImageConverter.FrameCount(input, source.Extension);
