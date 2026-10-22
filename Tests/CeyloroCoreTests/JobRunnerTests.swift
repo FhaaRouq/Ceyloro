@@ -218,4 +218,25 @@ final class JobRunnerTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: out1!.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: out2!.path))
     }
+
+    func testCustomCompressionSuffixAndExtensionAreApplied() throws {
+        let runner = JobRunner(maxConcurrentJobs: 1)
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("CeyloroCompressionNaming-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let input = root.appendingPathComponent("proposal.docx")
+        try Data("source".utf8).write(to: input)
+        let completed = expectation(description: "compression naming completed")
+        runner.submit(inputs: [input], target: .zip, outputDirectory: root, outputSuffix: "terkompres", outputExtension: "zip", processor: { _, _, temp, _, _ in
+            try FileManager.default.createDirectory(at: temp, withIntermediateDirectories: true)
+            let output = temp.appendingPathComponent("output.zip")
+            try Data("compressed".utf8).write(to: output)
+            return [output]
+        }) { snapshot in
+            guard snapshot.state == .completed else { return }
+            XCTAssertEqual(snapshot.outputs.first?.lastPathComponent, "proposal-terkompres.zip")
+            completed.fulfill()
+        }
+        wait(for: [completed], timeout: 3)
+    }
 }

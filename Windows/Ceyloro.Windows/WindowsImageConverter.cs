@@ -19,7 +19,8 @@ internal static class WindowsImageConverter
         IReadOnlyList<string> outputs,
         AppSettings settings,
         CancellationToken cancellationToken,
-        Action<double> progress)
+        Action<double> progress,
+        double? qualityOverride = null)
     {
         if (!CanDecode(Path.GetExtension(input).TrimStart('.').ToLowerInvariant()) || target is not ("jpg" or "png" or "tiff"))
             throw new InvalidOperationException("Format gambar ini tidak didukung oleh konverter gambar Windows.");
@@ -41,7 +42,7 @@ internal static class WindowsImageConverter
                 try
                 {
                     if (target == "jpg")
-                        SaveJpeg(source, partial, settings.JpgQuality);
+                        SaveJpeg(source, partial, qualityOverride ?? settings.JpgQuality);
                     else
                         source.Save(partial, target == "png" ? ImageFormat.Png : ImageFormat.Tiff);
                     File.Move(partial, outputs[index]);

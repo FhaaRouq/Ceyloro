@@ -55,35 +55,35 @@ public struct FFmpegConversionPolicy: Sendable {
 }
 
 public enum FFmpegCommandBuilder {
-    public static func arguments(input: URL, output: URL, target: TargetFormat, encoders: Set<String> = []) -> [String] {
+    public static func arguments(input: URL, output: URL, target: TargetFormat, encoders: Set<String> = [], compression: CompressionPreset? = nil) -> [String] {
         var arguments = ["-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-protocol_whitelist", "file,crypto,data", "-i", input.path]
         switch target {
         case .mp3:
             let codec = encoders.contains("libmp3lame") || encoders.isEmpty ? "libmp3lame" : (encoders.contains("libshine") ? "libshine" : "mp3")
-            arguments += ["-vn", "-c:a", codec, "-b:a", "192k"]
+            arguments += ["-vn", "-c:a", codec, "-b:a", compression == nil ? "192k" : compression == .smaller ? "96k" : "128k"]
         case .m4a:
-            arguments += ["-vn", "-c:a", "aac", "-b:a", "192k"]
+            arguments += ["-vn", "-c:a", "aac", "-b:a", compression == nil ? "192k" : compression == .smaller ? "96k" : "128k"]
         case .wav:
             arguments += ["-vn", "-c:a", "pcm_s16le"]
         case .flac:
             arguments += ["-vn", "-c:a", "flac"]
         case .ogg:
-            arguments += ["-vn", "-ac", "2", "-strict", "-2", "-c:a", "vorbis", "-q:a", "5"]
+            arguments += ["-vn", "-ac", "2", "-strict", "-2", "-c:a", "vorbis", "-q:a", compression == nil ? "5" : compression == .smaller ? "3" : "4"]
         case .opus:
-            arguments += ["-vn", "-strict", "-2", "-c:a", "opus", "-b:a", "128k"]
+            arguments += ["-vn", "-strict", "-2", "-c:a", "opus", "-b:a", compression == nil ? "128k" : compression == .smaller ? "64k" : "96k"]
         case .aiff:
             arguments += ["-vn", "-c:a", "pcm_s16be"]
         case .mp4:
-            arguments += ["-c:v", "mpeg4", "-q:v", "3", "-c:a", "aac", "-movflags", "+faststart"]
+            arguments += ["-c:v", "mpeg4", "-q:v", compression == .smaller ? "7" : "5", "-c:a", "aac", "-movflags", "+faststart"]
         case .mov:
-            arguments += ["-c:v", "mpeg4", "-q:v", "3", "-c:a", "aac"]
+            arguments += ["-c:v", "mpeg4", "-q:v", compression == .smaller ? "7" : "5", "-c:a", "aac"]
         case .mkv:
-            arguments += ["-c:v", "mpeg4", "-q:v", "3", "-c:a", "aac"]
+            arguments += ["-c:v", "mpeg4", "-q:v", compression == .smaller ? "7" : "5", "-c:a", "aac"]
         case .webm:
             let videoCodec = encoders.contains("vp9") || encoders.isEmpty ? "vp9" : (encoders.contains("libvpx-vp9") ? "libvpx-vp9" : "vp8")
-            arguments += ["-c:v", videoCodec, "-crf", "32", "-b:v", "0", "-c:a", "opus"]
+            arguments += ["-c:v", videoCodec, "-crf", compression == .smaller ? "42" : "36", "-b:v", "0", "-c:a", "opus"]
         case .avi:
-            arguments += ["-c:v", "mpeg4", "-q:v", "3", "-c:a", "mp3"]
+            arguments += ["-c:v", "mpeg4", "-q:v", compression == .smaller ? "7" : "5", "-c:a", "mp3"]
         case .wmv:
             arguments += ["-c:v", "wmv2", "-c:a", "wmav2"]
         case .gif:

@@ -125,6 +125,52 @@ internal static class PdfConversion
         }
     }
 
+    internal static async Task CompressAsync(
+        string input,
+        string output,
+        CancellationToken cancellationToken,
+        Action<double> progress)
+    {
+        var storageFile = await StorageFile.GetFileFromPathAsync(input);
+        var document = await PdfDocument.LoadFromFileAsync(storageFile);
+        if (document.IsPasswordProtected)
+            throw new InvalidDataException("PDF dilindungi kata sandi. Buka kunci file terlebih dahulu.");
+        if (document.PageCount == 0)
+            throw new InvalidDataException("PDF tidak memiliki halaman.");
+
+        var staging = Path.Combine(Path.GetTempPath(), "Ceyloro", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(staging);
+        var pages = new List<string>();
+        try
+        {
+            for (var index = 0; index < document.PageCount; index++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                using var page = document.GetPage((uint)index);
+                using var stream = new InMemoryRandomAccessStream();
+                var maxDip = 2_000u;
+                var factor = Math.Min(maxDip / Math.Max(page.Size.Width, page.Size.Height), 1d);
+                var renderOptions = new PdfPageRenderOptions
+                {
+                    DestinationWidth = (uint)Math.Max(1, Math.Round(page.Size.Width * factor)),
+                    DestinationHeight = (uint)Math.Max(1, Math.Round(page.Size.Height * factor))
+                };
+                await page.RenderToStreamAsync(stream, renderOptions);
+                var bytes = await ReadAllAsync(stream);
+                var pagePath = Path.Combine(staging, $"page-{index + 1:D4}.jpg");
+                WriteRaster(bytes, pagePath, "jpg", new PdfConversionOptions(Quality: "balanced"));
+                pages.Add(pagePath);
+                progress(0.5 * (index + 1d) / document.PageCount);
+            }
+
+            CreateImagePdf(pages, output, new PdfConversionOptions(PageSize: "matchImage", Quality: "balanced"), cancellationToken, value => progress(0.5 + value * 0.5));
+        }
+        finally
+        {
+            TryDeleteDirectory(staging);
+        }
+    }
+
     private static string ExtractText(string input, string output, CancellationToken cancellationToken, Action<double> progress)
     {
         cancellationToken.ThrowIfCancellationRequested();

@@ -10,6 +10,7 @@ sesuai arsitektur. Shell ini menyediakan:
 - target format yang disaring dari jenis file yang dipilih;
 - konversi batch berbasis FFmpeg, dengan progres, pembatalan, output unik, dan
   laporan kegagalan per file;
+- kompresi gambar, audio, video, PDF, dan dokumen umum;
 - Settings untuk folder output dan lokasi `ffmpeg.exe`.
 
 ## Build di Windows
@@ -35,6 +36,10 @@ roda pada instance yang sudah terbuka.
 
 Shell Windows ditargetkan untuk x64 dan ARM64. Paket release dibuat terpisah
 untuk tiap arsitektur dan menyertakan FFmpeg serta FFprobe yang sesuai.
+
+Target `Kompres` muncul sebagai pilihan pertama pada roda. Media dikodekan ulang
+dengan ukuran lebih kecil, PDF dirender ulang, dan dokumen umum dikemas sebagai
+ZIP agar file asli tetap utuh.
 Gestur `Shift` sambil menarik file belum tersedia di Windows; alur Windows
 menggunakan hotkey untuk membuka roda terlebih dahulu.
 

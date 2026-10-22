@@ -74,8 +74,9 @@ public struct OutputNaming {
     }
 
     /// Atomically claims and creates a zero-byte placeholder file using O_CREAT | O_EXCL.
-    public func reserveUniqueURL(baseName: String, fileExtension: String, in directory: URL, fileManager: FileManager = .default) -> URL {
-        let safeName = safeBaseName(baseName)
+    public func reserveUniqueURL(baseName: String, fileExtension: String, in directory: URL, suffix: String = "", fileManager: FileManager = .default) -> URL {
+        let cleanSuffix = suffix.isEmpty ? "" : "-\(suffix.trimmingCharacters(in: CharacterSet(charactersIn: "-")))"
+        let safeName = safeBaseName("\(baseName)\(cleanSuffix)")
         let normalizedExtension = fileExtension.trimmingCharacters(in: CharacterSet(charactersIn: "."))
         var candidate = directory.appendingPathComponent("\(safeName).\(normalizedExtension)")
         var number = 2

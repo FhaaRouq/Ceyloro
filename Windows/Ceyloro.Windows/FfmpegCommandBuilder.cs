@@ -15,35 +15,38 @@ internal static class FfmpegCommandBuilder
         string output,
         string target,
         FfmpegCapabilities capabilities,
-        AppSettings settings)
+        AppSettings settings,
+        bool compression = false)
     {
         var arguments = new List<string>(BuildInputArguments(input));
-        if (target is "jpg" or "png" or "heic" or "tiff")
+        if (target is "jpg" or "png" or "heic" or "tiff" or "webp" or "avif")
         {
             arguments.AddRange(["-frames:v", "1", "-an", "-c:v", RequiredEncoder(capabilities, target)]);
             if (target == "jpg")
             {
                 var quality = Math.Clamp(settings.JpgQuality, 0.1, 1.0);
-                arguments.AddRange(["-q:v", Math.Clamp((int)Math.Round(31 - quality * 29), 2, 31).ToString(CultureInfo.InvariantCulture)]);
+                var qualityValue = compression ? Math.Max(10, quality * 0.78) : quality;
+                arguments.AddRange(["-q:v", Math.Clamp((int)Math.Round(31 - qualityValue * 29), 2, 31).ToString(CultureInfo.InvariantCulture)]);
         }
             else if (target == "heic")
             {
                 var crf = Math.Clamp((int)Math.Round(51 * (1 - settings.HeicQuality)), 0, 51);
+                if (compression) crf = Math.Max(crf, 28);
                 arguments.AddRange(["-crf", crf.ToString(CultureInfo.InvariantCulture), "-tag:v", "hvc1"]);
             }
         }
         else if (target is "mp3" or "m4a" or "wav" or "flac" or "ogg" or "opus" or "aiff")
         {
             arguments.AddRange(["-vn", "-c:a", RequiredEncoder(capabilities, target)]);
-            if (target is "mp3" or "m4a") arguments.AddRange(["-b:a", "192k"]);
-            if (target == "ogg") arguments.AddRange(["-ac", "2", "-q:a", "5"]);
-            if (target == "opus") arguments.AddRange(["-b:a", "128k"]);
+            if (target is "mp3" or "m4a") arguments.AddRange(["-b:a", compression ? "96k" : "192k"]);
+            if (target == "ogg") arguments.AddRange(["-ac", "2", "-q:a", compression ? "3" : "5"]);
+            if (target == "opus") arguments.AddRange(["-b:a", compression ? "64k" : "128k"]);
         }
         else
         {
             arguments.AddRange(["-c:v", RequiredEncoder(capabilities, target)]);
-            if (target == "webm") arguments.AddRange(["-crf", "32", "-b:v", "0"]);
-            else if (target is "mp4" or "mov" or "mkv" or "avi") arguments.AddRange(["-q:v", "3"]);
+            if (target == "webm") arguments.AddRange(["-crf", compression ? "42" : "32", "-b:v", "0"]);
+            else if (target is "mp4" or "mov" or "mkv" or "avi") arguments.AddRange(["-q:v", compression ? "7" : "3"]);
             if (target == "gif")
             {
                 arguments.AddRange([

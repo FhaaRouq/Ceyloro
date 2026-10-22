@@ -15,10 +15,20 @@ final class AppDelegateWheelItemTests: XCTestCase {
         XCTAssertEqual(items[3].action, .airDrop)
     }
 
-    func testToolsWheelItemsIsEmpty() {
+    func testToolsWheelItemsOffersCompressionForImage() throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("CeyloroTest-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+        let imageURL = tempDir.appendingPathComponent("photo.jpg")
+        let image = NSImage(size: NSSize(width: 10, height: 10))
+        image.lockFocus()
+        NSColor.red.drawSwatch(in: NSRect(x: 0, y: 0, width: 10, height: 10))
+        image.unlockFocus()
+        try XCTUnwrap(image.tiffRepresentation).write(to: imageURL)
         let appDelegate = AppDelegate()
-        let items = appDelegate.wheelItems(for: [URL(fileURLWithPath: "/tmp/test.png")], mode: .tools)
-        XCTAssertTrue(items.isEmpty)
+        let items = appDelegate.wheelItems(for: [imageURL], mode: .tools)
+        XCTAssertEqual(items.map(\.title), ["Kompres"])
+        XCTAssertEqual(items.first?.action, .compress)
     }
 
     func testSubtitleWheelItems() throws {

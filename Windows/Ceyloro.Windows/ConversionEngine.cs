@@ -119,6 +119,176 @@ public sealed class ConversionEngine
         return new BatchResult(outputs, failures);
     }
 
+    public bool CanCompress(IEnumerable<string> paths)
+    {
+        var files = paths.ToArray();
+        if (files.Length == 0 || files.Any(path => !File.Exists(path))) return false;
+        var formats = files.Select(PortableFileFormat.Detect).ToArray();
+        if (formats.Any(format => !IsCompressible(format))) return false;
+        var kind = formats[0].Kind;
+        if (formats.Any(format => format.Kind != kind)) return false;
+        if (kind is PortableMediaKind.Audio or PortableMediaKind.Video)
+        {
+            var capabilities = TryGetCapabilities();
+            return capabilities is not null && formats.All(format => capabilities.Supports(format.Extension));
+        }
+        if (kind == PortableMediaKind.Image)
+        {
+            var capabilities = TryGetCapabilities();
+            return files.Zip(formats).All(pair => pair.Second.Extension is "jpg" or "png" or "tiff"
+                ? WindowsImageConverter.CanDecode(pair.Second.Extension) && !(pair.Second.Extension == "tiff" && WindowsImageConverter.FrameCount(pair.First, "tiff") > 1)
+                : capabilities?.CanDecodeImage(pair.Second.Extension) == true && capabilities.Supports(pair.Second.Extension));
+        }
+        return true;
+    }
+
+    public async Task<BatchResult> CompressAsync(
+        IReadOnlyList<string> inputs,
+        IProgress<double>? progress,
+        CancellationToken cancellationToken,
+        Action<string>? currentInputChanged = null)
+    {
+        var outputs = new List<string>();
+        var failures = new List<ConversionFailure>();
+        var total = Math.Max(inputs.Count, 1);
+        for (var index = 0; index < inputs.Count; index++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                currentInputChanged?.Invoke(Path.GetFileName(inputs[index]));
+                var result = await CompressOneAsync(inputs[index], cancellationToken,
+                    value => progress?.Report((index + Math.Clamp(value, 0, 1)) / total));
+                outputs.Add(result);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception error)
+            {
+                failures.Add(new ConversionFailure(inputs[index], error.Message));
+            }
+            progress?.Report((index + 1d) / total);
+        }
+        return new BatchResult(outputs, failures);
+    }
+
+    private async Task<string> CompressOneAsync(string input, CancellationToken cancellationToken, Action<double> reportProgress)
+    {
+        if (!File.Exists(input)) throw new FileNotFoundException("File sumber tidak ditemukan.", input);
+        var source = PortableFileFormat.Detect(input);
+        if (!IsCompressible(source)) throw new InvalidOperationException("Format file ini belum dapat dikompres.");
+        var outputDirectory = ResolveOutputDirectory(input);
+        Directory.CreateDirectory(outputDirectory);
+        var outputExtension = source.Kind == PortableMediaKind.Document ? "zip" : source.Extension;
+        var output = UniqueOutputPath(outputDirectory, Path.GetFileNameWithoutExtension(input) + " (terkompres)", outputExtension);
+        var staging = Path.Combine(Path.GetTempPath(), "Ceyloro", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(staging);
+        var stagedOutput = Path.Combine(staging, "output." + outputExtension);
+        try
+        {
+            switch (source.Kind)
+            {
+                case PortableMediaKind.Image:
+                    if (WindowsImageConverter.CanDecode(source.Extension) && (source.Extension is "jpg" or "png" or "tiff"))
+                    {
+                        var settingsCopy = new AppSettings { JpgQuality = 0.78, HeicQuality = 0.72 };
+                        await Task.Run(() => WindowsImageConverter.Convert(input, source.Extension, [stagedOutput], settingsCopy, cancellationToken, reportProgress, 0.78), cancellationToken);
+                    }
+                    else
+                    {
+                        await RunFfmpegAsync(input, stagedOutput, source.Extension, cancellationToken, reportProgress, compression: true);
+                    }
+                    break;
+                case PortableMediaKind.Pdf:
+                    await PdfConversion.CompressAsync(input, stagedOutput, cancellationToken, reportProgress);
+                    break;
+                case PortableMediaKind.Document:
+                    await Task.Run(() => ZipDocument(input, stagedOutput, cancellationToken, reportProgress), cancellationToken);
+                    break;
+                case PortableMediaKind.Audio:
+                case PortableMediaKind.Video:
+                    await RunFfmpegAsync(input, stagedOutput, source.Extension, cancellationToken, reportProgress, compression: true);
+                    break;
+                default:
+                    throw new InvalidOperationException("Format file ini belum dapat dikompres.");
+            }
+            cancellationToken.ThrowIfCancellationRequested();
+            File.Move(stagedOutput, output);
+            reportProgress(1);
+            return output;
+        }
+        finally
+        {
+            TryDelete(stagedOutput);
+            try { if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true); }
+            catch { }
+        }
+    }
+
+    private static bool IsCompressible(PortableFileFormat format) => format.Kind switch
+    {
+        PortableMediaKind.Image => format.Extension is "jpg" or "png" or "tiff" or "gif" or "webp" or "heic" or "avif",
+        PortableMediaKind.Pdf => true,
+        PortableMediaKind.Document => true,
+        PortableMediaKind.Audio => format.Extension is "mp3" or "m4a" or "wav" or "flac" or "ogg" or "opus" or "aiff",
+        PortableMediaKind.Video => format.Extension is "mp4" or "mov" or "mkv" or "webm" or "avi" or "wmv",
+        _ => false
+    };
+
+    private static void ZipDocument(string input, string output, CancellationToken cancellationToken, Action<double> reportProgress)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        using var file = new FileStream(output, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None);
+        using var archive = new System.IO.Compression.ZipArchive(file, System.IO.Compression.ZipArchiveMode.Create);
+        archive.CreateEntryFromFile(input, Path.GetFileName(input), System.IO.Compression.CompressionLevel.Optimal);
+        reportProgress(1);
+    }
+
+    private async Task RunFfmpegAsync(string input, string output, string target, CancellationToken cancellationToken, Action<double> reportProgress, bool compression)
+    {
+        var ffmpeg = ResolveFfmpegPath();
+        var capabilities = TryGetCapabilities();
+        if (capabilities is null || !capabilities.Supports(target))
+            throw new InvalidOperationException($"FFmpeg pada perangkat ini tidak memiliki encoder atau muxer untuk {target.ToUpperInvariant()}.");
+        using var process = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = ffmpeg,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            }
+        };
+        foreach (var argument in FfmpegCommandBuilder.Build(input, output, target, capabilities, settings.Current, compression))
+            process.StartInfo.ArgumentList.Add(argument);
+        var duration = await ProbeDurationAsync(input, cancellationToken);
+        if (!process.Start()) throw new InvalidOperationException("FFmpeg tidak dapat dijalankan.");
+        using var registration = cancellationToken.Register(() =>
+        {
+            try { if (!process.HasExited) process.Kill(entireProcessTree: true); }
+            catch { }
+        });
+        var errorTask = process.StandardError.ReadToEndAsync();
+        cancellationToken.ThrowIfCancellationRequested();
+        while (true)
+        {
+            var line = await process.StandardOutput.ReadLineAsync();
+            if (line is null) break;
+            if (line.StartsWith("out_time_ms=", StringComparison.OrdinalIgnoreCase) && duration is > 0 && long.TryParse(line[12..], NumberStyles.Integer, CultureInfo.InvariantCulture, out var time))
+                reportProgress(Math.Clamp(time / 1_000_000d / duration.Value, 0, 0.99));
+        }
+        await process.WaitForExitAsync();
+        var error = await errorTask;
+        cancellationToken.ThrowIfCancellationRequested();
+        if (process.ExitCode != 0 || !File.Exists(output))
+            throw new InvalidOperationException(string.IsNullOrWhiteSpace(error) ? "FFmpeg gagal mengompres file." : error.Trim());
+        reportProgress(1);
+    }
+
     public async Task<string> MergeImagesToPdfAsync(
         IReadOnlyList<string> inputs,
         string outputName,

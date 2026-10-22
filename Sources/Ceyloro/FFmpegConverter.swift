@@ -23,7 +23,7 @@ final class FFmpegConverter {
         return available.filter { policy.targets(for: first).contains($0) }
     }
 
-    func convert(input: URL, target: TargetFormat, temporaryDirectory: URL, ffmpegURL: URL?, encoders: Set<String> = [], progress: @escaping (Double) -> Void, isCancelled: @escaping () -> Bool) throws -> ConversionResult {
+    func convert(input: URL, target: TargetFormat, temporaryDirectory: URL, ffmpegURL: URL?, encoders: Set<String> = [], progress: @escaping (Double) -> Void, isCancelled: @escaping () -> Bool, allowSameFormat: Bool = false, compression: CompressionPreset? = nil) throws -> ConversionResult {
         guard let ffmpegURL, isExecutableFile(ffmpegURL) else { throw ConversionError.ffmpegUnavailable }
         guard FFmpegConversionPolicy.supports(target: target, encoders: encoders) else {
             throw ConversionError.ffmpegFailed(reason: "Binary FFmpeg tidak mendukung encoder untuk format \(target.fileExtension).")
@@ -32,14 +32,14 @@ final class FFmpegConverter {
         let allowedTargets = source.fileExtension == "gif"
             ? FFmpegConversionPolicy.videoTargets
             : FFmpegConversionPolicy().targets(for: source)
-        guard allowedTargets.contains(target), fileManager.isReadableFile(atPath: input.path) else {
+        guard (allowedTargets.contains(target) || (allowSameFormat && target.fileExtension == source.fileExtension)), fileManager.isReadableFile(atPath: input.path) else {
             throw ConversionError.unsupportedConversion
         }
         try fileManager.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
         let output = temporaryDirectory.appendingPathComponent("output.\(target.fileExtension)")
         let process = Process()
         process.executableURL = ffmpegURL
-        process.arguments = FFmpegCommandBuilder.arguments(input: input, output: output, target: target, encoders: encoders)
+        process.arguments = FFmpegCommandBuilder.arguments(input: input, output: output, target: target, encoders: encoders, compression: compression)
         let progressPipe = Pipe()
         let errorPipe = Pipe()
         process.standardOutput = progressPipe

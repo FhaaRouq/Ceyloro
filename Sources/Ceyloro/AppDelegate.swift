@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
     private let subtitleConverter = SubtitleConverter()
     private let archiveConverter = ArchiveConverter()
     private let ffmpegConverter = FFmpegConverter()
+    private let compressionConverter = CompressionConverter()
     private var ffmpegURL: URL?
     private var ffmpegEncoders: Set<String> = []
     private let engineProbe = RuntimeEngineProbe()
@@ -276,7 +277,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
             }
             return converter.supportedTargets(for: files, candidates: formats).map { WheelItem(title: $0.title, target: $0, action: nil) }
         case .tools:
-            return []
+            guard compressionConverter.supports(files: files, ffmpegURL: ffmpegURL, encoders: ffmpegEncoders) else { return [] }
+            return [WheelItem(title: "Kompres", target: nil, action: .compress)]
         case .actions:
             return [
                 WheelItem(title: "Salin", target: nil, action: .copy),
@@ -349,7 +351,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
             progressWindow.show(jobID: id, cancel: { [weak self] id in self?.runner.cancel(id: id) })
             log("Job \(id.uuidString) submitted: \(target.title) for \(files.count) file(s)")
         case .tools:
-            showToast("Tool ini akan tersedia pada fase berikutnya.", systemImage: "sparkles")
+            if item.action == .compress {
+                submitCompression(files: files)
+            } else {
+                showToast("Tool ini belum tersedia.", systemImage: "sparkles")
+            }
         case .actions:
             perform(action: item.action, files: files)
         }
@@ -416,6 +422,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
         }
     }
 
+    private func submitCompression(files: [URL]) {
+        guard let plan = CompressionPolicy.commonPlan(for: files.map(FileFormat.detect(url:))),
+              let target = TargetFormat(rawValue: plan.outputExtension),
+              compressionConverter.supports(files: files, ffmpegURL: ffmpegURL, encoders: ffmpegEncoders) else {
+            showError("Format file ini belum dapat dikompres di perangkat ini.")
+            return
+        }
+        let outputDirectory = UserDefaults.standard.string(forKey: "outputDirectory").map(URL.init(fileURLWithPath:))
+        let ffmpegURL = self.ffmpegURL
+        let encoders = self.ffmpegEncoders
+        let id = runner.submit(inputs: files, target: target, outputDirectory: outputDirectory, outputSuffix: "terkompres", outputExtension: plan.outputExtension, processor: { [compressionConverter] input, _, temp, progress, cancelled in
+            try compressionConverter.compress(input: input, temporaryDirectory: temp.appendingPathComponent(UUID().uuidString), ffmpegURL: ffmpegURL, encoders: encoders, preset: .balanced, progress: progress, isCancelled: cancelled)
+        }) { [weak self] snapshot in
+            self?.handle(snapshot: snapshot)
+        }
+        let progressWindow = ProgressWindowController()
+        progressWindows[id] = progressWindow
+        updateStatusItemState()
+        progressWindow.show(jobID: id, cancel: { [weak self] id in self?.runner.cancel(id: id) })
+        log("Job \(id.uuidString) submitted: kompresi \(files.count) file(s) sebagai \(plan.kind.rawValue)")
+    }
+
     private func storedPDFOptions() -> PDFMergeOptions {
         PDFMergeOptions(
             pageSize: PDFMergeOptions.PageSize(rawValue: UserDefaults.standard.string(forKey: "mergePDF.pageSize") ?? "") ?? .a4,
@@ -451,6 +479,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
     private func perform(action: WheelAction?, files: [URL]) {
         guard let action else { return }
         switch action {
+        case .compress:
+            submitCompression(files: files)
         case .copy:
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()

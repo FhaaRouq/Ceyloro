@@ -8,7 +8,8 @@ enum WheelMode: String {
     case actions
 }
 
-enum WheelAction {
+enum WheelAction: Equatable {
+    case compress
     case copy
     case copyPath
     case terminal
@@ -42,6 +43,7 @@ struct WheelItem {
             }
         }
         switch action {
+        case .compress: return "arrow.down.right.and.arrow.up.left"
         case .copy: return "doc.on.doc"
         case .copyPath: return "link"
         case .terminal: return "terminal"

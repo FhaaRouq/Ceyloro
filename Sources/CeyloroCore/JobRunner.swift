@@ -122,7 +122,7 @@ public final class JobRunner {
     ///   - update: Status callback delivered on `DispatchQueue.main`.
     /// - Returns: Unique UUID identifying this job.
     @discardableResult
-    public func submit(inputs: [URL], target: TargetFormat, outputDirectory: URL? = nil, multiPageOutput: MultiPageOutput = .folder, processor: @escaping Processor, update: @escaping Update) -> UUID {
+    public func submit(inputs: [URL], target: TargetFormat, outputDirectory: URL? = nil, multiPageOutput: MultiPageOutput = .folder, outputSuffix: String = "", outputExtension: String? = nil, processor: @escaping Processor, update: @escaping Update) -> UUID {
         let id = UUID()
         let operation = BlockOperation()
         operation.addExecutionBlock { [weak self, weak operation] in
@@ -166,7 +166,7 @@ public final class JobRunner {
                         let destinationFolder = outputDirectory ?? input.deletingLastPathComponent()
                         try self.fileManager.createDirectory(at: destinationFolder, withIntermediateDirectories: true)
 
-                        let resultURLs = try self.commit(produced, input: input, target: target, destinationFolder: destinationFolder, multiPageOutput: multiPageOutput, temporaryRoot: tempRoot, operation: operation)
+                        let resultURLs = try self.commit(produced, input: input, target: target, destinationFolder: destinationFolder, multiPageOutput: multiPageOutput, temporaryRoot: tempRoot, operation: operation, outputSuffix: outputSuffix, outputExtension: outputExtension)
                         outputs.append(contentsOf: resultURLs)
                         inputProgress(1)
                     } catch is CancellationError {
@@ -277,7 +277,7 @@ public final class JobRunner {
         return id
     }
 
-    private func commit(_ result: ConversionResult, input: URL, target: TargetFormat, destinationFolder: URL, multiPageOutput: MultiPageOutput, temporaryRoot: URL, operation: BlockOperation?) throws -> [URL] {
+    private func commit(_ result: ConversionResult, input: URL, target: TargetFormat, destinationFolder: URL, multiPageOutput: MultiPageOutput, temporaryRoot: URL, operation: BlockOperation?, outputSuffix: String, outputExtension: String?) throws -> [URL] {
         let naming = OutputNaming()
         let temporaryFiles: [URL]
         let collectionName: String?
@@ -294,7 +294,12 @@ public final class JobRunner {
             var committed: [URL] = []
             for temporaryURL in temporaryFiles {
                 if operation?.isCancelled == true { throw CancellationError() }
-                let destination = naming.reserveUniqueURL(for: input, target: target, in: destinationFolder, fileManager: fileManager)
+                let destination: URL
+                if let outputExtension {
+                    destination = naming.reserveUniqueURL(baseName: OutputNaming.strippedBaseName(for: input), fileExtension: outputExtension, in: destinationFolder, suffix: outputSuffix, fileManager: fileManager)
+                } else {
+                    destination = naming.reserveUniqueURL(for: input, target: target, in: destinationFolder, suffix: outputSuffix, fileManager: fileManager)
+                }
                 do {
                     try moveSafely(from: temporaryURL, to: destination, overwritePlaceholder: true)
                     committed.append(destination)

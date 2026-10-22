@@ -117,8 +117,10 @@ public sealed class RadialOverlayForm : Form
         {
             var evaluation = await Task.Run(() =>
             {
-                var targets = engine.TargetsFor(files).ToArray();
-                return (Targets: targets, Message: targets.Length == 0 ? engine.EmptyStateFor(files) : string.Empty);
+                var targets = engine.TargetsFor(files).ToList();
+                if (engine.CanCompress(files))
+                    targets.Insert(0, "compress");
+                return (Targets: targets.ToArray(), Message: targets.Count == 0 ? engine.EmptyStateFor(files) : string.Empty);
             });
             if (IsDisposed || generation != dragGeneration) return;
             availableTargets = evaluation.Targets;
@@ -211,11 +213,15 @@ public sealed class RadialOverlayForm : Form
         try
         {
             var progressReporter = new Progress<double>(progress.UpdateProgress);
-            var result = createCombinedPdf
+            var result = target == "compress"
+                ? await engine.CompressAsync(files, progressReporter, progress.CancellationToken, progress.SetCurrentFile)
+                : createCombinedPdf
                 ? new BatchResult([await engine.MergeImagesToPdfAsync(files, combinedPdfName, pdfOptions ?? new PdfConversionOptions(), progressReporter, progress.CancellationToken)], [])
                 : await engine.ConvertAsync(files, target, progressReporter, progress.CancellationToken, pdfOptions, progress.SetCurrentFile);
             progress.Close();
-            var summary = $"Selesai: {result.Outputs.Count} file {target.ToUpperInvariant()} dibuat.";
+            var summary = target == "compress"
+                ? $"Selesai: {result.Outputs.Count} file dikompres."
+                : $"Selesai: {result.Outputs.Count} file {target.ToUpperInvariant()} dibuat.";
             if (result.Failures.Count > 0)
             {
                 var details = string.Join("\n", result.Failures.Take(5).Select(failure => $"{Path.GetFileName(failure.Input)}: {failure.Message}"));

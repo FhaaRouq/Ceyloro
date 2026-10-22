@@ -6,6 +6,7 @@ public enum PortableMediaKind
     Audio,
     Video,
     Pdf,
+    Document,
     Subtitle,
     Archive,
     Unknown
@@ -35,6 +36,8 @@ public sealed record PortableFileFormat(string Extension, PortableMediaKind Kind
             return new PortableFileFormat(extension, PortableMediaKind.Video);
         if (extension == "pdf")
             return new PortableFileFormat(extension, PortableMediaKind.Pdf);
+        if (new[] { "doc", "docx", "rtf", "txt", "md", "pages", "xls", "xlsx", "ppt", "pptx" }.Contains(extension))
+            return new PortableFileFormat(extension, PortableMediaKind.Document);
         if (new[] { "srt", "vtt" }.Contains(extension))
             return new PortableFileFormat(extension, PortableMediaKind.Subtitle);
         if (new[] { "zip", "tar", "gzip", "rar", "7z" }.Contains(extension))

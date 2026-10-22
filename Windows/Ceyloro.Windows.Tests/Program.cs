@@ -8,6 +8,7 @@ using DrawingEncoder = System.Drawing.Imaging.Encoder;
 var tests = new (string Name, Action Run)[]
 {
     ("normalizes portable image and archive extensions", PortableFormatNormalization),
+    ("detects common documents for compression", DocumentDetection),
     ("offers only common targets for mixed image batches", MixedImageTargets),
     ("accepts gzip TAR and rejects ordinary gzip streams", GzipArchiveDetection),
     ("uses matching radial hit-test geometry for 1 through 11 targets", RadialHitTest),
@@ -51,6 +52,13 @@ static void PortableFormatNormalization()
     var gzip = PortableFileFormat.Detect("backup.tar.gz");
     Ensure(gzip is { Extension: "gzip", Kind: PortableMediaKind.Archive }, "TAR.GZ was not normalized.");
     Ensure(PortableFileFormat.Detect("backup.tgz").Kind == PortableMediaKind.Archive, "TGZ was not recognized as an archive.");
+}
+
+static void DocumentDetection()
+{
+    Ensure(PortableFileFormat.Detect("proposal.docx").Kind == PortableMediaKind.Document, "DOCX should be offered to the compression tool.");
+    Ensure(PortableFileFormat.Detect("notes.md").Kind == PortableMediaKind.Document, "Markdown should be offered to the compression tool.");
+    Ensure(PortableFileFormat.Detect("report.pdf").Kind == PortableMediaKind.Pdf, "PDF should remain a distinct compressible document kind.");
 }
 
 static void MixedImageTargets()

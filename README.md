@@ -83,7 +83,17 @@ Fitur lain yang tersedia:
 - penggabungan beberapa gambar menjadi satu PDF;
 - pengaturan kualitas dan folder output;
 - progres, pembatalan, serta penamaan output anti-timpa;
+- kompresi gambar, audio, video, PDF, dan dokumen umum;
 - navigasi roda menggunakan keyboard dan angka `1`–`9`.
+
+### Kompresi
+
+Buka mode **Tools** dengan menahan `Option` saat drag di macOS, lalu pilih
+**Kompres**. Di Windows, **Kompres** muncul sebagai target pertama setelah file
+ditarik ke roda. Gambar, audio, dan video tetap memakai ekstensi sumber dengan
+encoding yang lebih ringan. PDF dirender ulang dengan preset seimbang. Dokumen
+umum seperti DOCX, XLSX, PPTX, RTF, TXT, dan Markdown dikemas menjadi ZIP agar
+file asli tetap utuh. Hasil selalu diberi nama baru dengan suffix `-terkompres`.
 
 ## Privasi dan keamanan file
 
@@ -178,6 +188,9 @@ source tidak berarti izin redistribusi. Lihat [LICENSE](LICENSE) dan
 - code signing dan notarization untuk distribusi publik;
 - parity fitur penuh antara shell macOS dan Windows;
 - opsi komersial dan fitur premium.
+
+Status implementasi fitur Tools dicatat di
+[`docs/PHASE4-TOOLS.md`](docs/PHASE4-TOOLS.md).
 
 ## Kontribusi dan laporan masalah
 
