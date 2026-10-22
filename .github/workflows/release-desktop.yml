@@ -9,7 +9,10 @@ permissions:
 
 jobs:
   macos:
-    runs-on: macos-14
+    # macos-14 dihentikan 2 November 2026 — migrasi ke macos-15 (audit temuan P1-04).
+    # Xcode default pada macos-15: Xcode 16.x, SDK macOS 15.
+    # Deployment target tetap macOS 13 (didefinisikan di Package.swift platforms: [.macOS(.v13)]).
+    runs-on: macos-15
     permissions:
       contents: read
     steps:
