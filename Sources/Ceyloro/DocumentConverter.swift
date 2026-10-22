@@ -12,15 +12,24 @@ final class DocumentConverter {
     }
 
     func supportedTargets(for files: [URL], candidates: [TargetFormat], libreOfficeURL: URL?, pandocURL: URL?) -> [TargetFormat] {
-        guard !files.isEmpty,
-              files.allSatisfy({ FileFormat.detect(url: $0).kind == .document && fileManager.isReadableFile(atPath: $0.path) }) else { return [] }
+        guard !files.isEmpty else { return [] }
         let policy = DocumentConversionPolicy()
+        // Izinkan kind .document dan .pdf — PDF memiliki target DOCX via policy (temuan A5).
+        // Kind lain (image, audio, dll.) tidak ditangani oleh converter ini.
+        let allowedKinds: Set<FileFormat.Kind> = [.document, .pdf]
+        guard files.allSatisfy({
+            let fmt = FileFormat.detect(url: $0)
+            return allowedKinds.contains(fmt.kind) && fileManager.isReadableFile(atPath: $0.path)
+        }) else { return [] }
         return candidates.filter { target in
-            files.map(FileFormat.detect(url:)).allSatisfy { source in
+            files.allSatisfy { url in
+                let source = FileFormat.detect(url: url)
                 guard policy.targets(for: source).contains(target),
                       canConvert(source: source, target: target, libreOfficeURL: libreOfficeURL, pandocURL: pandocURL) else { return false }
+                // Periksa setiap PDF secara individual — jangan pakai files[0] sebagai proxy
+                // untuk seluruh batch (temuan A5, bug batch).
                 if source.kind == .pdf && target == .docx {
-                    return hasExtractableText(at: files[0])
+                    return hasExtractableText(at: url)
                 }
                 return true
             }
