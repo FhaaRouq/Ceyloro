@@ -6,6 +6,9 @@ public sealed class AppSettings
 {
     public string OutputDirectory { get; set; } = string.Empty;
     public string FfmpegPath { get; set; } = string.Empty;
+    public string LibreOfficePath { get; set; } = string.Empty;
+    public string PandocPath { get; set; } = string.Empty;
+    public int DocumentTimeoutSeconds { get; set; } = 180;
     public string MultiPageOutput { get; set; } = "folder";
     public string PdfPageSize { get; set; } = "a4";
     public string PdfMargin { get; set; } = "none";

@@ -53,6 +53,9 @@ jobs:
           Copy-Item ffmpeg-package/ffmpeg.exe package/Ceyloro/ffmpeg.exe -Force
           Copy-Item ffmpeg-package/ffprobe.exe package/Ceyloro/ffprobe.exe -Force
           Copy-Item ffmpeg-package/FFmpeg-LICENSE.txt package/Ceyloro/FFmpeg-LICENSE.txt -Force
+          if (Test-Path document-engines) {
+            Copy-Item document-engines package/Ceyloro/DocumentEngines -Recurse -Force
+          }
           Copy-Item Windows/README.md package/Ceyloro/README.md -Force
           Compress-Archive -Path package/Ceyloro -DestinationPath Ceyloro-Windows-${{ matrix.architecture }}.zip -Force
       - name: Create Windows package checksum

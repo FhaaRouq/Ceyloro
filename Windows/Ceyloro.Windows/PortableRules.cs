@@ -36,7 +36,7 @@ public sealed record PortableFileFormat(string Extension, PortableMediaKind Kind
             return new PortableFileFormat(extension, PortableMediaKind.Video);
         if (extension == "pdf")
             return new PortableFileFormat(extension, PortableMediaKind.Pdf);
-        if (new[] { "doc", "docx", "rtf", "txt", "md", "pages", "xls", "xlsx", "ppt", "pptx" }.Contains(extension))
+        if (new[] { "doc", "docx", "odt", "rtf", "txt", "md", "html", "pages", "xls", "xlsx", "ods", "ppt", "pptx", "odp" }.Contains(extension))
             return new PortableFileFormat(extension, PortableMediaKind.Document);
         if (new[] { "srt", "vtt" }.Contains(extension))
             return new PortableFileFormat(extension, PortableMediaKind.Subtitle);
@@ -56,7 +56,8 @@ public static class PortablePlanner
             [PortableMediaKind.Audio] = ["mp3", "m4a", "wav", "flac", "ogg", "opus", "aiff"],
             [PortableMediaKind.Video] = ["mp4", "mov", "mkv", "webm", "avi", "wmv", "gif", "mp3", "m4a", "wav", "flac", "ogg", "opus", "aiff"],
             [PortableMediaKind.Subtitle] = ["srt", "vtt", "txt"],
-            [PortableMediaKind.Archive] = ["zip", "tar", "gzip"]
+            [PortableMediaKind.Archive] = ["zip", "tar", "gzip"],
+            [PortableMediaKind.Document] = ["pdf", "docx", "odt", "rtf", "md", "html", "txt"]
         };
 
     public static IReadOnlyList<string> TargetsFor(IEnumerable<string> paths)

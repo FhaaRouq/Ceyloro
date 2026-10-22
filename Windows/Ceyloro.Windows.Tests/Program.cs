@@ -9,6 +9,7 @@ var tests = new (string Name, Action Run)[]
 {
     ("normalizes portable image and archive extensions", PortableFormatNormalization),
     ("detects common documents for compression", DocumentDetection),
+    ("plans phase A document conversions", PhaseADocumentTargets),
     ("offers only common targets for mixed image batches", MixedImageTargets),
     ("accepts gzip TAR and rejects ordinary gzip streams", GzipArchiveDetection),
     ("uses matching radial hit-test geometry for 1 through 11 targets", RadialHitTest),
@@ -59,6 +60,14 @@ static void DocumentDetection()
     Ensure(PortableFileFormat.Detect("proposal.docx").Kind == PortableMediaKind.Document, "DOCX should be offered to the compression tool.");
     Ensure(PortableFileFormat.Detect("notes.md").Kind == PortableMediaKind.Document, "Markdown should be offered to the compression tool.");
     Ensure(PortableFileFormat.Detect("report.pdf").Kind == PortableMediaKind.Pdf, "PDF should remain a distinct compressible document kind.");
+}
+
+static void PhaseADocumentTargets()
+{
+    var targets = PortablePlanner.TargetsFor(["report.docx"]);
+    Ensure(targets.Contains("pdf") && targets.Contains("odt") && targets.Contains("md"), "DOCX should expose the Phase A target matrix.");
+    Ensure(PortablePlanner.TargetsFor(["notes.md"]).Contains("docx"), "Markdown should expose DOCX output.");
+    Ensure(PortablePlanner.TargetsFor(["sheet.xlsx"]).SequenceEqual(["pdf"]), "Spreadsheet documents should target PDF in Phase A.");
 }
 
 static void MixedImageTargets()

@@ -63,6 +63,14 @@ if [ -x "$FFMPEG_SOURCE" ]; then
 else
     echo "FFmpeg tidak dibundel; target yang memerlukannya akan disembunyikan."
 fi
+DOCUMENT_ENGINES_SOURCE="${CEYLORO_DOCUMENT_ENGINES_PATH:-$ROOT/Sources/Ceyloro/Resources/DocumentEngines}"
+if [ -d "$DOCUMENT_ENGINES_SOURCE" ]; then
+    mkdir -p "$APP/Contents/Resources/DocumentEngines"
+    cp -R "$DOCUMENT_ENGINES_SOURCE"/. "$APP/Contents/Resources/DocumentEngines/"
+    echo "Engine dokumen dibundel dari $DOCUMENT_ENGINES_SOURCE"
+else
+    echo "Engine dokumen tidak dibundel; target dokumen akan muncul jika engine tersedia secara lokal."
+fi
 chmod +x "$APP/Contents/MacOS/Ceyloro"
 
 SIGN_IDENTITY="${APPLE_SIGNING_IDENTITY:-${DEVELOPER_ID:--}}"

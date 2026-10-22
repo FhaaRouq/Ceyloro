@@ -16,6 +16,9 @@ struct RuntimeEngineProbe {
         var searchPaths: [URL] = [executableDirectory]
         if let resourceURL = bundle.resourceURL {
             searchPaths.append(resourceURL)
+            searchPaths.append(resourceURL.appendingPathComponent("DocumentEngines/LibreOffice.app/Contents/MacOS"))
+            searchPaths.append(resourceURL.appendingPathComponent("DocumentEngines/LibreOffice/Contents/MacOS"))
+            searchPaths.append(resourceURL.appendingPathComponent("DocumentEngines/pandoc"))
         }
         searchPaths.append(executableDirectory.appendingPathComponent("../Resources").standardizedFileURL)
         searchPaths.append(URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("Sources/Ceyloro/Resources"))

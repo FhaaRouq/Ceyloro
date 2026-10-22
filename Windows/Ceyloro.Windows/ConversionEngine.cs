@@ -29,6 +29,11 @@ public sealed class ConversionEngine
         var targets = PortablePlanner.TargetsFor(files).ToList();
         if (files.Length == 0) return targets;
         var formats = files.Select(PortableFileFormat.Detect).ToArray();
+        if (formats.All(format => format.Kind == PortableMediaKind.Document))
+        {
+            var engines = DocumentEngineLocator.Locate(settings.Current);
+            return targets.Where(target => formats.All(format => DocumentConversion.CanConvert(format, target, engines))).ToArray();
+        }
         if (formats.All(format => format.Kind is PortableMediaKind.Pdf or PortableMediaKind.Subtitle or PortableMediaKind.Archive))
             return targets;
 
@@ -74,6 +79,8 @@ public sealed class ConversionEngine
         var formats = files.Select(PortableFileFormat.Detect).ToArray();
         if (formats.Any(format => !Enum.IsDefined(format.Kind) || format.Kind == PortableMediaKind.Unknown))
             return "Format file belum didukung";
+        if (formats.All(format => format.Kind == PortableMediaKind.Document) && !DocumentEngineLocator.Locate(settings.Current).HasAny)
+            return "Pasang LibreOffice atau pandoc untuk mengonversi dokumen";
         var needsFfmpeg = formats.Any(format => format.Kind is PortableMediaKind.Audio or PortableMediaKind.Video ||
             (format.Kind == PortableMediaKind.Image && !WindowsImageConverter.CanDecode(format.Extension)));
         if (needsFfmpeg && TryGetCapabilities() is null)
@@ -178,6 +185,11 @@ public sealed class ConversionEngine
     {
         if (!File.Exists(input)) throw new FileNotFoundException("File sumber tidak ditemukan.", input);
         var source = PortableFileFormat.Detect(input);
+        if (source.Kind == PortableMediaKind.Document)
+        {
+            await DocumentConversion.ConvertAsync(input, target, output, settings.Current, cancellationToken, reportProgress);
+            return [output];
+        }
         if (!IsCompressible(source)) throw new InvalidOperationException("Format file ini belum dapat dikompres.");
         var outputDirectory = ResolveOutputDirectory(input);
         Directory.CreateDirectory(outputDirectory);
