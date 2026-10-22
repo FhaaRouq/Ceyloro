@@ -4,6 +4,9 @@ import Foundation
 final class ArchiveConverter {
     private let fileManager: FileManager
     private let maxExpandedBytes: UInt64 = 2_000_000_000
+    // Batas jumlah entri sebelum ekstraksi dimulai — setara dengan implementasi Windows.
+    // Mencegah "zip bomb" berupa banyak file kecil yang menghabiskan inode/waktu (temuan B1).
+    private let maxEntryCount: Int = 100_000
 
     init(fileManager: FileManager = .default) {
         self.fileManager = fileManager
@@ -29,6 +32,9 @@ final class ArchiveConverter {
               isSupportedArchive(source, at: input) else {
             throw ConversionError.archiveEngineUnavailable
         }
+        // Validasi pra-ekstraksi: jumlah entri, path safety (temuan B1).
+        // Dilakukan sebelum menyentuh disk agar tidak ada file parsial yang tersisa.
+        try validateArchiveEntries(input: input, source: source)
         try fileManager.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
         let staging = temporaryDirectory.appendingPathComponent("archive-staging", isDirectory: true)
         let contentRoot = staging.appendingPathComponent(archiveBaseName(for: input, source: source), isDirectory: true)
@@ -119,7 +125,58 @@ final class ArchiveConverter {
         fileManager.isExecutableFile(atPath: path)
     }
 
-    private func isSupportedArchive(_ source: FileFormat, at url: URL) -> Bool {
+    /// Validasi entri arsip sebelum ekstraksi:
+    /// - Jumlah entri tidak melebihi maxEntryCount
+    /// - Tidak ada path yang mengandung path traversal ("../") atau absolute path
+    private func validateArchiveEntries(input: URL, source: FileFormat) throws {
+        let isTar = ["tar", "gz", "gzip", "tgz"].contains(source.fileExtension)
+        let executable = isTar ? "/usr/bin/tar" : "/usr/bin/unzip"
+        let args: [String] = isTar
+            ? (source.fileExtension == "tar" ? ["-tf", input.path] : ["-tzf", input.path])
+            : ["-Z1", input.path]
+
+        let pipe = Pipe()
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: executable)
+        process.arguments = args
+        process.standardOutput = pipe
+        process.standardError = FileHandle(forWritingAtPath: "/dev/null")
+        try process.run()
+
+        var entryCount = 0
+        var lineBuffer = ""
+        let handle = pipe.fileHandleForReading
+        while true {
+            let chunk = handle.availableData
+            if chunk.isEmpty {
+                if !process.isRunning { break }
+                Thread.sleep(forTimeInterval: 0.02)
+                continue
+            }
+            guard let text = String(data: chunk, encoding: .utf8) else { continue }
+            lineBuffer += text
+            while let newlineRange = lineBuffer.range(of: "\n") {
+                let line = String(lineBuffer[lineBuffer.startIndex..<newlineRange.lowerBound])
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                lineBuffer = String(lineBuffer[newlineRange.upperBound...])
+                guard !line.isEmpty else { continue }
+                entryCount += 1
+                if entryCount > maxEntryCount {
+                    process.terminate()
+                    process.waitUntilExit()
+                    throw ConversionError.archiveTooManyEntries
+                }
+                if line.hasPrefix("/") || line.contains("../") || line.contains("/..") {
+                    process.terminate()
+                    process.waitUntilExit()
+                    throw ConversionError.archiveUnsafePath
+                }
+            }
+        }
+        process.waitUntilExit()
+    }
+
+    private func isSupportedArchive
         guard ["gz", "gzip", "tgz"].contains(source.fileExtension) else { return true }
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/tar")
@@ -138,7 +195,9 @@ final class ArchiveConverter {
 
     private func expandedSize(of directory: URL) -> UInt64 {
         let keys: Set<URLResourceKey> = [.fileSizeKey, .isDirectoryKey]
-        let enumerator = fileManager.enumerator(at: directory, includingPropertiesForKeys: Array(keys), options: [.skipsHiddenFiles])
+        // Tidak menggunakan .skipsHiddenFiles — dotfiles harus dihitung dalam batas ukuran
+        // agar arsip berisi banyak file tersembunyi tidak mem-bypass limit 2 GB (temuan B1).
+        let enumerator = fileManager.enumerator(at: directory, includingPropertiesForKeys: Array(keys), options: [])
         var total: UInt64 = 0
         while let url = enumerator?.nextObject() as? URL {
             guard let values = try? url.resourceValues(forKeys: keys), values.isDirectory != true else { continue }

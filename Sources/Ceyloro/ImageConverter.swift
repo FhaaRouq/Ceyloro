@@ -311,6 +311,8 @@ enum ConversionError: LocalizedError {
     case archiveEngineUnavailable
     case archiveConversionFailed
     case archiveTooLarge
+    case archiveTooManyEntries
+    case archiveUnsafePath
     case ffmpegUnavailable
     case ffmpegFailed(reason: String? = nil)
     case unsupportedConversion
@@ -327,6 +329,8 @@ enum ConversionError: LocalizedError {
         case .archiveEngineUnavailable: return "Mesin arsip macOS tidak tersedia untuk format ini."
         case .archiveConversionFailed: return "Ceyloro tidak dapat membuat arsip hasil."
         case .archiveTooLarge: return "Isi arsip melebihi batas aman 2 GB."
+        case .archiveTooManyEntries: return "Arsip memiliki terlalu banyak entri (maksimum 100.000)."
+        case .archiveUnsafePath: return "Arsip mengandung path tidak aman (path traversal atau absolute path)."
         case .ffmpegUnavailable: return "FFmpeg belum tersedia untuk format ini."
         case let .ffmpegFailed(reason):
             if let reason, !reason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
