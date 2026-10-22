@@ -283,9 +283,10 @@ static void RadialGeometryHitTesting()
     // Sector 3 center is at 180 deg (6 o'clock, dx = 0, dy = 110 -> 500, 610):
     Ensure(RadialGeometry.HitTest(center, new Point(500, 610), 6) == 3, "Bottom center should be sector 3.");
 
-    // Test with N = 1 (whole ring is sector 0)
+    // Test with N = 1 (whole ring with 7-degree seam gap at bottom)
     Ensure(RadialGeometry.HitTest(center, new Point(500, 390), 1) == 0, "N=1 top should be sector 0.");
-    Ensure(RadialGeometry.HitTest(center, new Point(500, 610), 1) == 0, "N=1 bottom should be sector 0.");
+    Ensure(RadialGeometry.HitTest(center, new Point(610, 500), 1) == 0, "N=1 right should be sector 0.");
+    Ensure(RadialGeometry.HitTest(center, new Point(500, 610), 1) == -1, "N=1 bottom seam gap should return -1.");
 
     // Test with N = 4 (step = 90 deg: sector 0 = top, 1 = right, 2 = bottom, 3 = left)
     Ensure(RadialGeometry.HitTest(center, new Point(500, 390), 4) == 0, "N=4 top should be sector 0.");
