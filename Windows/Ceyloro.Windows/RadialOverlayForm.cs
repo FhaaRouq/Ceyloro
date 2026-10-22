@@ -49,10 +49,7 @@ public sealed class RadialOverlayForm : Form
             dragGeneration++;
             waitingForTargets = false;
             selectedIndex = -1;
-            if (OpenedByGesture && !isConverting)
-                Close();
-            else
-                Invalidate();
+            Invalidate();
         };
         DragDrop += OnDragDrop;
         KeyDown += OnKeyDown;

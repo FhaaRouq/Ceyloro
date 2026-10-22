@@ -39,9 +39,22 @@ internal sealed class ShiftDragMonitor : IDisposable
         if (hookHandle != IntPtr.Zero)
             return true;
 
-        using var process = Process.GetCurrentProcess();
-        using var module = process.MainModule;
-        var moduleHandle = module?.ModuleName is not null ? GetModuleHandle(module.ModuleName) : IntPtr.Zero;
+        IntPtr moduleHandle = IntPtr.Zero;
+        try
+        {
+            using var process = Process.GetCurrentProcess();
+            using var module = process.MainModule;
+            if (module?.ModuleName is not null)
+                moduleHandle = GetModuleHandle(module.ModuleName);
+        }
+        catch
+        {
+            // Abaikan kegagalan akses process module
+        }
+
+        if (moduleHandle == IntPtr.Zero)
+            moduleHandle = GetModuleHandle(null);
+
         hookHandle = SetWindowsHookEx(WhMouseLl, hookProc, moduleHandle, 0);
         if (hookHandle == IntPtr.Zero)
         {
@@ -147,7 +160,7 @@ internal sealed class ShiftDragMonitor : IDisposable
 
     private static bool IsKnownExplorerClass(string className)
     {
-        return className is "CabinetWClass" or "Progman" or "WorkerW" or "DirectUIHWND" or "SysListView32" or "Shell_TrayWnd";
+        return className is "CabinetWClass" or "Progman" or "WorkerW" or "DirectUIHWND" or "SysListView32" or "Shell_TrayWnd" or "ShellTabWindowClass" or "XamlExplorerHostIslandWindow";
     }
 
     private static string GetWindowClassName(IntPtr hWnd)

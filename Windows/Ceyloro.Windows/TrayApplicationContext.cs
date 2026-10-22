@@ -87,8 +87,11 @@ public sealed class TrayApplicationContext : ApplicationContext
         overlay.Show();
     }
 
-    private void OnShiftDragCompleted()
+    private async void OnShiftDragCompleted()
     {
+        // Beri jeda singkat agar event OLE DragDrop di UI thread dapat dieksekusi terlebih dahulu
+        // sebelum memeriksa apakah konversi sedang berjalan atau overlay harus ditutup.
+        await Task.Delay(150);
         if (overlay is { IsDisposed: false, OpenedByGesture: true, IsConverting: false })
         {
             overlay.Close();
