@@ -2,8 +2,9 @@
 
 > Konverter file lokal yang bekerja dari menu bar—pilih file, arahkan ke format tujuan, selesai.
 
-[![Preview release](https://img.shields.io/github/v/release/neuraldigital/Ceyloro?display_name=tag&sort=semver&include_prereleases)](https://github.com/neuraldigital/Ceyloro/releases)
-[![Windows build](https://github.com/neuraldigital/Ceyloro/actions/workflows/windows-shell.yml/badge.svg)](https://github.com/neuraldigital/Ceyloro/actions/workflows/windows-shell.yml)
+[![Preview release](https://img.shields.io/github/v/release/Neural-Operations-Digital-Engineering/Ceyloro?display_name=tag&sort=semver&include_prereleases)](https://github.com/Neural-Operations-Digital-Engineering/Ceyloro/releases)
+[![Windows build](https://github.com/Neural-Operations-Digital-Engineering/Ceyloro/actions/workflows/windows-shell.yml/badge.svg)](https://github.com/Neural-Operations-Digital-Engineering/Ceyloro/actions/workflows/windows-shell.yml)
+[![macOS CI](https://github.com/Neural-Operations-Digital-Engineering/Ceyloro/actions/workflows/macos-ci.yml/badge.svg)](https://github.com/Neural-Operations-Digital-Engineering/Ceyloro/actions/workflows/macos-ci.yml)
 [![License](https://img.shields.io/badge/core-MIT-2f855a.svg)](LICENSE)
 
 Ceyloro dirancang untuk satu hal: membuat konversi file terasa sesingkat mungkin. Di macOS, cukup tahan `Shift` sambil menarik file dari Finder. Roda konversi muncul di posisi kursor dan menampilkan format yang tersedia untuk file tersebut.
@@ -12,12 +13,13 @@ Semua pemrosesan berjalan lokal. File asli tidak diubah, ditimpa, atau diunggah 
 
 ## Download
 
-| Platform | Paket |
-| --- | --- |
-| macOS Intel + Apple Silicon | [Download Ceyloro untuk macOS](https://github.com/neuraldigital/Ceyloro/releases/download/v0.1.0-preview.4/Ceyloro-macOS-universal.zip) |
-| Windows x64 | [Download Ceyloro untuk Windows](https://github.com/Neural-Operations-Digital-Engineering/Ceyloro/releases/download/v0.1.0-preview.5/Ceyloro-Windows-x64.zip) |
+| Platform | Paket | Checksum |
+| --- | --- | --- |
+| macOS Universal (Intel + Apple Silicon) | [Download Ceyloro untuk macOS](https://github.com/Neural-Operations-Digital-Engineering/Ceyloro/releases/latest) | Bawaan bundle |
+| Windows x64 | [Download Ceyloro untuk Windows x64](https://github.com/Neural-Operations-Digital-Engineering/Ceyloro/releases/latest) | [.sha256](https://github.com/Neural-Operations-Digital-Engineering/Ceyloro/releases/latest) |
+| Windows ARM64 | [Download Ceyloro untuk Windows ARM64](https://github.com/Neural-Operations-Digital-Engineering/Ceyloro/releases/latest) | [.sha256](https://github.com/Neural-Operations-Digital-Engineering/Ceyloro/releases/latest) |
 
-Paket di atas adalah preview release. Build macOS sudah universal (`x86_64` + `arm64`). Paket Windows bersifat self-contained dan tidak memerlukan instalasi .NET. Preview yang sudah terbit masih hanya menyediakan Windows x64; workflow rilis berikutnya sedang disiapkan untuk menghasilkan paket Windows x64 dan ARM64.
+Paket di atas adalah release build mandiri (self-contained). Build macOS bersifat universal (`x86_64` + `arm64`) dan menyertakan biner FFmpeg universal. Paket Windows bersifat self-contained (tidak memerlukan instalasi .NET terpisah), membawa biner `ffmpeg.exe` dan `ffprobe.exe` resmi yang sesuai arsitektur, serta dilengkapi file verifikasi checksum SHA-256 (`.sha256`).
 
 ### Membuka aplikasi preview
 
@@ -116,7 +118,7 @@ Build dan test:
 
 ```sh
 swift test
-swift build -c release
+./scripts/check.sh --universal
 ./scripts/build-app.sh
 ```
 
@@ -137,7 +139,12 @@ Kebutuhan:
 Build shell Windows:
 
 ```powershell
-dotnet build Windows/Ceyloro.Windows/Ceyloro.Windows.csproj -c Release
+# Build x64 dan ARM64
+dotnet build Windows/Ceyloro.Windows/Ceyloro.Windows.csproj -c Release -r win-x64
+dotnet build Windows/Ceyloro.Windows/Ceyloro.Windows.csproj -c Release -r win-arm64
+
+# Jalankan unit & integration tests Windows
+dotnet run --project Windows/Ceyloro.Windows.Tests/Ceyloro.Windows.Tests.csproj -c Release -r win-x64
 ```
 
 Workflow GitHub Actions membangun shell Windows untuk x64 dan ARM64 setiap ada perubahan terkait Windows. Workflow rilis membuat paket desktop untuk kedua arsitektur pada setiap tag `v*`.
