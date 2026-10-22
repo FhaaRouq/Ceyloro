@@ -7,25 +7,33 @@ public static class RadialGeometry
     public const float InnerRadius = 66f;
     public const float OuterRadius = 154f;
 
-    /// <summary>
-    /// Computes the active sector index (0 to sectorCount - 1) for a given point relative to center,
-    /// or returns -1 if the point lies outside the ring bounds or sectorCount is 0.
-    /// Sector 0 is centered at 12 o'clock (-90 degrees in Cartesian, 0 degrees in clock coordinates)
-    /// and sectors proceed clockwise.
-    /// </summary>
-    public static int HitTest(Point center, Point point, int sectorCount)
+    public static int HitTest(Point center, Point point, int sectorCount) =>
+        TargetIndexAt(point.X - center.X, point.Y - center.Y, sectorCount);
+
+    public static int TargetIndexAt(int dx, int dy, int targetCount, double innerRadius = 66, double outerRadius = 154, double gapDegrees = 7)
     {
-        if (sectorCount <= 0) return -1;
-        var dx = point.X - center.X;
-        var dy = point.Y - center.Y;
-        var radius = Math.Sqrt(dx * dx + dy * dy);
-        if (radius < InnerRadius || radius > OuterRadius)
+        if (targetCount <= 0)
             return -1;
 
-        var step = 360d / sectorCount;
-        var degrees = Math.Atan2(dy, dx) * 180 / Math.PI + 90;
-        if (degrees < 0) degrees += 360;
-        var normalized = (degrees + step / 2) % 360;
-        return (int)(normalized / step) % sectorCount;
+        var radius = Math.Sqrt((double)dx * dx + (double)dy * dy);
+        if (radius < innerRadius || radius > outerRadius)
+            return -1;
+
+        var angle = Math.Atan2(dy, dx) * 180 / Math.PI + 90;
+        return TargetIndexAtAngle(angle, targetCount, gapDegrees);
+    }
+
+    internal static int TargetIndexAtAngle(double angle, int targetCount, double gapDegrees = 7)
+    {
+        if (targetCount <= 0)
+            return -1;
+
+        var step = 360d / targetCount;
+        var normalizedAngle = ((angle % 360) + 360) % 360;
+        var index = (int)Math.Floor((normalizedAngle + step / 2) / step) % targetCount;
+        var centerAngle = index * step;
+        var delta = ((normalizedAngle - centerAngle + 540) % 360) - 180;
+        var halfPetal = Math.Max(0, step - gapDegrees) / 2;
+        return Math.Abs(delta) <= halfPetal ? index : -1;
     }
 }

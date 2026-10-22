@@ -1,64 +1,21 @@
 using System.IO;
-using System.Threading;
 using System.Windows.Forms;
 
 namespace Ceyloro.Windows;
 
 internal static class Program
 {
-    private const string MutexName = @"Global\Ceyloro_Windows_SingleInstance";
-
     [STAThread]
-    private static void Main()
+    private static void Main(string[] args)
     {
-        using var mutex = new Mutex(initiallyOwned: true, MutexName, out var createdNew);
-        if (!createdNew)
-        {
-            // Another instance of Ceyloro is already running.
-            return;
-        }
-
-        CleanupStaleTempDirectories();
-
         ApplicationConfiguration.Initialize();
-        Application.Run(new TrayApplicationContext());
-    }
+        using var instance = SingleInstanceGate.TryAcquire();
+        if (instance is null)
+            return;
 
-    private static void CleanupStaleTempDirectories()
-    {
-        try
-        {
-            var tempRoot = Path.GetTempPath();
-            var ceyloroTemp = Path.Combine(tempRoot, "Ceyloro");
-            var cutoff = DateTime.UtcNow.AddHours(-24);
-            if (Directory.Exists(ceyloroTemp))
-            {
-                foreach (var dir in Directory.GetDirectories(ceyloroTemp))
-                {
-                    try
-                    {
-                        var info = new DirectoryInfo(dir);
-                        if (info.CreationTimeUtc < cutoff)
-                            Directory.Delete(dir, recursive: true);
-                    }
-                    catch { }
-                }
-            }
-
-            foreach (var dir in Directory.GetDirectories(tempRoot, "Ceyloro-*"))
-            {
-                try
-                {
-                    var info = new DirectoryInfo(dir);
-                    if (info.CreationTimeUtc < cutoff)
-                        Directory.Delete(dir, recursive: true);
-                }
-                catch { }
-            }
-        }
-        catch
-        {
-            // Best-effort cleanup
-        }
+        TempDirectoryCleanup.RemoveStaleDirectories(
+            Path.Combine(Path.GetTempPath(), "Ceyloro"), DateTime.UtcNow, TimeSpan.FromHours(24));
+        var openOverlayOnStartup = args.Any(argument => string.Equals(argument, "--show", StringComparison.OrdinalIgnoreCase));
+        Application.Run(new TrayApplicationContext(openOverlayOnStartup));
     }
 }

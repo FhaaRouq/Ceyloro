@@ -14,7 +14,8 @@ public sealed class RadialOverlayForm : Form
     private int selectedIndex = -1;
     private bool isConverting;
     private bool dragOverLogged;
-    private bool waitingForCapabilities;
+    private bool waitingForTargets;
+    private int dragGeneration;
 
     public RadialOverlayForm(ConversionEngine engine, Action<string> showMessage)
     {
@@ -34,7 +35,7 @@ public sealed class RadialOverlayForm : Form
         center = new Point(Cursor.Position.X - virtualBounds.Left, Cursor.Position.Y - virtualBounds.Top);
         DragEnter += OnDragEnter;
         DragOver += OnDragOver;
-        DragLeave += (_, _) => { selectedIndex = -1; Invalidate(); };
+        DragLeave += (_, _) => { dragGeneration++; waitingForTargets = false; selectedIndex = -1; Invalidate(); };
         DragDrop += OnDragDrop;
         KeyDown += OnKeyDown;
         MouseMove += (_, _) => { UpdateSelection(Cursor.Position); Invalidate(); };
@@ -44,14 +45,13 @@ public sealed class RadialOverlayForm : Form
 
     private void OnDragEnter(object? sender, DragEventArgs e)
     {
+        var generation = ++dragGeneration;
         draggedFiles = ReadFiles(e.Data);
-        waitingForCapabilities = engine.IsCheckingCapabilities;
-        availableTargets = engine.TargetsFor(draggedFiles).ToArray();
-        emptyStateMessage = draggedFiles.Length == 0
-            ? engine.EmptyStateFor(draggedFiles)
-            : availableTargets.Length == 0
-                ? engine.EmptyStateFor(draggedFiles)
-                : string.Empty;
+        availableTargets = [];
+        waitingForTargets = draggedFiles.Length > 0;
+        emptyStateMessage = draggedFiles.Length == 0 ? engine.EmptyStateFor(draggedFiles) : "Memeriksa format…";
+        if (waitingForTargets)
+            _ = LoadTargetsAsync(draggedFiles, generation);
         var extensions = draggedFiles.Select(path => PortableFileFormat.Detect(path).Extension).Distinct(StringComparer.OrdinalIgnoreCase);
         AppLog.Write($"DragEnter fileDrop={e.Data?.GetDataPresent(DataFormats.FileDrop) == true} files={draggedFiles.Length} extensions={string.Join(",", extensions)} targets={string.Join(",", availableTargets)} state={emptyStateMessage}");
         dragOverLogged = false;
@@ -62,13 +62,6 @@ public sealed class RadialOverlayForm : Form
 
     private void OnDragOver(object? sender, DragEventArgs e)
     {
-        if (waitingForCapabilities && !engine.IsCheckingCapabilities)
-        {
-            availableTargets = engine.TargetsFor(draggedFiles).ToArray();
-            emptyStateMessage = availableTargets.Length == 0 ? engine.EmptyStateFor(draggedFiles) : string.Empty;
-            waitingForCapabilities = false;
-            Invalidate();
-        }
         UpdateSelection(Cursor.Position);
         e.Effect = availableTargets.Length > 0 && selectedIndex >= 0 ? DragDropEffects.Copy : DragDropEffects.None;
         if (!dragOverLogged)
@@ -77,6 +70,37 @@ public sealed class RadialOverlayForm : Form
             dragOverLogged = true;
         }
         Invalidate();
+    }
+
+    private async Task LoadTargetsAsync(string[] files, int generation)
+    {
+        try
+        {
+            var evaluation = await Task.Run(() =>
+            {
+                var targets = engine.TargetsFor(files).ToArray();
+                return (Targets: targets, Message: targets.Length == 0 ? engine.EmptyStateFor(files) : string.Empty);
+            });
+            if (IsDisposed || generation != dragGeneration) return;
+            availableTargets = evaluation.Targets;
+            emptyStateMessage = evaluation.Message;
+        }
+        catch (Exception error)
+        {
+            if (IsDisposed || generation != dragGeneration) return;
+            availableTargets = [];
+            emptyStateMessage = "Format file belum dapat diperiksa";
+            AppLog.Write($"Pemeriksaan target drag gagal: {error.GetType().Name}");
+        }
+        finally
+        {
+            if (!IsDisposed && generation == dragGeneration)
+            {
+                waitingForTargets = false;
+                UpdateSelection(Cursor.Position);
+                Invalidate();
+            }
+        }
     }
 
     private async void OnDragDrop(object? sender, DragEventArgs e)
@@ -192,6 +216,8 @@ public sealed class RadialOverlayForm : Form
         if (e.KeyCode == Keys.Escape)
         {
             Close();
+            e.Handled = true;
+            e.SuppressKeyPress = true;
             return;
         }
         if (availableTargets.Length == 0)
@@ -201,26 +227,11 @@ public sealed class RadialOverlayForm : Form
             if (selectedIndex >= 0 && selectedIndex < availableTargets.Length && draggedFiles.Length > 0)
             {
                 await StartConversionAsync(draggedFiles, selectedIndex);
+                e.Handled = true;
+                e.SuppressKeyPress = true;
                 return;
             }
         }
-        if (e.KeyCode >= Keys.D1 && e.KeyCode <= Keys.D9)
-        {
-            var requestedIndex = (int)e.KeyCode - (int)Keys.D1;
-            if (requestedIndex < availableTargets.Length)
-                selectedIndex = requestedIndex;
-        }
-        else if (e.KeyCode >= Keys.NumPad1 && e.KeyCode <= Keys.NumPad9)
-        {
-            var requestedIndex = (int)e.KeyCode - (int)Keys.NumPad1;
-            if (requestedIndex < availableTargets.Length)
-                selectedIndex = requestedIndex;
-        }
-        else if (e.KeyCode == Keys.Right || e.KeyCode == Keys.Down)
-            selectedIndex = (selectedIndex + 1 + availableTargets.Length) % availableTargets.Length;
-        else if (e.KeyCode == Keys.Left || e.KeyCode == Keys.Up)
-            selectedIndex = (selectedIndex - 1 + availableTargets.Length) % availableTargets.Length;
-        Invalidate();
     }
 
     private async void OnMouseClick(object? sender, MouseEventArgs e)
@@ -243,7 +254,7 @@ public sealed class RadialOverlayForm : Form
     private void UpdateSelection(Point screenPoint)
     {
         var local = new Point(screenPoint.X - virtualBounds.Left, screenPoint.Y - virtualBounds.Top);
-        selectedIndex = RadialGeometry.HitTest(center, local, availableTargets.Length);
+        selectedIndex = RadialGeometry.TargetIndexAt(local.X - center.X, local.Y - center.Y, availableTargets.Length);
     }
 
     protected override void OnPaint(PaintEventArgs e)
@@ -274,12 +285,12 @@ public sealed class RadialOverlayForm : Form
             e.Graphics.FillPie(brush, outerRect, start, sweep);
             var radians = (start + sweep / 2) * Math.PI / 180;
             var labelCenter = new PointF(center.X + (float)Math.Cos(radians) * 110, center.Y + (float)Math.Sin(radians) * 110);
-            DrawCentered(e.Graphics, $"{index + 1}  {availableTargets[index].ToUpperInvariant()}", new RectangleF(labelCenter.X - 62, labelCenter.Y - 14, 124, 28), Color.White, 10, FontStyle.Bold);
+            DrawCentered(e.Graphics, availableTargets[index].ToUpperInvariant(), new RectangleF(labelCenter.X - 62, labelCenter.Y - 14, 124, 28), Color.White, 10, FontStyle.Bold);
         }
         using var hub = new SolidBrush(Color.FromArgb(245, 22, 22, 22));
         e.Graphics.FillEllipse(hub, hubRect);
         DrawCentered(e.Graphics, "Ceyloro", new RectangleF(center.X - 60, center.Y - 12, 120, 24), Color.White, 13, FontStyle.Bold);
-        DrawCentered(e.Graphics, "Esc untuk batal", new RectangleF(center.X - 70, center.Y + 20, 140, 20), Color.Gainsboro, 8, FontStyle.Regular);
+        DrawCentered(e.Graphics, "Lepaskan file untuk pilih", new RectangleF(center.X - 90, center.Y + 20, 180, 20), Color.Gainsboro, 8, FontStyle.Regular);
     }
 
     private static void DrawCentered(Graphics graphics, string text, RectangleF bounds, Color color, float size, FontStyle style)

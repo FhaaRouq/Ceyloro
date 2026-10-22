@@ -7,3 +7,5 @@ Sources/Ceyloro/Resources/ffmpeg
 xcuserdata/
 Windows/**/bin/
 Windows/**/obj/
+.tools/
+

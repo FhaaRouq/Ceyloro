@@ -4,6 +4,12 @@ namespace Ceyloro.Windows;
 
 internal static class FfmpegCommandBuilder
 {
+    internal const string GifFilterGraph = "fps=12,scale=w=min(720\\,iw):h=-2:flags=lanczos,split[s0][s1];[s0]palettegen=stats_mode=diff[p];[s1][p]paletteuse=dither=sierra2_4a[v]";
+    internal const string InputProtocolWhitelist = "file";
+
+    internal static IReadOnlyList<string> BuildInputArguments(string input) =>
+        ["-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-protocol_whitelist", InputProtocolWhitelist, "-i", input];
+
     public static IReadOnlyList<string> Build(
         string input,
         string output,
@@ -11,7 +17,7 @@ internal static class FfmpegCommandBuilder
         FfmpegCapabilities capabilities,
         AppSettings settings)
     {
-        var arguments = new List<string> { "-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-protocol_whitelist", "file,crypto,data", "-i", input };
+        var arguments = new List<string>(BuildInputArguments(input));
         if (target is "jpg" or "png" or "heic" or "tiff")
         {
             arguments.AddRange(["-frames:v", "1", "-an", "-c:v", RequiredEncoder(capabilities, target)]);
@@ -39,7 +45,14 @@ internal static class FfmpegCommandBuilder
             if (target == "webm") arguments.AddRange(["-crf", "32", "-b:v", "0"]);
             else if (target is "mp4" or "mov" or "mkv" or "avi") arguments.AddRange(["-q:v", "3"]);
             if (target == "gif")
-                arguments.AddRange(["-an", "-vf", "fps=12,scale='min(480,iw)':-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse"]);
+            {
+                arguments.AddRange([
+                    "-an",
+                    "-filter_complex",
+                    GifFilterGraph,
+                    "-map", "[v]"
+                ]);
+            }
             else if (target == "webm")
                 arguments.AddRange(["-c:a", capabilities.AudioEncoderFor("opus") ?? "copy"]);
             else if (target == "avi")
@@ -57,3 +70,4 @@ internal static class FfmpegCommandBuilder
     private static string RequiredEncoder(FfmpegCapabilities capabilities, string target) =>
         capabilities.EncoderFor(target) ?? throw new InvalidOperationException($"Encoder FFmpeg untuk {target.ToUpperInvariant()} tidak tersedia.");
 }
+

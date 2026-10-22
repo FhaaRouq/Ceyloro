@@ -13,7 +13,7 @@ public sealed class TrayApplicationContext : ApplicationContext
     private RadialOverlayForm? overlay;
     private SettingsForm? settingsForm;
 
-    public TrayApplicationContext()
+    public TrayApplicationContext(bool openOverlayOnStartup = false)
     {
         engine = new ConversionEngine(settings);
         brandedIcon = CreateTrayIcon();
@@ -33,6 +33,14 @@ public sealed class TrayApplicationContext : ApplicationContext
             AppLog.Write(settings.LoadWarning);
             trayIcon.ShowBalloonTip(6000, "Ceyloro", settings.LoadWarning, ToolTipIcon.Warning);
         }
+        if (openOverlayOnStartup)
+            Application.Idle += OpenOverlayOnFirstIdle;
+    }
+
+    private void OpenOverlayOnFirstIdle(object? sender, EventArgs e)
+    {
+        Application.Idle -= OpenOverlayOnFirstIdle;
+        OpenOverlay();
     }
 
     private ContextMenuStrip BuildMenu()
@@ -141,7 +149,7 @@ internal sealed class HotKeyWindow : NativeWindow, IDisposable
 
     protected override void WndProc(ref Message message)
     {
-        if (message.Msg == WmHotKey && message.WParam.ToInt32() == HotKeyId)
+        if ((message.Msg == WmHotKey && message.WParam.ToInt32() == HotKeyId) || message.Msg == SingleInstanceGate.ActivationMessage)
             action();
         base.WndProc(ref message);
     }
@@ -160,3 +168,4 @@ internal sealed class HotKeyWindow : NativeWindow, IDisposable
     private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
 
 }
+

@@ -10,6 +10,13 @@ var tests = new (string Name, Action Run)[]
     ("normalizes portable image and archive extensions", PortableFormatNormalization),
     ("offers only common targets for mixed image batches", MixedImageTargets),
     ("accepts gzip TAR and rejects ordinary gzip streams", GzipArchiveDetection),
+    ("uses matching radial hit-test geometry for 1 through 11 targets", RadialHitTest),
+    ("reports ZIP entry limits accurately", ArchiveLimitMessage),
+    ("matches macOS PDF page output naming", PdfPageOutputNaming),
+    ("cleans only stale Ceyloro GUID temp folders", StaleTempCleanup),
+    ("uses palette-based bounded-width GIF conversion", GifFilterGraph),
+    ("restricts FFmpeg input to local files", FfmpegInputProtocolPolicy),
+    ("uses an explicit consistent JPEG quality policy", PdfJpegQuality),
     ("converts valid gzip TAR without leaving partial output", GzipArchiveConversion),
     ("exports every TIFF page and preserves PNG alpha", MultiPageTiffConversion),
     ("flattens transparent pixels to white in JPEG output", JpegTransparencyFlattening),
@@ -70,6 +77,75 @@ static void GzipArchiveDetection()
 
     Ensure(ArchiveConverter.IsSupportedArchive(gzipTar), "Valid gzip TAR was rejected.");
     Ensure(!ArchiveConverter.IsSupportedArchive(ordinaryGzip), "Ordinary gzip data was offered as an archive.");
+}
+
+static void RadialHitTest()
+{
+    for (var count = 1; count <= 11; count++)
+    {
+        var step = 360d / count;
+        var halfPetal = (step - 7) / 2;
+        for (var index = 0; index < count; index++)
+        {
+            var center = index * step;
+            Ensure(RadialGeometry.TargetIndexAtAngle(center, count) == index, $"Sector center {index} did not map to itself for {count} targets.");
+            Ensure(RadialGeometry.TargetIndexAtAngle(center + halfPetal - 0.1, count) == index, $"Petal edge did not map to sector {index} for {count} targets.");
+            Ensure(RadialGeometry.TargetIndexAtAngle(center + halfPetal + 0.1, count) == -1, $"Gap after sector {index} was selectable for {count} targets.");
+        }
+    }
+    Ensure(RadialGeometry.TargetIndexAt(0, 0, 6) == -1, "The hub must not select a target.");
+    Ensure(RadialGeometry.TargetIndexAt(200, 0, 6) == -1, "The area outside the wheel must not select a target.");
+}
+
+static void ArchiveLimitMessage()
+{
+    Ensure(ArchiveConverter.MaximumEntriesMessage.Contains("jumlah entri", StringComparison.OrdinalIgnoreCase), "ZIP entry limit message should identify an entry-count limit.");
+    Ensure(!ArchiveConverter.MaximumEntriesMessage.Contains("2 GB", StringComparison.OrdinalIgnoreCase), "ZIP entry limit message should not claim a size limit.");
+}
+
+static void PdfPageOutputNaming()
+{
+    Ensure(PdfConversion.PageFileName("report", 0, 3, ".jpg") == "report-01.jpg", "PDF page naming should match the macOS page naming contract.");
+    Ensure(PdfConversion.PageFileName("report", 9, 12, "png") == "report-10.png", "Page number width should follow the total page count.");
+    Ensure(PdfConversion.PageFileName("..", 0, 1, "png") == "Hasil-01.png", "Unsafe empty page base names should be normalized.");
+}
+
+static void StaleTempCleanup()
+{
+    using var temp = new TestDirectory();
+    var stale = Path.Combine(temp.Path, Guid.NewGuid().ToString("N"));
+    var recent = Path.Combine(temp.Path, Guid.NewGuid().ToString("N"));
+    var unrelated = Path.Combine(temp.Path, "keep-me");
+    Directory.CreateDirectory(stale);
+    Directory.CreateDirectory(recent);
+    Directory.CreateDirectory(unrelated);
+    Directory.SetLastWriteTimeUtc(stale, DateTime.UtcNow.AddDays(-2));
+    Directory.SetLastWriteTimeUtc(recent, DateTime.UtcNow.AddHours(-1));
+    var removed = TempDirectoryCleanup.RemoveStaleDirectories(temp.Path, DateTime.UtcNow, TimeSpan.FromHours(24));
+    Ensure(removed == 1 && !Directory.Exists(stale), "A stale GUID temp directory was not removed.");
+    Ensure(Directory.Exists(recent) && Directory.Exists(unrelated), "Recent or unrelated temp data was removed.");
+}
+
+static void GifFilterGraph()
+{
+    Ensure(FfmpegCommandBuilder.GifFilterGraph.Contains("palettegen", StringComparison.Ordinal), "GIF conversion should generate an optimized palette.");
+    Ensure(FfmpegCommandBuilder.GifFilterGraph.Contains("paletteuse", StringComparison.Ordinal), "GIF conversion should apply the generated palette.");
+    Ensure(FfmpegCommandBuilder.GifFilterGraph.Contains("min(720", StringComparison.Ordinal), "GIF conversion should cap output width.");
+}
+
+static void FfmpegInputProtocolPolicy()
+{
+    var arguments = FfmpegCommandBuilder.BuildInputArguments("C:\\media\\clip.mp4");
+    var whitelistIndex = Array.IndexOf(arguments.ToArray(), "-protocol_whitelist");
+    var inputIndex = Array.IndexOf(arguments.ToArray(), "-i");
+    Ensure(whitelistIndex >= 0 && whitelistIndex < inputIndex, "FFmpeg input whitelist must apply before the input.");
+    Ensure(arguments[whitelistIndex + 1] == "file", "FFmpeg should accept only local file protocol inputs.");
+}
+
+static void PdfJpegQuality()
+{
+    Ensure(PdfConversion.JpegQuality(new PdfConversionOptions(Quality: "balanced")) == 85, "Balanced JPEG quality should be explicitly set to 85.");
+    Ensure(PdfConversion.JpegQuality(new PdfConversionOptions(Quality: "original")) == 92, "Original JPEG quality should be explicitly set to 92.");
 }
 
 static void GzipArchiveConversion()

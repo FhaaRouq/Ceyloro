@@ -29,6 +29,10 @@ Alur penggunaan saat ini: jalankan Ceyloro, tekan `Ctrl+Alt+Space`, lalu tarik
 file dari Explorer ke roda dan lepaskan pada target yang diinginkan. `Esc`
 membatalkan overlay.
 
+Untuk membuka roda langsung saat pengujian manual, jalankan `Ceyloro.exe --show`.
+Jika Ceyloro sudah berjalan di system tray, peluncuran kedua akan mengaktifkan
+roda pada instance yang sudah terbuka.
+
 Shell Windows ditargetkan untuk x64 dan ARM64. Paket release dibuat terpisah
 untuk tiap arsitektur dan menyertakan FFmpeg serta FFprobe yang sesuai.
 Gestur `Shift` sambil menarik file belum tersedia di Windows; alur Windows
@@ -71,11 +75,11 @@ Paket rilis resmi didistribusikan sebagai arsip ZIP mandiri per arsitektur (`win
    signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /f "SertifikatCeyloro.pfx" /p "Password" "bin\Release\net8.0-windows10.0.19041.0\win-x64\publish\Ceyloro.exe"
    ```
 2. **SmartScreen & Reputasi**:
-   Build rilis preview tanpa sertifikat EV berpotensi memicu peringatan Windows Defender SmartScreen. Pengguna dapat memilih **More info** -> **Run anyway** untuk file yang diunduh dari rilis resmi GitHub.
+   Build rilis preview tanpa sertifikat EV berpotensi memicu peringatan Windows Defender SmartScreen. Pengguna dapat memilih **More info** -> **Run anyway** untuk file yang diunduh dari rilis resmi GitHub. Release Windows menyertakan file SHA-256 (`.sha256`) untuk memeriksa integritas unduhan.
 3. **Verifikasi Checksum**:
-   Setiap rilis GitHub menyertakan `SHA256SUMS.txt` untuk memastikan integritas biner sebelum dijalankan:
+   Setiap rilis GitHub menyertakan `SHA256SUMS.txt` / `.sha256` untuk memastikan integritas biner sebelum dijalankan:
    ```powershell
-   Get-FileHash -Algorithm SHA256 .\Ceyloro-win-x64.zip
+   Get-FileHash -Algorithm SHA256 .\Ceyloro-Windows-x64.zip
    ```
 
 ## Verifikasi Perangkat Nyata Windows ARM64
@@ -91,4 +95,3 @@ Build target `win-arm64` dikompilasi secara cross-compile via .NET SDK pada GitH
 Jika Windows SmartScreen muncul saat pertama kali membuka aplikasi, pilih
 **More info**, lalu **Run anyway** hanya untuk paket yang diunduh dari GitHub
 Release resmi Ceyloro.
-
