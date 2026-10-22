@@ -28,7 +28,7 @@ jobs:
       - name: Verify FFmpeg is bundled
         run: test -x Ceyloro.app/Contents/Resources/ffmpeg && ./scripts/verify-ffmpeg.sh Ceyloro.app/Contents/Resources/ffmpeg
       - name: Package macOS app
-        run: ditto -c -k --keepParent Ceyloro.app Ceyloro-macOS-universal.zip
+        run: ditto --norsrc -c -k --keepParent Ceyloro.app Ceyloro-macOS-universal.zip
       - name: Create macOS package checksum
         run: shasum -a 256 Ceyloro-macOS-universal.zip | awk '{print $1"  "$2}' > Ceyloro-macOS-universal.zip.sha256
       - name: Upload macOS package
