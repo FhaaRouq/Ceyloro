@@ -18,6 +18,8 @@ public struct ConversionMatrix: Sendable {
         case .archive:
             guard ArchiveConversionPolicy.nativeSources.contains(source.fileExtension) else { return [] }
             return [.zip, .tar, .gzip].filter { $0.fileExtension != source.fileExtension }
+        case .document:
+            return DocumentConversionPolicy().targets(for: source)
         default:
             return []
         }

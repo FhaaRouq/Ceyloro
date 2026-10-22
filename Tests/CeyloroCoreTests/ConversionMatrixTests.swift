@@ -19,8 +19,11 @@ final class ConversionMatrixTests: XCTestCase {
         XCTAssertEqual(Set(matrix.commonTargets(for: sources)), Set([.heic, .tiff, .pdf]))
     }
 
-    func testUnsupportedKindHasNoTargets() {
-        XCTAssertTrue(ConversionMatrix().targets(for: FileFormat(fileExtension: "docx", kind: .document)).isEmpty)
+    func testDocumentTargetsFollowPhaseAMatrix() {
+        let matrix = ConversionMatrix()
+        XCTAssertEqual(Set(matrix.targets(for: FileFormat(fileExtension: "docx", kind: .document))), Set([.pdf, .odt, .rtf, .md, .html, .txt]))
+        XCTAssertEqual(Set(matrix.targets(for: FileFormat(fileExtension: "xlsx", kind: .document))), Set([.pdf]))
+        XCTAssertEqual(Set(matrix.targets(for: FileFormat(fileExtension: "md", kind: .document))), Set([.docx, .pdf]))
     }
 
     func testMediaTargetsExcludeTheSourceExtension() {

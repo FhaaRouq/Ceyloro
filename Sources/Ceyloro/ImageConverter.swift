@@ -278,6 +278,8 @@ enum ConversionError: LocalizedError {
     case ffmpegUnavailable
     case ffmpegFailed(reason: String? = nil)
     case unsupportedConversion
+    case documentTimeout
+    case documentEngineFailed
 
     var errorDescription: String? {
         switch self {
@@ -296,6 +298,8 @@ enum ConversionError: LocalizedError {
             }
             return "FFmpeg gagal memproses file ini."
         case .unsupportedConversion: return "Format ini belum didukung di MVP."
+        case .documentTimeout: return "Konversi dokumen melewati batas waktu 180 detik."
+        case .documentEngineFailed: return "Mesin dokumen gagal memproses file ini."
         }
     }
 }

@@ -35,7 +35,7 @@ public struct FileFormat: Hashable, Codable, Sendable {
         let image = ["jpg", "jpeg", "png", "webp", "heic", "heif", "tif", "tiff", "bmp", "gif", "avif", "jfif"]
         let audio = ["mp3", "m4a", "wav", "flac", "ogg", "opus", "aiff", "wma"]
         let video = ["mp4", "mov", "mkv", "webm", "avi", "wmv", "gif"]
-        let document = ["pdf", "doc", "docx", "rtf", "txt", "md", "pages", "xls", "xlsx", "ppt", "pptx"]
+        let document = ["pdf", "doc", "docx", "odt", "rtf", "txt", "md", "html", "pages", "xls", "xlsx", "ods", "ppt", "pptx", "odp"]
         let subtitle = ["srt", "vtt"]
         let archive = ["zip", "tar", "gz", "gzip", "tgz", "rar", "7z"]
 
@@ -59,6 +59,11 @@ public enum TargetFormat: String, CaseIterable, Codable, Sendable {
     case heic
     case tiff
     case pdf
+    case docx
+    case odt
+    case rtf
+    case md
+    case html
     case txt
     case mp3
     case m4a
@@ -87,6 +92,11 @@ public enum TargetFormat: String, CaseIterable, Codable, Sendable {
         case .heic: return "HEIC"
         case .tiff: return "TIFF"
         case .pdf: return "PDF"
+        case .docx: return "DOCX"
+        case .odt: return "ODT"
+        case .rtf: return "RTF"
+        case .md: return "MD"
+        case .html: return "HTML"
         case .txt: return "TXT"
         case .mp3: return "MP3"
         case .m4a: return "M4A"

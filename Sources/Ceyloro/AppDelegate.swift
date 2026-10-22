@@ -17,8 +17,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
     private let archiveConverter = ArchiveConverter()
     private let ffmpegConverter = FFmpegConverter()
     private let compressionConverter = CompressionConverter()
+    private let documentConverter = DocumentConverter()
     private var ffmpegURL: URL?
     private var ffmpegEncoders: Set<String> = []
+    private var libreOfficeURL: URL?
+    private var pandocURL: URL?
     private let engineProbe = RuntimeEngineProbe()
     private var progressWindows: [UUID: ProgressWindowController] = [:]
     private var settingsWindow: SettingsWindowController?
@@ -137,7 +140,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
                 guard let self else { return }
                 self.ffmpegURL = engineStatus.ffmpegURL
                 self.ffmpegEncoders = engineStatus.encoders
-                self.log("Engine AVFoundation: \(engineStatus.avFoundation ? "tersedia" : "tidak tersedia"); FFmpeg: \(engineStatus.ffmpegURL?.path ?? "tidak ditemukan") (encoders: \(engineStatus.encoders.count))")
+                self.libreOfficeURL = engineStatus.libreOfficeURL
+                self.pandocURL = engineStatus.pandocURL
+                self.log("Engine AVFoundation: \(engineStatus.avFoundation ? "tersedia" : "tidak tersedia"); FFmpeg: \(engineStatus.ffmpegURL?.path ?? "tidak ditemukan") (encoders: \(engineStatus.encoders.count)); LibreOffice: \(engineStatus.libreOfficeURL?.path ?? "tidak ditemukan"); pandoc: \(engineStatus.pandocURL?.path ?? "tidak ditemukan")")
             }
         }
     }
@@ -178,6 +183,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
         if formats.contains(where: { $0.kind == .archive && !ArchiveConversionPolicy.nativeSources.contains($0.fileExtension) }) {
             let archiveExts = formats.filter { $0.kind == .archive && !ArchiveConversionPolicy.nativeSources.contains($0.fileExtension) }.map { ".\($0.fileExtension)" }.joined(separator: ", ")
             return "Format arsip \(archiveExts) hanya didukung baca/ekstrak, konversi native belum tersedia."
+        }
+        if formats.allSatisfy({ $0.kind == .document }) {
+            let targets = matrix.commonTargets(for: formats)
+            if targets.isEmpty { return "Arah konversi dokumen ini belum termasuk Fase A." }
+            if libreOfficeURL == nil && pandocURL == nil {
+                return "Pasang LibreOffice atau pandoc untuk mengonversi dokumen."
+            }
+            return "Mesin dokumen belum menyediakan target yang cocok untuk file ini."
         }
         if formats.allSatisfy({ $0.kind == .audio || $0.kind == .video || $0.fileExtension == "gif" }) && ffmpegURL == nil {
             return "Format media ini memerlukan engine FFmpeg. Buka Pengaturan untuk memeriksa FFmpeg."
@@ -275,6 +288,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
             if detected.allSatisfy({ $0.kind == .archive }) {
                 return archiveConverter.supportedTargets(for: files, candidates: formats).map { WheelItem(title: $0.title, target: $0, action: nil) }
             }
+            if detected.allSatisfy({ $0.kind == .document }) {
+                return documentConverter.supportedTargets(for: files, candidates: formats, libreOfficeURL: libreOfficeURL, pandocURL: pandocURL).map { WheelItem(title: $0.title, target: $0, action: nil) }
+            }
             return converter.supportedTargets(for: files, candidates: formats).map { WheelItem(title: $0.title, target: $0, action: nil) }
         case .tools:
             guard compressionConverter.supports(files: files, ffmpegURL: ffmpegURL, encoders: ffmpegEncoders) else { return [] }
@@ -313,8 +329,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
             let ffmpegConverter = self.ffmpegConverter
             let ffmpegURL = self.ffmpegURL
             let ffmpegEncoders = self.ffmpegEncoders
-            let id = runner.submit(inputs: files, target: target, outputDirectory: outputDirectory, multiPageOutput: multiPageOutput, processor: { [converter, audioConverter, videoConverter, subtitleConverter, archiveConverter, ffmpegConverter, ffmpegURL, ffmpegEncoders] input, target, temp, progress, cancelled in
+            let documentConverter = self.documentConverter
+            let libreOfficeURL = self.libreOfficeURL
+            let pandocURL = self.pandocURL
+            let id = runner.submit(inputs: files, target: target, outputDirectory: outputDirectory, multiPageOutput: multiPageOutput, processor: { [converter, audioConverter, videoConverter, subtitleConverter, archiveConverter, ffmpegConverter, ffmpegURL, ffmpegEncoders, documentConverter, libreOfficeURL, pandocURL] input, target, temp, progress, cancelled in
                 let inputFormat = FileFormat.detect(url: input)
+                if inputFormat.kind == .document {
+                    return try documentConverter.convert(input: input, target: target, temporaryDirectory: temp.appendingPathComponent(UUID().uuidString), libreOfficeURL: libreOfficeURL, pandocURL: pandocURL, progress: progress, isCancelled: cancelled)
+                }
                 if inputFormat.kind == .audio {
                     let audioTemp = temp.appendingPathComponent(UUID().uuidString)
                     if audioConverter.supportedTargets(for: [input], candidates: [target]).contains(target) {

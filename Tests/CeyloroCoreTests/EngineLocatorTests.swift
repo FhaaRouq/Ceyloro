@@ -36,4 +36,20 @@ final class EngineLocatorTests: XCTestCase {
 
         XCTAssertEqual(FFmpegLocator().locate(searchPaths: [resources], environmentPath: ""), executable.standardizedFileURL)
     }
+
+    func testDocumentLocatorFindsLibreOfficeAndPandocInSearchPath() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("CeyloroDocumentEngine-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let libreOffice = root.appendingPathComponent("soffice")
+        let pandoc = root.appendingPathComponent("pandoc")
+        for executable in [libreOffice, pandoc] {
+            try Data("#!/bin/sh\nexit 0\n".utf8).write(to: executable)
+            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.path)
+        }
+
+        let locator = DocumentEngineLocator()
+        XCTAssertEqual(locator.locateLibreOffice(searchPaths: [root], environmentPath: ""), libreOffice.standardizedFileURL)
+        XCTAssertEqual(locator.locatePandoc(searchPaths: [root], environmentPath: ""), pandoc.standardizedFileURL)
+    }
 }

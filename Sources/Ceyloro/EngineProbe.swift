@@ -27,7 +27,10 @@ struct RuntimeEngineProbe {
         )
         let encoders = ffmpegURL.map(Self.probeEncoders(at:)) ?? []
         let avFoundation = Self.probeAVFoundation()
-        return EngineAvailability(avFoundation: avFoundation, ffmpegURL: ffmpegURL, encoders: encoders)
+        let documentLocator = DocumentEngineLocator()
+        let libreOfficeURL = documentLocator.locateLibreOffice(customPath: UserDefaults.standard.string(forKey: "libreOfficePath"), searchPaths: searchPaths, environmentPath: environment["PATH"])
+        let pandocURL = documentLocator.locatePandoc(customPath: UserDefaults.standard.string(forKey: "pandocPath"), searchPaths: searchPaths, environmentPath: environment["PATH"])
+        return EngineAvailability(avFoundation: avFoundation, ffmpegURL: ffmpegURL, encoders: encoders, libreOfficeURL: libreOfficeURL, pandocURL: pandocURL)
     }
 
     static func probeEncoders(at url: URL) -> Set<String> {
