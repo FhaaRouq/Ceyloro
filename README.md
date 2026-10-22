@@ -15,11 +15,13 @@ Semua pemrosesan berjalan lokal. File asli tidak diubah, ditimpa, atau diunggah 
 
 | Platform | Paket | Checksum |
 | --- | --- | --- |
-| macOS Universal (Intel + Apple Silicon) | [Download Ceyloro untuk macOS](https://github.com/Neural-Operations-Digital-Engineering/Ceyloro/releases/latest) | Bawaan bundle |
-| Windows x64 | [Download Ceyloro untuk Windows x64](https://github.com/Neural-Operations-Digital-Engineering/Ceyloro/releases/latest) | [.sha256](https://github.com/Neural-Operations-Digital-Engineering/Ceyloro/releases/latest) |
-| Windows ARM64 | [Download Ceyloro untuk Windows ARM64](https://github.com/Neural-Operations-Digital-Engineering/Ceyloro/releases/latest) | [.sha256](https://github.com/Neural-Operations-Digital-Engineering/Ceyloro/releases/latest) |
+| macOS Universal (Intel + Apple Silicon) | [Download Ceyloro untuk macOS](https://github.com/Neural-Operations-Digital-Engineering/Ceyloro/releases/latest/download/Ceyloro-macOS-universal.zip) | [SHA-256](https://github.com/Neural-Operations-Digital-Engineering/Ceyloro/releases/latest/download/Ceyloro-macOS-universal.zip.sha256) |
+| Windows x64 | [Download Ceyloro untuk Windows x64](https://github.com/Neural-Operations-Digital-Engineering/Ceyloro/releases/latest/download/Ceyloro-Windows-x64.zip) | [SHA-256](https://github.com/Neural-Operations-Digital-Engineering/Ceyloro/releases/latest/download/Ceyloro-Windows-x64.zip.sha256) |
+| Windows ARM64 | [Download Ceyloro untuk Windows ARM64](https://github.com/Neural-Operations-Digital-Engineering/Ceyloro/releases/latest/download/Ceyloro-Windows-arm64.zip) | [SHA-256](https://github.com/Neural-Operations-Digital-Engineering/Ceyloro/releases/latest/download/Ceyloro-Windows-arm64.zip.sha256) |
 
 Paket di atas adalah release build mandiri (self-contained). Build macOS bersifat universal (`x86_64` + `arm64`) dan menyertakan biner FFmpeg universal. Paket Windows bersifat self-contained (tidak memerlukan instalasi .NET terpisah), membawa biner `ffmpeg.exe` dan `ffprobe.exe` resmi yang sesuai arsitektur, serta dilengkapi file verifikasi checksum SHA-256 (`.sha256`).
+
+Paket macOS terkompresi berukuran sekitar 364 MB dan sudah membawa Pandoc serta LibreOffice; pengguna tidak perlu memasang kedua engine itu secara manual.
 
 ### Membuka aplikasi preview
 
