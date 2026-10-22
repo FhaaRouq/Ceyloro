@@ -54,12 +54,16 @@ final class CompressionConverter {
 
     private func compressPDF(input: URL, temporaryDirectory: URL, progress: @escaping (Double) -> Void, isCancelled: @escaping () -> Bool) throws -> ConversionResult {
         guard let document = PDFDocument(url: input), !document.isLocked, document.pageCount > 0 else { throw ConversionError.invalidInput }
+        // Gunakan subdirektori pages agar cleanup lebih bersih dan tidak mengganggu output.pdf
+        let pagesDirectory = temporaryDirectory.appendingPathComponent("pages")
+        try fileManager.createDirectory(at: pagesDirectory, withIntermediateDirectories: true)
         var pages: [URL] = []
         do {
             for index in 0..<document.pageCount {
                 if isCancelled() { throw CancellationError() }
                 guard let page = document.page(at: index), let image = render(page: page) else { throw ConversionError.encodingFailed }
-                let pageURL = temporaryDirectory.appendingPathComponent("page-(index + 1).jpg")
+                // Nama unik per halaman dengan zero-padding 4 digit agar urutan leksikografis konsisten
+                let pageURL = pagesDirectory.appendingPathComponent(String(format: "page-%04d.jpg", index + 1))
                 let options = ImageConversionOptions(jpgQuality: 0.78, heicQuality: 0.78)
                 try write(image: image, to: pageURL, options: options)
                 pages.append(pageURL)
@@ -69,9 +73,12 @@ final class CompressionConverter {
             try PDFBuilder.build(images: pages, outputURL: output, options: PDFMergeOptions(pageSize: .matchImage, margin: .none, quality: .balanced), progress: { value in
                 progress(0.5 + value * 0.5)
             }, isCancelled: isCancelled)
+            // Bersihkan semua JPEG sementara setelah PDF selesai dibangun
+            try? fileManager.removeItem(at: pagesDirectory)
             return .files([output])
         } catch {
-            pages.forEach { try? fileManager.removeItem(at: $0) }
+            // Bersihkan sementara baik saat sukses maupun gagal
+            try? fileManager.removeItem(at: pagesDirectory)
             throw error
         }
     }
