@@ -46,6 +46,28 @@ if [ ! -f "$SOURCE_ARCHIVE" ]; then
     curl --fail --location --retry 3 --output "$SOURCE_ARCHIVE" "$SOURCE_URL"
 fi
 
+# C3: Verifikasi checksum SHA-256 sumber FFmpeg setelah unduhan, sebelum ekstraksi.
+# Nilai ini harus diperbarui setiap kali VERSION berubah.
+# Cara memperbarui: unduh arsip baru, jalankan `shasum -a 256 <file>`, lalu
+# salin nilai hash ke variabel yang sesuai di bawah ini.
+# SHA-256 untuk ffmpeg-7.1.1.tar.xz (sumber: homebrew-core)
+FFMPEG_SHA256_EXPECTED="06ad4d7e0449e6e67c8d2b2ba042144f2fb054e90d8591b6786bcb3248d95b00"
+# Override via environment untuk CI atau build otomatis:
+FFMPEG_SHA256="${FFMPEG_SHA256_OVERRIDE:-$FFMPEG_SHA256_EXPECTED}"
+
+if [ -n "$FFMPEG_SHA256" ] && [ "$FFMPEG_SHA256" != "skip" ]; then
+    ACTUAL_SHA256=$(shasum -a 256 "$SOURCE_ARCHIVE" | awk '{print $1}')
+    if [ "$ACTUAL_SHA256" != "$FFMPEG_SHA256" ]; then
+        echo "Error: Checksum FFmpeg tidak cocok." >&2
+        echo "  Diharapkan: $FFMPEG_SHA256" >&2
+        echo "  Diterima:   $ACTUAL_SHA256" >&2
+        echo "Jika kamu baru mengubah VERSION, perbarui FFMPEG_SHA256_EXPECTED di script ini." >&2
+        rm -f "$SOURCE_ARCHIVE"
+        exit 1
+    fi
+    echo "FFmpeg source checksum terverifikasi: $ACTUAL_SHA256"
+fi
+
 SOURCE_DIR="$BUILD_ROOT/ffmpeg-${VERSION}"
 if [ ! -d "$SOURCE_DIR" ]; then
     tar -xJf "$SOURCE_ARCHIVE" -C "$BUILD_ROOT"

@@ -21,7 +21,7 @@ Semua pemrosesan berjalan lokal. File asli tidak diubah, ditimpa, atau diunggah 
 
 Paket di atas adalah release build mandiri (self-contained). Build macOS bersifat universal (`x86_64` + `arm64`) dan menyertakan biner FFmpeg universal. Paket Windows bersifat self-contained (tidak memerlukan instalasi .NET terpisah), membawa biner `ffmpeg.exe` dan `ffprobe.exe` resmi yang sesuai arsitektur, serta dilengkapi file verifikasi checksum SHA-256 (`.sha256`).
 
-Paket macOS terkompresi berukuran sekitar 364 MB dan sudah membawa Pandoc serta LibreOffice; pengguna tidak perlu memasang kedua engine itu secara manual.
+Ukuran paket dan detail lengkap setiap versi tersedia di [halaman releases](https://github.com/Neural-Operations-Digital-Engineering/Ceyloro/releases).
 
 ### Memperbarui Ceyloro
 

@@ -19,9 +19,19 @@ jobs:
         architecture: [x64, arm64]
     steps:
       - uses: actions/checkout@v4
+      # C1: Migrasi ke .NET 10 — dotnet-version: '10.x'
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.x'
       - name: Build Ceyloro Windows shell for ${{ matrix.architecture }}
-        run: dotnet build Windows/Ceyloro.Windows/Ceyloro.Windows.csproj --configuration Release -r win-${{ matrix.architecture }} --no-self-contained
+        # C2: RestoreLockedMode memastikan restore reprodusibel dari packages.lock.json
+        run: dotnet build Windows/Ceyloro.Windows/Ceyloro.Windows.csproj --configuration Release -r win-${{ matrix.architecture }} --no-self-contained -p:RestoreLockedMode=true
       - name: Run Windows conversion checks
         if: matrix.architecture == 'x64'
         run: dotnet run --project Windows/Ceyloro.Windows.Tests/Ceyloro.Windows.Tests.csproj --configuration Release -r win-x64
+      # C4: ARM64 tidak dapat dijalankan secara native di runner x64.
+      # Build ARM64 tetap diverifikasi pada langkah "Build" di atas (kompilasi tanpa error).
+      # Smoke test runtime ARM64 memerlukan runner Windows ARM64 yang tidak tersedia di
+      # GitHub-hosted runners saat ini. Jika diperlukan, gunakan self-hosted runner ARM64.
 

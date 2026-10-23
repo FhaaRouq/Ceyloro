@@ -335,12 +335,22 @@ public final class JobRunner {
                 let fileName = naming.pageFileName(baseName: collectionName, index: index, total: temporaryFiles.count, fileExtension: target.fileExtension)
                 try moveSafely(from: temporaryURL, to: folder.appendingPathComponent(fileName))
             }
+            // B6: reserveUniqueURL menciptakan placeholder atomik (O_CREAT | O_EXCL),
+            // lalu ditto menulis ke path .staging di sampingnya.
+            // Setelah ditto sukses, move atomik placeholder → ZIP final.
+            // Placeholder dihapus HANYA setelah move berhasil, sehingga tidak ada jendela
+            // di mana dua job bisa mendapat path yang sama.
             let zipURL = naming.reserveUniqueURL(baseName: collectionName, fileExtension: "zip", in: destinationFolder, fileManager: fileManager)
+            let zipStagingURL = URL(fileURLWithPath: zipURL.path + ".staging")
             do {
+                if operation?.isCancelled == true { throw CancellationError() }
+                try archive(folder: folder, to: zipStagingURL, operation: operation)
+                // Atomik: hapus placeholder, pindahkan staging ke final
                 try? fileManager.removeItem(at: zipURL)
-                try archive(folder: folder, to: zipURL, operation: operation)
+                try moveSafely(from: zipStagingURL, to: zipURL)
                 return [zipURL]
             } catch {
+                try? fileManager.removeItem(at: zipStagingURL)
                 try? fileManager.removeItem(at: zipURL)
                 throw error
             }

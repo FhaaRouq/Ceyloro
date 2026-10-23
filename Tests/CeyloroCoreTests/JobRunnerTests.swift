@@ -239,4 +239,88 @@ final class JobRunnerTests: XCTestCase {
         }
         wait(for: [completed], timeout: 3)
     }
+
+    // MARK: - B6 regression: dua job ZIP nama sama tidak bertabrakan dan tidak meninggalkan .staging
+    func testConcurrentZipJobsSameNameDoNotCollide() throws {
+        let runner = JobRunner(maxConcurrentJobs: 2)
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("CeyloroZipB6-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let input = root.appendingPathComponent("report.pdf")
+        FileManager.default.createFile(atPath: input.path, contents: Data())
+
+        let exp1 = expectation(description: "zip job 1 completed")
+        let exp2 = expectation(description: "zip job 2 completed")
+        var out1: URL?
+        var out2: URL?
+
+        // Job 1
+        runner.submit(inputs: [input], target: .png, outputDirectory: root, multiPageOutput: .zip, processor: { _, _, temp, _, _ in
+            try FileManager.default.createDirectory(at: temp, withIntermediateDirectories: true)
+            let page = temp.appendingPathComponent("page1.png")
+            try Data("page1-job1".utf8).write(to: page)
+            return .collection(name: "report", files: [page])
+        }) { snapshot in
+            if snapshot.state == .completed {
+                out1 = snapshot.outputs.first
+                exp1.fulfill()
+            } else if snapshot.state == .failed {
+                XCTFail("ZIP job 1 failed: \(snapshot.message)")
+                exp1.fulfill()
+            }
+        }
+
+        // Job 2 — same collection name, same output directory
+        runner.submit(inputs: [input], target: .png, outputDirectory: root, multiPageOutput: .zip, processor: { _, _, temp, _, _ in
+            try FileManager.default.createDirectory(at: temp, withIntermediateDirectories: true)
+            let page = temp.appendingPathComponent("page1.png")
+            try Data("page1-job2".utf8).write(to: page)
+            return .collection(name: "report", files: [page])
+        }) { snapshot in
+            if snapshot.state == .completed {
+                out2 = snapshot.outputs.first
+                exp2.fulfill()
+            } else if snapshot.state == .failed {
+                XCTFail("ZIP job 2 failed: \(snapshot.message)")
+                exp2.fulfill()
+            }
+        }
+
+        wait(for: [exp1, exp2], timeout: 10)
+
+        // Kedua job harus menghasilkan ZIP yang berbeda
+        XCTAssertNotNil(out1, "ZIP job 1 must produce output.")
+        XCTAssertNotNil(out2, "ZIP job 2 must produce output.")
+        XCTAssertNotEqual(out1, out2, "Concurrent ZIP jobs must not produce the same output path (B6).")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: out1!.path), "ZIP output 1 must exist.")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: out2!.path), "ZIP output 2 must exist.")
+        XCTAssertEqual(out1!.pathExtension, "zip")
+        XCTAssertEqual(out2!.pathExtension, "zip")
+
+        // Tidak boleh ada file .staging yang tertinggal (B6)
+        let leftover = try FileManager.default.contentsOfDirectory(atPath: root.path)
+            .filter { $0.hasSuffix(".staging") }
+        XCTAssertTrue(leftover.isEmpty, "No .staging files should remain after ZIP jobs complete (B6): \(leftover)")
+    }
+}
+        let runner = JobRunner(maxConcurrentJobs: 1)
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("CeyloroCompressionNaming-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let input = root.appendingPathComponent("proposal.docx")
+        try Data("source".utf8).write(to: input)
+        let completed = expectation(description: "compression naming completed")
+        runner.submit(inputs: [input], target: .zip, outputDirectory: root, outputSuffix: "terkompres", outputExtension: "zip", processor: { _, _, temp, _, _ in
+            try FileManager.default.createDirectory(at: temp, withIntermediateDirectories: true)
+            let output = temp.appendingPathComponent("output.zip")
+            try Data("compressed".utf8).write(to: output)
+            return [output]
+        }) { snapshot in
+            guard snapshot.state == .completed else { return }
+            XCTAssertEqual(snapshot.outputs.first?.lastPathComponent, "proposal-terkompres.zip")
+            completed.fulfill()
+        }
+        wait(for: [completed], timeout: 3)
+    }
 }

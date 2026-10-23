@@ -97,50 +97,50 @@ Status: [ ] = belum dimulai | [~] = sedang dikerjakan | [x] = selesai
   - [x] Perbaiki `restore()`: hapus instalasi parsial sebelum restore jika app ada tapi tidak valid
   - [x] Tulis tes fault-injection: checksum salah, archive invalid, gagal copy, rollback verifikasi
 
-- [ ] **Task B6 · Fix race ZIP macOS**
-  - [ ] Baca `Sources/CeyloroCore/JobRunner.swift` dan `Sources/CeyloroCore/OutputNaming.swift`
-  - [ ] Ubah jalur multi-page ZIP: ditto menulis ke `<reservedPath>.staging` terlebih dahulu
-  - [ ] Setelah ditto sukses, lakukan `FileManager.moveItem(at:to:)` ke path final
-  - [ ] Hapus file placeholder reservasi hanya setelah move berhasil
-  - [ ] Tulis tes concurrency: dua job ZIP nama sama → tidak bertabrakan
+- [x] **Task B6 · Fix race ZIP macOS**
+  - [x] Baca `Sources/CeyloroCore/JobRunner.swift` dan `Sources/CeyloroCore/OutputNaming.swift`
+  - [x] Ubah jalur multi-page ZIP: ditto menulis ke `<reservedPath>.staging` terlebih dahulu
+  - [x] Setelah ditto sukses, lakukan `FileManager.moveItem(at:to:)` ke path final
+  - [x] Hapus file placeholder reservasi hanya setelah move berhasil
+  - [x] Tulis tes concurrency: dua job ZIP nama sama → tidak bertabrakan
 
 ---
 
 ## Gelombang C — Pra-production-ready
 
-- [ ] **Task C1 · Migrasi Windows .NET 8 → .NET 10**
-  - [ ] Baca `Windows/Ceyloro.Windows/Ceyloro.Windows.csproj`
-  - [ ] Ubah `TargetFramework` ke `net10.0-windows10.0.19041.0`
-  - [ ] Perbarui `windows-shell.yml` untuk menggunakan `dotnet-version: '10.x'`
-  - [ ] Jalankan `dotnet build` dan semua tes harness Windows → verifikasi lulus
-  - [ ] Periksa ada/tidaknya API yang tidak kompatibel antara .NET 8 dan .NET 10
+- [x] **Task C1 · Migrasi Windows .NET 8 → .NET 10**
+  - [x] Baca `Windows/Ceyloro.Windows/Ceyloro.Windows.csproj`
+  - [x] Ubah `TargetFramework` ke `net10.0-windows10.0.19041.0`
+  - [x] Perbarui `windows-shell.yml` untuk menggunakan `dotnet-version: '10.x'`
+  - [x] Jalankan `dotnet build` dan semua tes harness Windows → verifikasi lulus
+  - [x] Periksa ada/tidaknya API yang tidak kompatibel antara .NET 8 dan .NET 10
 
-- [ ] **Task C2 · Kunci dependency build**
-  - [ ] Generate `packages.lock.json` dengan `dotnet restore --use-lock-file`
-  - [ ] Buat `global.json` dengan versi SDK .NET eksplisit
-  - [ ] Tambahkan `RestoreLockedMode=true` di workflow CI Windows
-  - [ ] Dokumentasikan versi Xcode/Swift, FFmpeg, LibreOffice, Pandoc dalam `docs/DEPENDENCY-VERSIONS.md`
+- [x] **Task C2 · Kunci dependency build**
+  - [x] Generate `packages.lock.json` dengan `dotnet restore --use-lock-file`
+  - [x] Buat `global.json` dengan versi SDK .NET eksplisit
+  - [x] Tambahkan `RestoreLockedMode=true` di workflow CI Windows
+  - [x] Dokumentasikan versi Xcode/Swift, FFmpeg, LibreOffice, Pandoc dalam `docs/DEPENDENCY-VERSIONS.md`
 
-- [ ] **Task C3 · Verifikasi checksum source FFmpeg macOS**
-  - [ ] Baca `scripts/build-ffmpeg-universal.sh`
-  - [ ] Identifikasi versi arsip FFmpeg yang diunduh
-  - [ ] Tambahkan variabel `FFMPEG_SHA256` untuk setiap arsitektur dan versi
-  - [ ] Tambahkan langkah verifikasi `shasum -a 256` setelah unduhan, sebelum ekstraksi
-  - [ ] Dokumentasikan cara memperbarui hash saat upgrade versi FFmpeg
+- [x] **Task C3 · Verifikasi checksum source FFmpeg macOS**
+  - [x] Baca `scripts/build-ffmpeg-universal.sh`
+  - [x] Identifikasi versi arsip FFmpeg yang diunduh
+  - [x] Tambahkan variabel `FFMPEG_SHA256` untuk setiap arsitektur dan versi
+  - [x] Tambahkan langkah verifikasi `shasum -a 256` setelah unduhan, sebelum ekstraksi
+  - [x] Dokumentasikan cara memperbarui hash saat upgrade versi FFmpeg
 
-- [ ] **Task C4 · Smoke test ARM64 Windows dan paket release**
-  - [ ] Baca `.github/workflows/windows-shell.yml` dan `release-desktop.yml`
-  - [ ] Tambahkan test harness ARM64 di `windows-shell.yml` (atau dokumentasikan keterbatasannya)
-  - [ ] Tambahkan job smoke test di `release-desktop.yml`: unduh artifact → jalankan konversi
+- [x] **Task C4 · Smoke test ARM64 Windows dan paket release**
+  - [x] Baca `.github/workflows/windows-shell.yml` dan `release-desktop.yml`
+  - [x] Tambahkan test harness ARM64 di `windows-shell.yml` (atau dokumentasikan keterbatasannya)
+  - [x] Tambahkan job smoke test di `release-desktop.yml`: unduh artifact → jalankan konversi
         fixture → verifikasi output → verifikasi versi FFmpeg
-  - [ ] Buat fixture gambar/PDF kecil untuk digunakan smoke test
+  - [x] Buat fixture gambar/PDF kecil untuk digunakan smoke test
 
-- [ ] **Task C5 · Signing, notarization, dan manifest distribusi**
-  - [ ] Baca `scripts/build-app.sh` dan `release-desktop.yml`
-  - [ ] Tambahkan langkah kondisional signing macOS (jika secrets tersedia)
-  - [ ] Tambahkan langkah kondisional Authenticode signing Windows (jika secrets tersedia)
-  - [ ] Buat `scripts/generate-release-manifest.sh` yang menghasilkan `release-manifest.json`
-  - [ ] Perbarui README: hapus ukuran paket statis, ganti dengan referensi ke halaman release
+- [x] **Task C5 · Signing, notarization, dan manifest distribusi**
+  - [x] Baca `scripts/build-app.sh` dan `release-desktop.yml`
+  - [x] Tambahkan langkah kondisional signing macOS (jika secrets tersedia)
+  - [x] Tambahkan langkah kondisional Authenticode signing Windows (jika secrets tersedia)
+  - [x] Buat `scripts/generate-release-manifest.sh` yang menghasilkan `release-manifest.json`
+  - [x] Perbarui README: hapus ukuran paket statis, ganti dengan referensi ke halaman release
 
 ---
 

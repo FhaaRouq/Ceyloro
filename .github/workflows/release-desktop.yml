@@ -43,6 +43,33 @@ jobs:
           CEYLORO_VERSION="$version" CEYLORO_BUILD="$CEYLORO_BUILD" ./scripts/build-app.sh
       - name: Verify FFmpeg is bundled
         run: test -x Ceyloro.app/Contents/Resources/ffmpeg && ./scripts/verify-ffmpeg.sh Ceyloro.app/Contents/Resources/ffmpeg
+      # C5: Signing dan notarization kondisional — hanya aktif jika secrets tersedia.
+      # Secret yang diperlukan: APPLE_SIGNING_IDENTITY, APPLE_TEAM_ID,
+      # APPLE_NOTARIZE_APPLE_ID, APPLE_NOTARIZE_PASSWORD
+      # Lihat docs/BUILD-SECRETS.md untuk cara mendapatkannya.
+      - name: Sign macOS app (kondisional)
+        if: ${{ secrets.APPLE_SIGNING_IDENTITY != '' }}
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          codesign --force --deep --options runtime \
+            --sign "$APPLE_SIGNING_IDENTITY" \
+            Ceyloro.app
+          echo "macOS app signed."
+      - name: Notarize macOS app (kondisional)
+        if: ${{ secrets.APPLE_NOTARIZE_APPLE_ID != '' }}
+        env:
+          APPLE_ID: ${{ secrets.APPLE_NOTARIZE_APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_NOTARIZE_PASSWORD }}
+        run: |
+          xcrun notarytool submit Ceyloro-macOS-universal.zip \
+            --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_PASSWORD" \
+            --wait
+          xcrun stapler staple Ceyloro.app
+          echo "macOS app notarized and stapled."
       - name: Package macOS app
         run: ditto --norsrc -c -k --keepParent Ceyloro.app Ceyloro-macOS-universal.zip
       - name: Create macOS package checksum
@@ -65,6 +92,10 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.x'
       - name: Fetch and verify LGPL FFmpeg
         shell: pwsh
         run: ./scripts/fetch-ffmpeg-windows.ps1 -Destination ffmpeg-package -Architecture ${{ matrix.architecture }}
@@ -83,6 +114,21 @@ jobs:
           }
           Copy-Item Windows/README.md package/Ceyloro/README.md -Force
           Compress-Archive -Path package/Ceyloro -DestinationPath Ceyloro-Windows-${{ matrix.architecture }}.zip -Force
+      # C5: Authenticode signing kondisional — hanya aktif jika secret tersedia.
+      # Secret yang diperlukan: WINDOWS_SIGNING_CERT_PFX (base64), WINDOWS_SIGNING_CERT_PASSWORD
+      # Lihat docs/BUILD-SECRETS.md untuk cara mendapatkannya.
+      - name: Sign Windows binary (kondisional)
+        if: ${{ secrets.WINDOWS_SIGNING_CERT_PFX != '' }}
+        shell: pwsh
+        env:
+          CERT_PFX_BASE64: ${{ secrets.WINDOWS_SIGNING_CERT_PFX }}
+          CERT_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERT_PASSWORD }}
+        run: |
+          $certPath = "$env:RUNNER_TEMP\signing.pfx"
+          [System.IO.File]::WriteAllBytes($certPath, [System.Convert]::FromBase64String($env:CERT_PFX_BASE64))
+          signtool sign /f $certPath /p $env:CERT_PASSWORD /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 publish/Ceyloro.exe
+          Remove-Item $certPath -Force
+          Write-Host "Windows binary signed."
       - name: Create Windows package checksum
         shell: pwsh
         run: |
@@ -97,8 +143,41 @@ jobs:
             Ceyloro-Windows-${{ matrix.architecture }}.zip
             Ceyloro-Windows-${{ matrix.architecture }}.zip.sha256
 
+  smoke-test:
+    # C4: Smoke test paket release — unduh artifact macOS, verifikasi struktur dan konversi dasar.
+    needs: [macos]
+    runs-on: macos-15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download macOS package artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: Ceyloro-macOS-universal
+          path: dist
+      - name: Extract macOS package
+        run: ditto -x -k dist/Ceyloro-macOS-universal.zip .
+      - name: Verify app structure
+        run: |
+          test -x Ceyloro.app/Contents/MacOS/Ceyloro
+          test -f Ceyloro.app/Contents/Info.plist
+          test -x Ceyloro.app/Contents/Resources/ffmpeg
+      - name: Verify bundled FFmpeg version
+        run: ./scripts/verify-ffmpeg.sh Ceyloro.app/Contents/Resources/ffmpeg
+      - name: Smoke test — PNG→JPEG conversion via FFmpeg
+        run: |
+          # Gunakan fixture gambar kecil yang sudah ada di repo
+          Ceyloro.app/Contents/Resources/ffmpeg -y \
+            -i fixtures/smoke-1x1.png \
+            /tmp/smoke-output.jpg
+          test -f /tmp/smoke-output.jpg && echo "Smoke test PNG→JPEG: PASS"
+      - name: Smoke test — verify checksum file
+        run: |
+          shasum -a 256 -c dist/Ceyloro-macOS-universal.zip.sha256 && echo "Checksum: PASS"
+
   release:
-    needs: [macos, windows]
+    needs: [macos, windows, smoke-test]
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     permissions:
@@ -110,6 +189,13 @@ jobs:
           pattern: Ceyloro-*
           path: dist
           merge-multiple: true
+      # C5: Generate release manifest
+      - name: Generate release manifest
+        run: |
+          chmod +x scripts/generate-release-manifest.sh
+          RELEASE_TAG="$GITHUB_REF_NAME" ./scripts/generate-release-manifest.sh dist/ > dist/release-manifest.json
+          echo "Release manifest:"
+          cat dist/release-manifest.json
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
