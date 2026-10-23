@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+@testable import CeyloroCore
 @testable import Ceyloro
 
 final class FFmpegConverterTests: XCTestCase {

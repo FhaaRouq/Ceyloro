@@ -184,9 +184,9 @@ final class CeyloroUpdateService {
         guard url.scheme == "https" else {
             throw CeyloroUpdateError.engineFailed("URL pembaruan harus menggunakan HTTPS.")
         }
-        guard let host = url.host?.lowercased(),
-              host == "github.com" || host == "objects.githubusercontent.com" else {
-            throw CeyloroUpdateError.engineFailed("Host URL pembaruan tidak diizinkan: \(host ?? "tidak diketahui")")
+        let host = url.host?.lowercased() ?? "tidak diketahui"
+        guard host == "github.com" || host == "objects.githubusercontent.com" else {
+            throw CeyloroUpdateError.engineFailed("Host URL pembaruan tidak diizinkan: \(host)")
         }
     }
 

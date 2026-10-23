@@ -16,7 +16,7 @@ final class DocumentConverter {
         let policy = DocumentConversionPolicy()
         // Izinkan kind .document dan .pdf — PDF memiliki target DOCX via policy (temuan A5).
         // Kind lain (image, audio, dll.) tidak ditangani oleh converter ini.
-        let allowedKinds: Set<FileFormat.Kind> = [.document, .pdf]
+        let allowedKinds: Set<MediaKind> = [.document, .pdf]
         guard files.allSatisfy({
             let fmt = FileFormat.detect(url: $0)
             return allowedKinds.contains(fmt.kind) && fileManager.isReadableFile(atPath: $0.path)

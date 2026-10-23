@@ -36,12 +36,7 @@ public struct FFmpegConversionPolicy: Sendable {
     }
 
     public static func supports(target: TargetFormat, probe: ProbeResult) -> Bool {
-        switch probe {
-        case .failed, .unknown:
-            return false
-        case .success(let encoders):
-            break
-        }
+        guard case .success(let encoders) = probe else { return false }
         switch target {
         case .mp3:
             return encoders.contains("libshine") || encoders.contains("libmp3lame") || encoders.contains("mp3")

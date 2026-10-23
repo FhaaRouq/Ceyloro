@@ -258,9 +258,11 @@ final class JobRunnerTests: XCTestCase {
         // Job 1
         runner.submit(inputs: [input], target: .png, outputDirectory: root, multiPageOutput: .zip, processor: { _, _, temp, _, _ in
             try FileManager.default.createDirectory(at: temp, withIntermediateDirectories: true)
-            let page = temp.appendingPathComponent("page1.png")
-            try Data("page1-job1".utf8).write(to: page)
-            return .collection(name: "report", files: [page])
+            let page1 = temp.appendingPathComponent("page1.png")
+            let page2 = temp.appendingPathComponent("page2.png")
+            try Data("page1-job1".utf8).write(to: page1)
+            try Data("page2-job1".utf8).write(to: page2)
+            return .collection(name: "report", files: [page1, page2])
         }) { snapshot in
             if snapshot.state == .completed {
                 out1 = snapshot.outputs.first
@@ -274,9 +276,11 @@ final class JobRunnerTests: XCTestCase {
         // Job 2 — same collection name, same output directory
         runner.submit(inputs: [input], target: .png, outputDirectory: root, multiPageOutput: .zip, processor: { _, _, temp, _, _ in
             try FileManager.default.createDirectory(at: temp, withIntermediateDirectories: true)
-            let page = temp.appendingPathComponent("page1.png")
-            try Data("page1-job2".utf8).write(to: page)
-            return .collection(name: "report", files: [page])
+            let page1 = temp.appendingPathComponent("page1.png")
+            let page2 = temp.appendingPathComponent("page2.png")
+            try Data("page1-job2".utf8).write(to: page1)
+            try Data("page2-job2".utf8).write(to: page2)
+            return .collection(name: "report", files: [page1, page2])
         }) { snapshot in
             if snapshot.state == .completed {
                 out2 = snapshot.outputs.first
@@ -303,24 +307,5 @@ final class JobRunnerTests: XCTestCase {
             .filter { $0.hasSuffix(".staging") }
         XCTAssertTrue(leftover.isEmpty, "No .staging files should remain after ZIP jobs complete (B6): \(leftover)")
     }
-}
-        let runner = JobRunner(maxConcurrentJobs: 1)
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("CeyloroCompressionNaming-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
-        let input = root.appendingPathComponent("proposal.docx")
-        try Data("source".utf8).write(to: input)
-        let completed = expectation(description: "compression naming completed")
-        runner.submit(inputs: [input], target: .zip, outputDirectory: root, outputSuffix: "terkompres", outputExtension: "zip", processor: { _, _, temp, _, _ in
-            try FileManager.default.createDirectory(at: temp, withIntermediateDirectories: true)
-            let output = temp.appendingPathComponent("output.zip")
-            try Data("compressed".utf8).write(to: output)
-            return [output]
-        }) { snapshot in
-            guard snapshot.state == .completed else { return }
-            XCTAssertEqual(snapshot.outputs.first?.lastPathComponent, "proposal-terkompres.zip")
-            completed.fulfill()
-        }
-        wait(for: [completed], timeout: 3)
-    }
+
 }
