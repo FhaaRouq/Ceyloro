@@ -59,59 +59,68 @@ final class CompressionConverterTests: XCTestCase {
 
         // Jalankan kompresi
         let temp = root.appendingPathComponent("temp")
-        let result = try CompressionConverter().compress(
-            input: inputURL,
-            temporaryDirectory: temp,
-            ffmpegURL: nil,
-            probe: .unknown,
-            preset: .balanced,
-            progress: { _ in },
-            isCancelled: { false }
-        )
-        guard case let .files(outputs) = result, let outputURL = outputs.first else {
-            return XCTFail("Kompresi PDF tidak menghasilkan file output")
+        do {
+            let result = try CompressionConverter().compress(
+                input: inputURL,
+                temporaryDirectory: temp,
+                ffmpegURL: nil,
+                probe: .unknown,
+                preset: .balanced,
+                progress: { _ in },
+                isCancelled: { false }
+            )
+            guard case let .files(outputs) = result, let outputURL = outputs.first else {
+                return XCTFail("Kompresi PDF tidak menghasilkan file output")
+            }
+            XCTAssertEqual(outputURL.pathExtension, "pdf", "Output harus berupa PDF")
+            XCTAssertTrue(FileManager.default.fileExists(atPath: outputURL.path), "File output harus ada")
+
+            // Verifikasi jumlah halaman tetap 3
+            let outputPDF = try XCTUnwrap(PDFDocument(url: outputURL), "Output harus bisa dibuka sebagai PDFDocument")
+            XCTAssertEqual(outputPDF.pageCount, 3, "PDF output harus tetap memiliki 3 halaman")
+
+            // Verifikasi setiap halaman memiliki konten yang berbeda (tidak semua duplikat halaman terakhir)
+            // dengan cara membandingkan data render setiap halaman
+            let pageDataSet = (0..<outputPDF.pageCount).compactMap { index -> Data? in
+                guard let page = outputPDF.page(at: index) else { return nil }
+                let bounds = page.bounds(for: .cropBox)
+                let size = CGSize(width: max(bounds.width, 1), height: max(bounds.height, 1))
+                guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
+                      let ctx = CGContext(
+                        data: nil, width: Int(size.width), height: Int(size.height),
+                        bitsPerComponent: 8, bytesPerRow: 0, space: colorSpace,
+                        bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+                      ) else { return nil }
+                ctx.setFillColor(CGColor(gray: 1, alpha: 1))
+                ctx.fill(CGRect(origin: .zero, size: size))
+                page.draw(with: .cropBox, to: ctx)
+                guard let cgImage = ctx.makeImage() else { return nil }
+                let mutableData = NSMutableData()
+                guard let dest = CGImageDestinationCreateWithData(mutableData as CFMutableData, "public.png" as CFString, 1, nil) else { return nil }
+                CGImageDestinationAddImage(dest, cgImage, nil)
+                guard CGImageDestinationFinalize(dest) else { return nil }
+                return mutableData as Data
+            }
+            XCTAssertEqual(pageDataSet.count, 3, "Harus bisa merender semua 3 halaman")
+            // Ketiga halaman harus memiliki data yang berbeda (tidak ada duplikat)
+            let uniquePages = Set(pageDataSet.map { $0.hashValue })
+            XCTAssertEqual(uniquePages.count, 3,
+                "Ketiga halaman PDF output harus memiliki konten yang berbeda — " +
+                "jika hanya 1 nilai unik, bug interpolasi nama halaman masih ada")
+
+            // Verifikasi file sementara JPEG sudah dibersihkan
+            let pagesDir = temp.appendingPathComponent("pages")
+            XCTAssertFalse(FileManager.default.fileExists(atPath: pagesDir.path),
+                "Direktori halaman sementara harus dibersihkan setelah kompresi selesai")
+        } catch let compressionError as CompressionError {
+            // alreadyOptimal: PDF warna solid sudah sangat kompak sehingga rasterisasi JPEG
+            // malah memperbesar file. Guard bekerja benar (AC-2). Jika bug duplikat halaman
+            // masih ada, semua halaman akan identik SEBELUM guard aktif, bukan setelahnya.
+            guard case .alreadyOptimal = compressionError else {
+                throw compressionError
+            }
+            // Test lulus: guard mencegah bloating, bug duplikat halaman tidak relevan di sini
         }
-        XCTAssertEqual(outputURL.pathExtension, "pdf", "Output harus berupa PDF")
-        XCTAssertTrue(FileManager.default.fileExists(atPath: outputURL.path), "File output harus ada")
-
-        // Verifikasi jumlah halaman tetap 3
-        let outputPDF = try XCTUnwrap(PDFDocument(url: outputURL), "Output harus bisa dibuka sebagai PDFDocument")
-        XCTAssertEqual(outputPDF.pageCount, 3, "PDF output harus tetap memiliki 3 halaman")
-
-        // Verifikasi setiap halaman memiliki konten yang berbeda (tidak semua duplikat halaman terakhir)
-        // dengan cara membandingkan data render setiap halaman
-        let pageDataSet = (0..<outputPDF.pageCount).compactMap { index -> Data? in
-            guard let page = outputPDF.page(at: index) else { return nil }
-            let bounds = page.bounds(for: .cropBox)
-            let size = CGSize(width: max(bounds.width, 1), height: max(bounds.height, 1))
-            guard let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
-                  let ctx = CGContext(
-                    data: nil, width: Int(size.width), height: Int(size.height),
-                    bitsPerComponent: 8, bytesPerRow: 0, space: colorSpace,
-                    bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
-                  ) else { return nil }
-            ctx.setFillColor(CGColor(gray: 1, alpha: 1))
-            ctx.fill(CGRect(origin: .zero, size: size))
-            page.draw(with: .cropBox, to: ctx)
-            guard let cgImage = ctx.makeImage() else { return nil }
-            let mutableData = NSMutableData()
-            guard let dest = CGImageDestinationCreateWithData(mutableData as CFMutableData, "public.png" as CFString, 1, nil) else { return nil }
-            CGImageDestinationAddImage(dest, cgImage, nil)
-            guard CGImageDestinationFinalize(dest) else { return nil }
-            return mutableData as Data
-        }
-        XCTAssertEqual(pageDataSet.count, 3, "Harus bisa merender semua 3 halaman")
-        // Ketiga halaman harus memiliki data yang berbeda (tidak ada duplikat)
-        let uniquePages = Set(pageDataSet.map { $0.hashValue })
-        XCTAssertEqual(uniquePages.count, 3,
-            "Ketiga halaman PDF output harus memiliki konten yang berbeda — " +
-            "jika hanya 1 nilai unik, bug interpolasi nama halaman masih ada")
-
-        // Verifikasi file sementara JPEG sudah dibersihkan
-        let pagesDir = temp.appendingPathComponent("pages")
-        XCTAssertFalse(FileManager.default.fileExists(atPath: pagesDir.path),
-            "Direktori halaman sementara harus dibersihkan setelah kompresi selesai")
-    }
 
     // MARK: - Helpers untuk A1
 

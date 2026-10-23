@@ -614,7 +614,7 @@ static void SmartPdfTextPreservation()
     PdfConversion.CompressAsync(pdfPath, outPath, CancellationToken.None, _ => { }).GetAwaiter().GetResult();
 
     Ensure(File.Exists(outPath), "Output PDF must exist.");
-    using var pigDoc = UglyToad.PdfPig.PdfPigDocument.Open(outPath);
+    using var pigDoc = UglyToad.PdfPig.PdfDocument.Open(outPath);
     var text = string.Join(" ", pigDoc.GetPages().Select(p => p.Text));
     Ensure(text.Contains("Ceyloro"), "Output PDF must retain the selectable text layer.");
 }
