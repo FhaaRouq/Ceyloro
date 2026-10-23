@@ -50,8 +50,8 @@ fi
 # Nilai ini harus diperbarui setiap kali VERSION berubah.
 # Cara memperbarui: unduh arsip baru, jalankan `shasum -a 256 <file>`, lalu
 # salin nilai hash ke variabel yang sesuai di bawah ini.
-# SHA-256 untuk ffmpeg-7.1.1.tar.xz (sumber: homebrew-core)
-FFMPEG_SHA256_EXPECTED="06ad4d7e0449e6e67c8d2b2ba042144f2fb054e90d8591b6786bcb3248d95b00"
+# SHA-256 untuk ffmpeg-7.1.1.tar.xz dari ffmpeg.org/releases.
+FFMPEG_SHA256_EXPECTED="733984395e0dbbe5c046abda2dc49a5544e7e0e1e2366bba849222ae9e3a03b1"
 # Override via environment untuk CI atau build otomatis:
 FFMPEG_SHA256="${FFMPEG_SHA256_OVERRIDE:-$FFMPEG_SHA256_EXPECTED}"
 
