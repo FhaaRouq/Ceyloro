@@ -48,7 +48,7 @@ jobs:
       # APPLE_NOTARIZE_APPLE_ID, APPLE_NOTARIZE_PASSWORD
       # Lihat docs/BUILD-SECRETS.md untuk cara mendapatkannya.
       - name: Sign macOS app (kondisional)
-        if: ${{ secrets.APPLE_SIGNING_IDENTITY != '' }}
+        if: secrets.APPLE_SIGNING_IDENTITY != ''
         env:
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
         run: |
@@ -57,7 +57,7 @@ jobs:
             Ceyloro.app
           echo "macOS app signed."
       - name: Notarize macOS app (kondisional)
-        if: ${{ secrets.APPLE_NOTARIZE_APPLE_ID != '' }}
+        if: secrets.APPLE_NOTARIZE_APPLE_ID != ''
         env:
           APPLE_ID: ${{ secrets.APPLE_NOTARIZE_APPLE_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
@@ -118,7 +118,7 @@ jobs:
       # Secret yang diperlukan: WINDOWS_SIGNING_CERT_PFX (base64), WINDOWS_SIGNING_CERT_PASSWORD
       # Lihat docs/BUILD-SECRETS.md untuk cara mendapatkannya.
       - name: Sign Windows binary (kondisional)
-        if: ${{ secrets.WINDOWS_SIGNING_CERT_PFX != '' }}
+        if: secrets.WINDOWS_SIGNING_CERT_PFX != ''
         shell: pwsh
         env:
           CERT_PFX_BASE64: ${{ secrets.WINDOWS_SIGNING_CERT_PFX }}
@@ -183,6 +183,7 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
       - name: Download desktop packages
         uses: actions/download-artifact@v4
         with:
@@ -192,8 +193,7 @@ jobs:
       # C5: Generate release manifest
       - name: Generate release manifest
         run: |
-          chmod +x scripts/generate-release-manifest.sh
-          RELEASE_TAG="$GITHUB_REF_NAME" ./scripts/generate-release-manifest.sh dist/ > dist/release-manifest.json
+          RELEASE_TAG="$GITHUB_REF_NAME" bash scripts/generate-release-manifest.sh dist/ > dist/release-manifest.json
           echo "Release manifest:"
           cat dist/release-manifest.json
       - name: Publish GitHub Release

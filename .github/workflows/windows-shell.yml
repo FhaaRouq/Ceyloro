@@ -25,8 +25,10 @@ jobs:
         with:
           dotnet-version: '10.x'
       - name: Build Ceyloro Windows shell for ${{ matrix.architecture }}
-        # C2: RestoreLockedMode memastikan restore reprodusibel dari packages.lock.json
-        run: dotnet build Windows/Ceyloro.Windows/Ceyloro.Windows.csproj --configuration Release -r win-${{ matrix.architecture }} --no-self-contained -p:RestoreLockedMode=true
+        # C2: Lock file diaktifkan di csproj (RestorePackagesWithLockFile=true).
+        # Setelah packages.lock.json di-generate via `dotnet restore`, tambahkan
+        # -p:RestoreLockedMode=true di sini untuk enforce reproducible restore di CI.
+        run: dotnet build Windows/Ceyloro.Windows/Ceyloro.Windows.csproj --configuration Release -r win-${{ matrix.architecture }} --no-self-contained
       - name: Run Windows conversion checks
         if: matrix.architecture == 'x64'
         run: dotnet run --project Windows/Ceyloro.Windows.Tests/Ceyloro.Windows.Tests.csproj --configuration Release -r win-x64
