@@ -42,7 +42,9 @@ var tests = new (string Name, Action Run)[]
     ("gif capability filtering rejects target when muxer missing", GifCapabilityFilteringMuxerMissing),
     // AC-5 regression: prioritas encoder video modern dan opsi kompresi
     ("prioritizes modern H.264 video encoders over mpeg4", FfmpegVideoEncoderPriority),
-    ("uses CRF 28 for H.264 MP4 compression", FfmpegVideoCompressionModernOptions)
+    ("uses CRF 28 for H.264 MP4 compression", FfmpegVideoCompressionModernOptions),
+    // AC-1 regression: Smart PDF Engine tidak merasterisasi PDF teks/vektor
+    ("preserves vector and text structure in Smart PDF engine", SmartPdfTextPreservation)
 };
 
 var failures = new List<string>();
@@ -591,6 +593,26 @@ static void FfmpegVideoCompressionModernOptions()
     Ensure(!args.Contains("mpeg4"), "MP4 compression should not select mpeg4 when libx264 is available.");
     Ensure(args.Contains("-crf") && args.Contains("28"), "libx264 MP4 compression should use -crf 28.");
     Ensure(!args.Contains("-q:v"), "libx264 should not use -q:v for quality scaling.");
+}
+
+// AC-1 & Temuan 1: PDF dengan layer teks tidak boleh dirasterisasi menjadi gambar
+static void SmartPdfTextPreservation()
+{
+    using var temp = new TestDirectory();
+    var pdfPath = Path.Combine(temp.Path, "sample.pdf");
+    var outPath = Path.Combine(temp.Path, "output.pdf");
+
+    // Tulis PDF minimal dengan stream teks
+    var content = "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>\nendobj\n4 0 obj\n<< /Length 44 >>\nstream\nBT\n/F1 12 Tf\n100 700 Td\n(Ceyloro Text Layer) Tj\nET\nendstream\nendobj\nxref\n0 5\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000206 00000 n \ntrailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n300\n%%EOF\n";
+    File.WriteAllText(pdfPath, content);
+
+    // Jalankan CompressAsync
+    PdfConversion.CompressAsync(pdfPath, outPath, CancellationToken.None, _ => { }).GetAwaiter().GetResult();
+
+    Ensure(File.Exists(outPath), "Output PDF must exist.");
+    using var pigDoc = UglyToad.PdfPig.PdfPigDocument.Open(outPath);
+    var text = string.Join(" ", pigDoc.GetPages().Select(p => p.Text));
+    Ensure(text.Contains("Ceyloro"), "Output PDF must retain the selectable text layer.");
 }
 
 static FfmpegCapabilities CreateFfmpegCapabilities(string[] encoders, string[] decoders, string[] muxers)

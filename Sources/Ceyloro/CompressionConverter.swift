@@ -47,7 +47,7 @@ final class CompressionConverter {
             guard let target = TargetFormat(rawValue: plan.outputExtension) else { throw ConversionError.unsupportedConversion }
             result = try ffmpegConverter.convert(input: input, target: target, temporaryDirectory: temporaryDirectory, ffmpegURL: ffmpegURL, probe: probe, progress: progress, isCancelled: isCancelled, allowSameFormat: true, compression: preset)
         case .pdf:
-            result = try compressPDF(input: input, temporaryDirectory: temporaryDirectory, progress: progress, isCancelled: isCancelled)
+            result = try compressPDF(input: input, temporaryDirectory: temporaryDirectory, preset: preset, progress: progress, isCancelled: isCancelled)
         case .document:
             result = try archiveDocument(input: input, temporaryDirectory: temporaryDirectory, progress: progress, isCancelled: isCancelled)
         }
@@ -72,8 +72,33 @@ final class CompressionConverter {
         return result
     }
 
-    private func compressPDF(input: URL, temporaryDirectory: URL, progress: @escaping (Double) -> Void, isCancelled: @escaping () -> Bool) throws -> ConversionResult {
+    private func compressPDF(input: URL, temporaryDirectory: URL, preset: CompressionPreset, progress: @escaping (Double) -> Void, isCancelled: @escaping () -> Bool) throws -> ConversionResult {
         guard let document = PDFDocument(url: input), !document.isLocked, document.pageCount > 0 else { throw ConversionError.invalidInput }
+        let output = temporaryDirectory.appendingPathComponent("output.pdf")
+
+        // Inspeksi tipe PDF: Text/Vector vs Scanned/Photo (Temuan 1 & Bagian 4.2 PRD)
+        var hasText = false
+        for index in 0..<document.pageCount {
+            if let text = document.page(at: index)?.string?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty {
+                hasText = true
+                break
+            }
+        }
+
+        if hasText {
+            // Text/Vector PDF: DILARANG MERASTERISASI HALAMAN MENJADI BITMAP (AC-1).
+            // Pertahankan struktur vektor & text layer dengan re-serialisasi Quartz stream optimization.
+            progress(0.2)
+            if isCancelled() { throw CancellationError() }
+            let success = document.write(to: output)
+            guard success && fileManager.fileExists(atPath: output.path) else {
+                throw ConversionError.encodingFailed
+            }
+            progress(1.0)
+            return .files([output])
+        }
+
+        // Scanned/Photo PDF: Dokumen didominasi raster bitmap. Lakukan downsampling & JPEG kompresi.
         // Gunakan subdirektori pages agar cleanup lebih bersih dan tidak mengganggu output.pdf
         let pagesDirectory = temporaryDirectory.appendingPathComponent("pages")
         try fileManager.createDirectory(at: pagesDirectory, withIntermediateDirectories: true)
@@ -81,16 +106,22 @@ final class CompressionConverter {
         do {
             for index in 0..<document.pageCount {
                 if isCancelled() { throw CancellationError() }
-                guard let page = document.page(at: index), let image = render(page: page) else { throw ConversionError.encodingFailed }
-                // Nama unik per halaman dengan zero-padding 4 digit agar urutan leksikografis konsisten
-                let pageURL = pagesDirectory.appendingPathComponent(String(format: "page-%04d.jpg", index + 1))
-                let options = ImageConversionOptions(jpgQuality: 0.78, heicQuality: 0.78)
-                try write(image: image, to: pageURL, options: options)
-                pages.append(pageURL)
+                // AC-7: Bungkus dengan autoreleasepool agar memori context grafis langsung dibebaskan per iterasi
+                try autoreleasepool {
+                    guard let page = document.page(at: index), let image = render(page: page, preset: preset) else {
+                        throw ConversionError.encodingFailed
+                    }
+                    // Nama unik per halaman dengan zero-padding 4 digit agar urutan leksikografis konsisten
+                    let pageURL = pagesDirectory.appendingPathComponent(String(format: "page-%04d.jpg", index + 1))
+                    let quality = preset == .smaller ? 0.70 : 0.78
+                    let options = ImageConversionOptions(jpgQuality: quality, heicQuality: quality)
+                    try write(image: image, to: pageURL, options: options)
+                    pages.append(pageURL)
+                }
                 progress(0.5 * Double(index + 1) / Double(document.pageCount))
             }
-            let output = temporaryDirectory.appendingPathComponent("output.pdf")
-            try PDFBuilder.build(images: pages, outputURL: output, options: PDFMergeOptions(pageSize: .matchImage, margin: .none, quality: .balanced), progress: { value in
+            let mergeQuality: PDFQuality = preset == .smaller ? .minimum : .balanced
+            try PDFBuilder.build(images: pages, outputURL: output, options: PDFMergeOptions(pageSize: .matchImage, margin: .none, quality: mergeQuality), progress: { value in
                 progress(0.5 + value * 0.5)
             }, isCancelled: isCancelled)
             // Bersihkan semua JPEG sementara setelah PDF selesai dibangun
@@ -131,10 +162,11 @@ final class CompressionConverter {
         TargetFormat(rawValue: `extension`) ?? .png
     }
 
-    private func render(page: PDFPage) -> CGImage? {
+    private func render(page: PDFPage, preset: CompressionPreset = .balanced) -> CGImage? {
         var box = page.bounds(for: .cropBox)
         if box.width <= 0 || box.height <= 0 { box = page.bounds(for: .mediaBox) }
-        let scale = min(150.0 / 72.0, (120_000_000.0 / max(box.width * box.height, 1)).squareRoot())
+        let targetDPI: Double = preset == .smaller ? 120.0 : 150.0
+        let scale = min(targetDPI / 72.0, (120_000_000.0 / max(box.width * box.height, 1)).squareRoot())
         let rotation = ((page.rotation % 360) + 360) % 360
         let rotated = rotation == 90 || rotation == 270
         let width = max(Int(((rotated ? box.height : box.width) * scale).rounded()), 1)

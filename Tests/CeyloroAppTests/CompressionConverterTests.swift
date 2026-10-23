@@ -175,4 +175,68 @@ final class CompressionConverterTests: XCTestCase {
             }
         }
     }
+
+    // AC-1 & Test Plan 2: Memverifikasi layer teks tetap utuh dan tidak dirasterisasi menjadi bitmap
+    func testPDFCompressionPreservesTextLayer() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("CeyloroTextPDF-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let inputURL = root.appendingPathComponent("document.pdf")
+        let pdfData = NSMutableData()
+        var mediaBox = CGRect(x: 0, y: 0, width: 612, height: 792)
+        guard let consumer = CGDataConsumer(data: pdfData as CFMutableData),
+              let context = CGContext(consumer: consumer, mediaBox: &mediaBox, nil) else {
+            return XCTFail("Gagal membuat CGContext PDF")
+        }
+
+        // Buat 6 halaman dengan teks
+        for pageNum in 1...6 {
+            context.beginPage(mediaBox: &mediaBox)
+            let pageText = "Halaman \(pageNum): Dokumen Ceyloro berisikan teks penting yang harus tetap dapat disalin dan searchable."
+            let attrString = NSAttributedString(string: pageText, attributes: [
+                .font: NSFont.systemFont(ofSize: 14)
+            ])
+            let line = CTLineCreateWithAttributedString(attrString)
+            context.textPosition = CGPoint(x: 50, y: 700)
+            CTLineDraw(line, context)
+            context.endPage()
+        }
+        context.closePDF()
+        try (pdfData as Data).write(to: inputURL)
+
+        // Verifikasi dokumen sumber memiliki teks
+        let sourceDoc = try XCTUnwrap(PDFDocument(url: inputURL))
+        XCTAssertEqual(sourceDoc.pageCount, 6)
+        XCTAssertFalse((sourceDoc.string ?? "").isEmpty, "PDF sumber harus memiliki string teks")
+
+        // Jalankan kompresi
+        do {
+            let result = try CompressionConverter().compress(
+                input: inputURL,
+                temporaryDirectory: root.appendingPathComponent("temp"),
+                ffmpegURL: nil,
+                probe: .unknown,
+                preset: .balanced,
+                progress: { _ in },
+                isCancelled: { false }
+            )
+            guard case let .files(outputs) = result, let output = outputs.first else {
+                return XCTFail("Kompresi tidak menghasilkan file")
+            }
+            let outputDoc = try XCTUnwrap(PDFDocument(url: output))
+            XCTAssertEqual(outputDoc.pageCount, 6)
+            let text = try XCTUnwrap(outputDoc.string)
+            XCTAssertTrue(text.contains("Ceyloro"), "Layer teks harus tetap utuh dan dapat disalin")
+            let outSize = (try FileManager.default.attributesOfItem(atPath: output.path)[.size] as? NSNumber)?.int64Value ?? 0
+            let inSize = (try FileManager.default.attributesOfItem(atPath: inputURL.path)[.size] as? NSNumber)?.int64Value ?? 0
+            XCTAssertLessThanOrEqual(outSize, inSize, "Ukuran output harus <= ukuran input")
+        } catch let compError as CompressionError {
+            // Jika file input 6 halaman sudah sangat kompak, guard clause melempar alreadyOptimal
+            // dan tidak membengkakkan file menjadi bitmap 2.8 MB (AC-1, AC-2, AC-4)
+            guard case .alreadyOptimal = compError else {
+                return XCTFail("Error tidak terduga: \(compError)")
+            }
+        }
+    }
 }

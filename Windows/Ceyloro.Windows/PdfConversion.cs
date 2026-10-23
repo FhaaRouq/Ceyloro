@@ -131,6 +131,27 @@ internal static class PdfConversion
         CancellationToken cancellationToken,
         Action<double> progress)
     {
+        // 1. Inspeksi tipe PDF: Text/Vector vs Scanned/Photo (Temuan 1 & Bagian 4.2 PRD)
+        bool hasText = false;
+        try
+        {
+            using var pigDoc = PdfPigDocument.Open(input);
+            hasText = pigDoc.GetPages().Any(p => !string.IsNullOrWhiteSpace(p.Text));
+        }
+        catch { }
+
+        if (hasText)
+        {
+            // Text/Vector PDF: DILARANG MERASTERISASI HALAMAN MENJADI BITMAP (AC-1).
+            // Pertahankan struktur vektor dan text layer.
+            cancellationToken.ThrowIfCancellationRequested();
+            progress(0.5);
+            File.Copy(input, output, overwrite: true);
+            progress(1.0);
+            return;
+        }
+
+        // 2. Scanned/Photo PDF: Halaman didominasi raster bitmap. Lakukan downsampling & JPEG kompresi.
         var storageFile = await StorageFile.GetFileFromPathAsync(input);
         var document = await PdfDocument.LoadFromFileAsync(storageFile);
         if (document.IsPasswordProtected)
@@ -146,8 +167,9 @@ internal static class PdfConversion
             for (var index = 0; index < document.PageCount; index++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                using var page = document.GetPage((uint)index);
-                using var stream = new InMemoryRandomAccessStream();
+                using (var page = document.GetPage((uint)index))
+                using (var stream = new InMemoryRandomAccessStream())
+                {
                 var maxDip = 2_000u;
                 var factor = Math.Min(maxDip / Math.Max(page.Size.Width, page.Size.Height), 1d);
                 var renderOptions = new PdfPageRenderOptions
