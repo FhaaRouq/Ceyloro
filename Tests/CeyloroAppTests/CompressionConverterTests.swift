@@ -19,7 +19,7 @@ final class CompressionConverterTests: XCTestCase {
         let representation = try XCTUnwrap(NSBitmapImageRep(data: tiff))
         try XCTUnwrap(representation.representation(using: .jpeg, properties: [.compressionFactor: 0.9])).write(to: input)
 
-        let result = try CompressionConverter().compress(input: input, temporaryDirectory: root.appendingPathComponent("temp"), ffmpegURL: nil, encoders: [], preset: .balanced, progress: { _ in }, isCancelled: { false })
+        let result = try CompressionConverter().compress(input: input, temporaryDirectory: root.appendingPathComponent("temp"), ffmpegURL: nil, probe: .unknown, preset: .balanced, progress: { _ in }, isCancelled: { false })
         guard case let .files(outputs) = result, let output = outputs.first else {
             return XCTFail("Kompresi gambar tidak menghasilkan satu file")
         }
@@ -57,7 +57,7 @@ final class CompressionConverterTests: XCTestCase {
             input: inputURL,
             temporaryDirectory: temp,
             ffmpegURL: nil,
-            encoders: [],
+            probe: .unknown,
             preset: .balanced,
             progress: { _ in },
             isCancelled: { false }
@@ -135,7 +135,7 @@ final class CompressionConverterTests: XCTestCase {
         let input = root.appendingPathComponent("proposal.docx")
         try Data("document payload".utf8).write(to: input)
 
-        let result = try CompressionConverter().compress(input: input, temporaryDirectory: root.appendingPathComponent("temp"), ffmpegURL: nil, encoders: [], preset: .balanced, progress: { _ in }, isCancelled: { false })
+        let result = try CompressionConverter().compress(input: input, temporaryDirectory: root.appendingPathComponent("temp"), ffmpegURL: nil, probe: .unknown, preset: .balanced, progress: { _ in }, isCancelled: { false })
         guard case let .files(outputs) = result, let output = outputs.first else {
             return XCTFail("Kompresi dokumen tidak menghasilkan ZIP")
         }

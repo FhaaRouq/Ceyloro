@@ -72,30 +72,30 @@ Status: [ ] = belum dimulai | [~] = sedang dikerjakan | [x] = selesai
   - [x] Tulis tes round-trip: arsip satu root, multi-root, dan file langsung di root →
         semua menghasilkan basename deterministik dari input
 
-- [ ] **Task B3 · Betulkan capability filtering GIF dan FFmpeg**
-  - [ ] Baca `Sources/CeyloroCore/FFmpegConversion.swift` dan `Sources/Ceyloro/EngineProbe.swift`
-  - [ ] Tambahkan enum `ProbeResult` dengan case `success(encoders:)`, `failed`, `unknown`
-  - [ ] Ubah `probeEncoders()` agar mengembalikan `ProbeResult` bukan `Set<String>`
-  - [ ] Ubah `FFmpegConversionPolicy.supports()` agar mengembalikan `false` untuk `failed`/`unknown`
-  - [ ] Baca `Windows/Ceyloro.Windows/ConversionEngine.cs`
-  - [ ] Tambahkan pengecekan capability FFmpeg dan encoder/muxer untuk semua target GIF→video/audio
-  - [ ] Tulis tes matriks macOS: probe sukses, probe gagal, encoder hilang
-  - [ ] Tulis tes Windows: FFmpeg hilang, probe gagal, encoder target tidak ada, semua tersedia
+- [x] **Task B3 · Betulkan capability filtering GIF dan FFmpeg**
+  - [x] Baca `Sources/CeyloroCore/FFmpegConversion.swift` dan `Sources/Ceyloro/EngineProbe.swift`
+  - [x] Tambahkan enum `ProbeResult` dengan case `success(encoders:)`, `failed`, `unknown`
+  - [x] Ubah `probeEncoders()` agar mengembalikan `ProbeResult` bukan `Set<String>`
+  - [x] Ubah `FFmpegConversionPolicy.supports()` agar mengembalikan `false` untuk `failed`/`unknown`
+  - [x] Baca `Windows/Ceyloro.Windows/ConversionEngine.cs`
+  - [x] Tambahkan pengecekan capability FFmpeg dan encoder/muxer untuk semua target GIF→video/audio
+  - [x] Tulis tes matriks macOS: probe sukses, probe gagal, encoder hilang
+  - [x] Tulis tes Windows: FFmpeg hilang, probe gagal, encoder target tidak ada, semua tersedia
 
-- [ ] **Task B4 · Drain stdout/stderr konkuren macOS**
-  - [ ] Baca `Sources/Ceyloro/DocumentConverter.swift` dan `Sources/Ceyloro/EngineProbe.swift`
-  - [ ] Refaktor `runProcess()` agar menggunakan `readabilityHandler` untuk drain stderr konkuren
-  - [ ] Pastikan readabilityHandler dibersihkan setelah proses selesai atau dibatalkan
-  - [ ] Pastikan timeout dan cancel memanggil `process.terminate()` dan cleanup staging
-  - [ ] Tulis tes: fake executable yang menulis 10 MB ke stderr → selesai tanpa hang
+- [x] **Task B4 · Drain stdout/stderr konkuren macOS**
+  - [x] Baca `Sources/Ceyloro/DocumentConverter.swift` dan `Sources/Ceyloro/EngineProbe.swift`
+  - [x] Refaktor `runProcess()` agar menggunakan `readabilityHandler` untuk drain stderr konkuren
+  - [x] Pastikan readabilityHandler dibersihkan setelah proses selesai atau dibatalkan
+  - [x] Pastikan timeout dan cancel memanggil `process.terminate()` dan cleanup staging
+  - [x] Tulis tes: fake executable yang menulis 10 MB ke stderr → selesai tanpa hang
 
-- [ ] **Task B5 · Perkuat updater macOS**
-  - [ ] Baca `Sources/Ceyloro/UpdateService.swift`
-  - [ ] Tambahkan validasi URL: hanya HTTPS, host harus `github.com` atau `objects.githubusercontent.com`
-  - [ ] Ubah staging ke direktori saudara sementara, bukan menimpa langsung
-  - [ ] Perluas `isValidAppBundle()`: tambahkan pengecekan bundle ID, versi, dan `codesign -v`
-  - [ ] Perbaiki `restore()`: hapus instalasi parsial sebelum restore jika app ada tapi tidak valid
-  - [ ] Tulis tes fault-injection: checksum salah, archive invalid, gagal copy, rollback verifikasi
+- [x] **Task B5 · Perkuat updater macOS**
+  - [x] Baca `Sources/Ceyloro/UpdateService.swift`
+  - [x] Tambahkan validasi URL: hanya HTTPS, host harus `github.com` atau `objects.githubusercontent.com`
+  - [x] Ubah staging ke direktori saudara sementara, bukan menimpa langsung
+  - [x] Perluas `isValidAppBundle()`: tambahkan pengecekan bundle ID, versi, dan `codesign -v`
+  - [x] Perbaiki `restore()`: hapus instalasi parsial sebelum restore jika app ada tapi tidak valid
+  - [x] Tulis tes fault-injection: checksum salah, archive invalid, gagal copy, rollback verifikasi
 
 - [ ] **Task B6 · Fix race ZIP macOS**
   - [ ] Baca `Sources/CeyloroCore/JobRunner.swift` dan `Sources/CeyloroCore/OutputNaming.swift`

@@ -162,6 +162,7 @@ final class CeyloroUpdateService {
     }
 
     private func download(_ url: URL, to destination: URL) async throws {
+        try validateDownloadURL(url)
         let (temporaryURL, response) = try await session.download(from: url)
         guard let httpResponse = response as? HTTPURLResponse, (200..<300).contains(httpResponse.statusCode) else {
             throw CeyloroUpdateError.invalidResponse
@@ -170,11 +171,23 @@ final class CeyloroUpdateService {
     }
 
     private func downloadData(_ url: URL) async throws -> Data {
+        try validateDownloadURL(url)
         let (data, response) = try await session.data(from: url)
         guard let httpResponse = response as? HTTPURLResponse, (200..<300).contains(httpResponse.statusCode) else {
             throw CeyloroUpdateError.invalidResponse
         }
         return data
+    }
+
+    /// Validasi URL pembaruan: hanya HTTPS, host harus github.com atau objects.githubusercontent.com (B5).
+    private func validateDownloadURL(_ url: URL) throws {
+        guard url.scheme == "https" else {
+            throw CeyloroUpdateError.engineFailed("URL pembaruan harus menggunakan HTTPS.")
+        }
+        guard let host = url.host?.lowercased(),
+              host == "github.com" || host == "objects.githubusercontent.com" else {
+            throw CeyloroUpdateError.engineFailed("Host URL pembaruan tidak diizinkan: \(host ?? "tidak diketahui")")
+        }
     }
 
     private func parseChecksum(_ data: Data) -> String? {
@@ -204,10 +217,33 @@ final class CeyloroUpdateService {
         }
     }
 
+    /// Validasi app bundle: executable, Info.plist, bundle ID, versi, dan codesign (B5).
     private func isValidAppBundle(_ appURL: URL) -> Bool {
         let executable = appURL.appendingPathComponent("Contents/MacOS/Ceyloro")
         let infoPlist = appURL.appendingPathComponent("Contents/Info.plist")
-        return fileManager.isExecutableFile(atPath: executable.path) && fileManager.isReadableFile(atPath: infoPlist.path)
+        guard fileManager.isExecutableFile(atPath: executable.path),
+              fileManager.isReadableFile(atPath: infoPlist.path) else { return false }
+
+        // Periksa bundle ID dan versi dari Info.plist
+        guard let plist = NSDictionary(contentsOf: infoPlist),
+              let bundleId = plist["CFBundleIdentifier"] as? String,
+              bundleId == "com.node.Ceyloro",
+              let version = plist["CFBundleShortVersionString"] as? String,
+              !version.isEmpty else { return false }
+
+        // Periksa codesign validitas (B5)
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
+        process.arguments = ["-v", appURL.path]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        do {
+            try process.run()
+            process.waitUntilExit()
+            return process.terminationStatus == 0
+        } catch {
+            return false
+        }
     }
 
     private func launchUpdater(currentAppURL: URL, stagedAppURL: URL, workDirectory: URL) throws {
@@ -220,17 +256,27 @@ final class CeyloroUpdateService {
         process_id="$3"
         root="$4"
         backup="${current}.update-backup-$$"
+        new="${current}.ceyloro-new"
         restore() {
+            # Hapus instalasi parsial sebelum restore jika app ada tapi tidak valid (B5)
+            if [ -e "$current" ] && [ ! -f "$current/Contents/Info.plist" ]; then
+                /bin/rm -rf "$current"
+            fi
             if [ ! -e "$current" ] && [ -e "$backup" ]; then
                 /bin/mv "$backup" "$current"
             fi
+            /bin/rm -rf "$new" "$root" "$0"
             exit 1
         }
         while /bin/kill -0 "$process_id" 2>/dev/null; do
             /bin/sleep 1
         done
+        # Salin staged app ke direktori saudara sementara, bukan langsung ke current (B5)
+        # Jika ditto gagal, aplikasi saat ini tidak tersentuh.
+        /usr/bin/ditto "$staged" "$new" || { /bin/rm -rf "$new"; exit 1; }
+        # Swap: current → backup, new → current (rename atomik pada filesystem yang sama)
         /bin/mv "$current" "$backup" || restore
-        /usr/bin/ditto "$staged" "$current" || restore
+        /bin/mv "$new" "$current" || restore
         /usr/bin/open "$current"
         /bin/rm -rf "$backup" "$root" "$0"
         """

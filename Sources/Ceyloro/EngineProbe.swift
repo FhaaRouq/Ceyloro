@@ -28,27 +28,42 @@ struct RuntimeEngineProbe {
             searchPaths: searchPaths,
             environmentPath: environment["PATH"]
         )
-        let encoders = ffmpegURL.map(Self.probeEncoders(at:)) ?? []
+        let probeResult = ffmpegURL.map(Self.probeEncoders(at:)) ?? .unknown
         let avFoundation = Self.probeAVFoundation()
         let documentLocator = DocumentEngineLocator()
         let libreOfficeURL = documentLocator.locateLibreOffice(customPath: UserDefaults.standard.string(forKey: "libreOfficePath"), searchPaths: searchPaths, environmentPath: environment["PATH"])
         let pandocURL = documentLocator.locatePandoc(customPath: UserDefaults.standard.string(forKey: "pandocPath"), searchPaths: searchPaths, environmentPath: environment["PATH"])
-        return EngineAvailability(avFoundation: avFoundation, ffmpegURL: ffmpegURL, encoders: encoders, libreOfficeURL: libreOfficeURL, pandocURL: pandocURL)
+        return EngineAvailability(avFoundation: avFoundation, ffmpegURL: ffmpegURL, probeResult: probeResult, libreOfficeURL: libreOfficeURL, pandocURL: pandocURL)
     }
 
-    static func probeEncoders(at url: URL) -> Set<String> {
+    static func probeEncoders(at url: URL) -> ProbeResult {
         let process = Process()
         process.executableURL = url
         process.arguments = ["-encoders"]
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = Pipe()
+        let outputPipe = Pipe()
+        process.standardOutput = outputPipe
+        // Redirect stderr ke nullDevice — sebelum fix, Pipe() yang tidak pernah dibaca
+        // dapat menyebabkan deadlock jika output stderr besar (B4).
+        process.standardError = FileHandle.nullDevice
+
+        // Drain stdout secara konkuren menggunakan readabilityHandler (B4).
+        let outputQueue = DispatchQueue(label: "com.node.ceyloro.probe-stdout")
+        var outputBuffer = Data()
+        outputPipe.fileHandleForReading.readabilityHandler = { handle in
+            let data = handle.availableData
+            guard !data.isEmpty else { return }
+            outputQueue.sync { outputBuffer.append(data) }
+        }
+
         do {
             try process.run()
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
             process.waitUntilExit()
-            guard process.terminationStatus == 0, let text = String(data: data, encoding: .utf8) else {
-                return []
+            outputPipe.fileHandleForReading.readabilityHandler = nil
+            let remaining = outputPipe.fileHandleForReading.readDataToEndOfFile()
+            outputQueue.sync { outputBuffer.append(remaining) }
+
+            guard process.terminationStatus == 0, let text = String(data: outputBuffer, encoding: .utf8) else {
+                return .failed
             }
             var encoders = Set<String>()
             for line in text.components(separatedBy: .newlines) {
@@ -59,9 +74,9 @@ struct RuntimeEngineProbe {
                     encoders.insert(String(parts[1]).lowercased())
                 }
             }
-            return encoders
+            return .success(encoders: encoders)
         } catch {
-            return []
+            return .failed
         }
     }
 

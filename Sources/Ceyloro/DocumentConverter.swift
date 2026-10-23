@@ -328,8 +328,26 @@ final class DocumentConverter {
         process.standardOutput = FileHandle.nullDevice
         let errorPipe = Pipe()
         process.standardError = errorPipe
+
+        // Drain stderr secara konkuren menggunakan readabilityHandler (B4).
+        // Tanpa drain konkuren, pipe buffer (~64 KB) penuh → process block → deadlock.
+        let errorQueue = DispatchQueue(label: "com.node.ceyloro.doc-converter-stderr")
+        var errorBuffer = Data()
+        errorPipe.fileHandleForReading.readabilityHandler = { handle in
+            let data = handle.availableData
+            guard !data.isEmpty else { return }
+            errorQueue.sync {
+                errorBuffer.append(data)
+                if errorBuffer.count > 16384 { errorBuffer = errorBuffer.suffix(16384) }
+            }
+        }
+
         try process.run()
         let deadline = Date().addingTimeInterval(timeout)
+
+        // Pastikan readabilityHandler dibersihkan di semua jalur keluar (B4).
+        defer { errorPipe.fileHandleForReading.readabilityHandler = nil }
+
         while process.isRunning {
             if isCancelled() {
                 process.terminate()
@@ -343,7 +361,13 @@ final class DocumentConverter {
             }
             Thread.sleep(forTimeInterval: 0.05)
         }
-        let errorOutput = String(data: errorPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)
+
+        // Hentikan handler, lalu baca sisa data yang belum tertangkap.
+        errorPipe.fileHandleForReading.readabilityHandler = nil
+        let remaining = errorPipe.fileHandleForReading.readDataToEndOfFile()
+        errorQueue.sync { errorBuffer.append(remaining) }
+
+        let errorOutput = String(data: errorBuffer, encoding: .utf8) ?? ""
         guard process.terminationStatus == 0 else {
             throw ConversionError.documentEngineFailed(reason: errorOutput)
         }

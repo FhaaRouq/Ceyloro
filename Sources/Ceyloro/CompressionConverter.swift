@@ -15,7 +15,7 @@ final class CompressionConverter {
         self.ffmpegConverter = ffmpegConverter
     }
 
-    func supports(files: [URL], ffmpegURL: URL?, encoders: Set<String>) -> Bool {
+    func supports(files: [URL], ffmpegURL: URL?, probe: ProbeResult) -> Bool {
         guard let plan = CompressionPolicy.commonPlan(for: files.map(FileFormat.detect(url:))) else { return false }
         guard files.allSatisfy({ fileManager.isReadableFile(atPath: $0.path) }) else { return false }
         switch plan.kind {
@@ -28,14 +28,14 @@ final class CompressionConverter {
             return fileManager.isExecutableFile(atPath: ffmpegURL.path) && files.allSatisfy {
                 let format = FileFormat.detect(url: $0)
                 guard let target = TargetFormat(rawValue: format.fileExtension) else { return false }
-                return FFmpegConversionPolicy.supports(target: target, encoders: encoders)
+                return FFmpegConversionPolicy.supports(target: target, probe: probe)
             }
         case .document:
             return true
         }
     }
 
-    func compress(input: URL, temporaryDirectory: URL, ffmpegURL: URL?, encoders: Set<String>, preset: CompressionPreset, progress: @escaping (Double) -> Void, isCancelled: @escaping () -> Bool) throws -> ConversionResult {
+    func compress(input: URL, temporaryDirectory: URL, ffmpegURL: URL?, probe: ProbeResult, preset: CompressionPreset, progress: @escaping (Double) -> Void, isCancelled: @escaping () -> Bool) throws -> ConversionResult {
         guard let plan = CompressionPolicy.plan(for: FileFormat.detect(url: input)) else { throw ConversionError.unsupportedConversion }
         try fileManager.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
         switch plan.kind {
@@ -44,7 +44,7 @@ final class CompressionConverter {
             return try imageConverter.convert(input: input, target: target, temporaryDirectory: temporaryDirectory, progress: progress, isCancelled: isCancelled, options: ImageConversionOptions(jpgQuality: preset == .smaller ? 0.72 : 0.82, heicQuality: preset == .smaller ? 0.65 : 0.78))
         case .audio, .video:
             guard let target = TargetFormat(rawValue: plan.outputExtension) else { throw ConversionError.unsupportedConversion }
-            return try ffmpegConverter.convert(input: input, target: target, temporaryDirectory: temporaryDirectory, ffmpegURL: ffmpegURL, encoders: encoders, progress: progress, isCancelled: isCancelled, allowSameFormat: true, compression: preset)
+            return try ffmpegConverter.convert(input: input, target: target, temporaryDirectory: temporaryDirectory, ffmpegURL: ffmpegURL, probe: probe, progress: progress, isCancelled: isCancelled, allowSameFormat: true, compression: preset)
         case .pdf:
             return try compressPDF(input: input, temporaryDirectory: temporaryDirectory, progress: progress, isCancelled: isCancelled)
         case .document:

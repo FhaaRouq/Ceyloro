@@ -13,9 +13,40 @@ final class FFmpegConverterTests: XCTestCase {
         try Data("#!/bin/sh\nexit 0\n".utf8).write(to: fake)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fake.path)
 
-        let targets = FFmpegConverter().supportedTargets(for: [gif], candidates: [.mp4, .jpg, .gif], ffmpegURL: fake)
+        let probe = ProbeResult.success(encoders: ["mpeg4", "aac"])
+        let targets = FFmpegConverter().supportedTargets(for: [gif], candidates: [.mp4, .jpg, .gif], ffmpegURL: fake, probe: probe)
 
         XCTAssertEqual(targets, [.mp4])
+    }
+
+    func testAnimatedGIFReturnsNoTargetsWithUnknownProbe() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("CeyloroGIFUnknown-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let fake = root.appendingPathComponent("ffmpeg")
+        let gif = root.appendingPathComponent("animation.gif")
+        try Data("fixture".utf8).write(to: gif)
+        try Data("#!/bin/sh\nexit 0\n".utf8).write(to: fake)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fake.path)
+
+        // Probe unknown → tidak ada target yang ditawarkan (B3)
+        let targets = FFmpegConverter().supportedTargets(for: [gif], candidates: [.mp4, .mov, .mkv], ffmpegURL: fake, probe: .unknown)
+        XCTAssertTrue(targets.isEmpty, "Unknown probe must not offer any targets (B3).")
+    }
+
+    func testAnimatedGIFReturnsNoTargetsWithFailedProbe() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("CeyloroGIFFailed-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let fake = root.appendingPathComponent("ffmpeg")
+        let gif = root.appendingPathComponent("animation.gif")
+        try Data("fixture".utf8).write(to: gif)
+        try Data("#!/bin/sh\nexit 0\n".utf8).write(to: fake)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fake.path)
+
+        // Probe failed → tidak ada target yang ditawarkan (B3)
+        let targets = FFmpegConverter().supportedTargets(for: [gif], candidates: [.mp4, .mov, .mkv], ffmpegURL: fake, probe: .failed)
+        XCTAssertTrue(targets.isEmpty, "Failed probe must not offer any targets (B3).")
     }
 
     func testExecutableBridgeProducesOutput() throws {
@@ -30,7 +61,7 @@ final class FFmpegConverterTests: XCTestCase {
         try Data(script.utf8).write(to: fake)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fake.path)
 
-        let result = try FFmpegConverter().convert(input: input, target: .mp3, temporaryDirectory: temporary, ffmpegURL: fake, progress: { _ in }, isCancelled: { false })
+        let result = try FFmpegConverter().convert(input: input, target: .mp3, temporaryDirectory: temporary, ffmpegURL: fake, probe: .success(encoders: ["libmp3lame"]), progress: { _ in }, isCancelled: { false })
         let output = try XCTUnwrap(result.first)
         XCTAssertEqual(try Data(contentsOf: output), Data("fixture".utf8))
     }
@@ -63,7 +94,7 @@ final class FFmpegConverterTests: XCTestCase {
         try Data(script.utf8).write(to: fake)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fake.path)
 
-        XCTAssertThrowsError(try FFmpegConverter().convert(input: input, target: .mp3, temporaryDirectory: temporary, ffmpegURL: fake, progress: { _ in }, isCancelled: { false })) { error in
+        XCTAssertThrowsError(try FFmpegConverter().convert(input: input, target: .mp3, temporaryDirectory: temporary, ffmpegURL: fake, probe: .success(encoders: ["libmp3lame"]), progress: { _ in }, isCancelled: { false })) { error in
             guard case let .ffmpegFailed(reason) = error as? ConversionError else {
                 return XCTFail("Expected ConversionError.ffmpegFailed but got \(error)")
             }

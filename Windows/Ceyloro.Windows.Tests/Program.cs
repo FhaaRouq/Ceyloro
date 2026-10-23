@@ -1,6 +1,7 @@
 using System.Drawing.Imaging;
 using System.Formats.Tar;
 using System.IO.Compression;
+using System.Reflection;
 using System.Text;
 using Ceyloro.Windows;
 using DrawingEncoder = System.Drawing.Imaging.Encoder;
@@ -33,7 +34,12 @@ var tests = new (string Name, Action Run)[]
     // B2 regression: root nama arsip harus deterministik dari nama file input, bukan GUID staging
     ("archive root naming uses input basename for single root", ArchiveRootNamingSingleRoot),
     ("archive root naming uses input basename for multi root", ArchiveRootNamingMultiRoot),
-    ("archive root naming uses input basename for direct files", ArchiveRootNamingDirectFiles)
+    ("archive root naming uses input basename for direct files", ArchiveRootNamingDirectFiles),
+    // B3 regression: GIF→video/audio targets harus difilter berdasarkan kapabilitas FFmpeg
+    ("gif capability filtering rejects video targets without ffmpeg", GifCapabilityFilteringNoFfmpeg),
+    ("gif capability filtering accepts targets when all encoders available", GifCapabilityFilteringAllAvailable),
+    ("gif capability filtering rejects target when encoder missing", GifCapabilityFilteringEncoderMissing),
+    ("gif capability filtering rejects target when muxer missing", GifCapabilityFilteringMuxerMissing)
 };
 
 var failures = new List<string>();
@@ -482,6 +488,94 @@ static void ArchiveRootNamingDirectFiles()
         "Direct file should appear under logical basename.");
     Ensure(fullNames.Any(n => n == "myarchive/file2.txt"),
         "Direct file should appear under logical basename.");
+}
+
+// B3 regression: GIF tanpa FFmpeg tidak boleh menawarkan target video/audio
+static void GifCapabilityFilteringNoFfmpeg()
+{
+    using var temp = new TestDirectory();
+    var gifPath = Path.Combine(temp.Path, "animation.gif");
+    CreateAnimatedGif(gifPath);
+
+    // SettingsStore default → FfmpegPath kosong → ResolveFfmpegPath throws → capabilities null
+    var engine = new ConversionEngine(new SettingsStore());
+    var targets = engine.TargetsFor(new[] { gifPath });
+
+    Ensure(!targets.Contains("mp4"), "GIF without FFmpeg must not offer MP4 (B3).");
+    Ensure(!targets.Contains("mov"), "GIF without FFmpeg must not offer MOV (B3).");
+    Ensure(!targets.Contains("mp3"), "GIF without FFmpeg must not offer MP3 (B3).");
+    Ensure(!targets.Contains("mkv"), "GIF without FFmpeg must not offer MKV (B3).");
+}
+
+// B3 regression: semua encoder/muxer tersedia → target video/audio didukung
+static void GifCapabilityFilteringAllAvailable()
+{
+    var caps = CreateFfmpegCapabilities(
+        encoders: ["mpeg4", "aac", "libmp3lame", "pcm_s16le", "gif", "vp9", "opus", "wmv2", "wmav2"],
+        decoders: ["gif", "mjpeg", "png"],
+        muxers: ["mp4", "mov", "mkv", "webm", "avi", "asf", "mp3", "wav", "flac", "ogg", "opus", "aiff", "gif", "ipod", "mov"]);
+
+    Ensure(caps.Supports("mp4"), "All-capability FFmpeg should support MP4 for GIF conversion.");
+    Ensure(caps.Supports("mp3"), "All-capability FFmpeg should support MP3 for GIF conversion.");
+    Ensure(caps.Supports("mov"), "All-capability FFmpeg should support MOV for GIF conversion.");
+    Ensure(caps.Supports("webm"), "All-capability FFmpeg should support WebM for GIF conversion.");
+}
+
+// B3 regression: encoder video hilang → target video tidak didukung, audio tetap bisa
+static void GifCapabilityFilteringEncoderMissing()
+{
+    var caps = CreateFfmpegCapabilities(
+        encoders: ["aac", "libmp3lame"], // no mpeg4/libx264/h264
+        decoders: ["gif"],
+        muxers: ["mp4", "mp3", "wav"]);
+
+    Ensure(!caps.Supports("mp4"), "FFmpeg without video encoder must not support MP4.");
+    Ensure(!caps.Supports("mov"), "FFmpeg without video encoder must not support MOV.");
+    Ensure(caps.Supports("mp3"), "FFmpeg with libmp3lame should still support MP3.");
+}
+
+// B3 regression: muxer hilang → target tidak didukung meski encoder ada
+static void GifCapabilityFilteringMuxerMissing()
+{
+    var caps = CreateFfmpegCapabilities(
+        encoders: ["mpeg4", "aac", "libmp3lame"],
+        decoders: ["gif"],
+        muxers: ["mp3"]); // no mp4/mov/mkv muxer
+
+    Ensure(!caps.Supports("mp4"), "FFmpeg with encoder but no mp4 muxer must not support MP4.");
+    Ensure(caps.Supports("mp3"), "FFmpeg with libmp3lame and mp3 muxer should support MP3.");
+}
+
+static FfmpegCapabilities CreateFfmpegCapabilities(string[] encoders, string[] decoders, string[] muxers)
+{
+    var constructor = typeof(FfmpegCapabilities).GetConstructor(
+        BindingFlags.NonPublic | BindingFlags.Instance,
+        null,
+        [typeof(HashSet<string>), typeof(HashSet<string>), typeof(HashSet<string>)],
+        null)!;
+    return (FfmpegCapabilities)constructor.Invoke([
+        new HashSet<string>(encoders, StringComparer.OrdinalIgnoreCase),
+        new HashSet<string>(decoders, StringComparer.OrdinalIgnoreCase),
+        new HashSet<string>(muxers, StringComparer.OrdinalIgnoreCase)
+    ]);
+}
+
+static void CreateAnimatedGif(string path)
+{
+    using var first = new Bitmap(2, 2);
+    using var second = new Bitmap(2, 2);
+    first.SetPixel(0, 0, Color.Red);
+    second.SetPixel(0, 0, Color.Blue);
+    var codec = ImageCodecInfo.GetImageEncoders().Single(encoder => encoder.MimeType == "image/gif");
+    using var parameters = new EncoderParameters(1);
+    parameters.Param[0] = new EncoderParameter(DrawingEncoder.SaveFlag, (long)EncoderValue.MultiFrame);
+    first.Save(path, codec, parameters);
+    parameters.Param[0].Dispose();
+    parameters.Param[0] = new EncoderParameter(DrawingEncoder.SaveFlag, (long)EncoderValue.FrameDimensionTime);
+    first.SaveAdd(second, parameters);
+    parameters.Param[0].Dispose();
+    parameters.Param[0] = new EncoderParameter(DrawingEncoder.SaveFlag, (long)EncoderValue.Flush);
+    first.SaveAdd(parameters);
 }
 
 static void WriteZip(string path, params (string Name, string Content)[] entries)

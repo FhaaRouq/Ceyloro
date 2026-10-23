@@ -3,16 +3,21 @@ import Foundation
 public struct EngineAvailability: Equatable, Sendable {
     public let avFoundation: Bool
     public let ffmpegURL: URL?
-    public let encoders: Set<String>
+    public let probeResult: ProbeResult
     public let libreOfficeURL: URL?
     public let pandocURL: URL?
 
-    public init(avFoundation: Bool, ffmpegURL: URL? = nil, encoders: Set<String> = [], libreOfficeURL: URL? = nil, pandocURL: URL? = nil) {
+    public init(avFoundation: Bool, ffmpegURL: URL? = nil, probeResult: ProbeResult = .unknown, libreOfficeURL: URL? = nil, pandocURL: URL? = nil) {
         self.avFoundation = avFoundation
         self.ffmpegURL = ffmpegURL
-        self.encoders = encoders
+        self.probeResult = probeResult
         self.libreOfficeURL = libreOfficeURL
         self.pandocURL = pandocURL
+    }
+
+    /// Encoder set dari probe; kosong jika probe gagal atau belum dijalankan.
+    public var encoders: Set<String> {
+        probeResult.encoders
     }
 
     public var hasAudioVideoEngine: Bool {

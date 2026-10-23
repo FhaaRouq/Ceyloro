@@ -58,6 +58,9 @@ public sealed class ConversionEngine
                 format.Kind is PortableMediaKind.Audio or PortableMediaKind.Video ||
                 (format.Kind == PortableMediaKind.Image &&
                     (target == "heic" || ((target is "jpg" or "png" or "tiff") && !WindowsImageConverter.CanDecode(format.Extension)))));
+            // B3: GIF animasi → target video/audio juga memerlukan FFmpeg dan harus diperiksa kapabilitasnya.
+            if (hasAnimatedGif && !needsFfmpeg && target is not ("gif" or "png" or "pdf"))
+                needsFfmpeg = true;
             return !needsFfmpeg || capabilities?.Supports(target) == true;
         }).ToArray();
     }

@@ -20,7 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
     private let documentConverter = DocumentConverter()
     private let updateService = CeyloroUpdateService()
     private var ffmpegURL: URL?
-    private var ffmpegEncoders: Set<String> = []
+    private var ffmpegEncoders: ProbeResult = .unknown
     private var libreOfficeURL: URL?
     private var pandocURL: URL?
     private let engineProbe = RuntimeEngineProbe()
@@ -145,7 +145,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
                 self.ffmpegURL = engineStatus.ffmpegURL
-                self.ffmpegEncoders = engineStatus.encoders
+                self.ffmpegEncoders = engineStatus.probeResult
                 self.libreOfficeURL = engineStatus.libreOfficeURL
                 self.pandocURL = engineStatus.pandocURL
                 self.log("Engine AVFoundation: \(engineStatus.avFoundation ? "tersedia" : "tidak tersedia"); FFmpeg: \(engineStatus.ffmpegURL?.path ?? "tidak ditemukan") (encoders: \(engineStatus.encoders.count)); LibreOffice: \(engineStatus.libreOfficeURL?.path ?? "tidak ditemukan"); pandoc: \(engineStatus.pandocURL?.path ?? "tidak ditemukan")")
@@ -269,18 +269,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
             let formats = matrix.commonTargets(for: detected)
             if detected.allSatisfy({ $0.kind == .audio }) {
                 let native = Set(audioConverter.supportedTargets(for: files, candidates: formats))
-                let ffmpeg = Set(ffmpegConverter.supportedTargets(for: files, candidates: formats, ffmpegURL: ffmpegURL, encoders: ffmpegEncoders))
+                let ffmpeg = Set(ffmpegConverter.supportedTargets(for: files, candidates: formats, ffmpegURL: ffmpegURL, probe: ffmpegEncoders))
                 return formats.filter { native.contains($0) || ffmpeg.contains($0) }.map { WheelItem(title: $0.title, target: $0, action: nil) }
             }
             if detected.allSatisfy({ $0.kind == .video }) {
                 let native = Set(videoConverter.supportedTargets(for: files, candidates: formats))
-                let ffmpeg = Set(ffmpegConverter.supportedTargets(for: files, candidates: formats, ffmpegURL: ffmpegURL, encoders: ffmpegEncoders))
+                let ffmpeg = Set(ffmpegConverter.supportedTargets(for: files, candidates: formats, ffmpegURL: ffmpegURL, probe: ffmpegEncoders))
                 return formats.filter { native.contains($0) || ffmpeg.contains($0) }.map { WheelItem(title: $0.title, target: $0, action: nil) }
             }
             if detected.allSatisfy({ $0.fileExtension == "gif" }) {
                 let hasAnimated = files.contains { ImageConverter.isAnimatedGIF(at: $0) }
                 if hasAnimated {
-                    let videoTargets = ffmpegConverter.supportedTargets(for: files, candidates: FFmpegConversionPolicy.videoTargets, ffmpegURL: ffmpegURL, encoders: ffmpegEncoders)
+                    let videoTargets = ffmpegConverter.supportedTargets(for: files, candidates: FFmpegConversionPolicy.videoTargets, ffmpegURL: ffmpegURL, probe: ffmpegEncoders)
                     let imageTargets = converter.supportedTargets(for: files, candidates: [.png, .pdf])
                     return (videoTargets + imageTargets).map { WheelItem(title: $0.title, target: $0, action: nil) }
                 } else {
@@ -304,7 +304,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
             }
             return converter.supportedTargets(for: files, candidates: formats).map { WheelItem(title: $0.title, target: $0, action: nil) }
         case .tools:
-            guard compressionConverter.supports(files: files, ffmpegURL: ffmpegURL, encoders: ffmpegEncoders) else { return [] }
+            guard compressionConverter.supports(files: files, ffmpegURL: ffmpegURL, probe: ffmpegEncoders) else { return [] }
             return [WheelItem(title: "Kompres", target: nil, action: .compress)]
         case .actions:
             return [
@@ -359,18 +359,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
                     if audioConverter.supportedTargets(for: [input], candidates: [target]).contains(target) {
                         return try audioConverter.convert(input: input, target: target, temporaryDirectory: audioTemp, progress: progress, isCancelled: cancelled)
                     }
-                    return try ffmpegConverter.convert(input: input, target: target, temporaryDirectory: audioTemp, ffmpegURL: ffmpegURL, encoders: ffmpegEncoders, progress: progress, isCancelled: cancelled)
+                    return try ffmpegConverter.convert(input: input, target: target, temporaryDirectory: audioTemp, ffmpegURL: ffmpegURL, probe: ffmpegEncoders, progress: progress, isCancelled: cancelled)
                 }
                 if inputFormat.kind == .video {
                     let videoTemp = temp.appendingPathComponent(UUID().uuidString)
                     if videoConverter.supportedTargets(for: [input], candidates: [target]).contains(target) {
                         return try videoConverter.convert(input: input, target: target, temporaryDirectory: videoTemp, progress: progress, isCancelled: cancelled)
                     }
-                    return try ffmpegConverter.convert(input: input, target: target, temporaryDirectory: videoTemp, ffmpegURL: ffmpegURL, encoders: ffmpegEncoders, progress: progress, isCancelled: cancelled)
+                    return try ffmpegConverter.convert(input: input, target: target, temporaryDirectory: videoTemp, ffmpegURL: ffmpegURL, probe: ffmpegEncoders, progress: progress, isCancelled: cancelled)
                 }
                 if inputFormat.fileExtension == "gif" {
                     if FFmpegConversionPolicy.videoTargets.contains(target) {
-                        return try ffmpegConverter.convert(input: input, target: target, temporaryDirectory: temp.appendingPathComponent(UUID().uuidString), ffmpegURL: ffmpegURL, encoders: ffmpegEncoders, progress: progress, isCancelled: cancelled)
+                        return try ffmpegConverter.convert(input: input, target: target, temporaryDirectory: temp.appendingPathComponent(UUID().uuidString), ffmpegURL: ffmpegURL, probe: ffmpegEncoders, progress: progress, isCancelled: cancelled)
                     }
                     return try converter.convert(input: input, target: target, temporaryDirectory: temp.appendingPathComponent(UUID().uuidString), progress: progress, isCancelled: cancelled, options: imageOptions)
                 }
@@ -474,7 +474,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
     private func submitCompression(files: [URL]) {
         guard let plan = CompressionPolicy.commonPlan(for: files.map(FileFormat.detect(url:))),
               let target = TargetFormat(rawValue: plan.outputExtension),
-              compressionConverter.supports(files: files, ffmpegURL: ffmpegURL, encoders: ffmpegEncoders) else {
+              compressionConverter.supports(files: files, ffmpegURL: ffmpegURL, probe: ffmpegEncoders) else {
             showError("Format file ini belum dapat dikompres di perangkat ini.")
             return
         }
@@ -482,7 +482,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, RadialOverlayDelegate 
         let ffmpegURL = self.ffmpegURL
         let encoders = self.ffmpegEncoders
         let id = runner.submit(inputs: files, target: target, outputDirectory: outputDirectory, outputSuffix: "terkompres", outputExtension: plan.outputExtension, processor: { [compressionConverter] input, _, temp, progress, cancelled in
-            try compressionConverter.compress(input: input, temporaryDirectory: temp.appendingPathComponent(UUID().uuidString), ffmpegURL: ffmpegURL, encoders: encoders, preset: .balanced, progress: progress, isCancelled: cancelled)
+            try compressionConverter.compress(input: input, temporaryDirectory: temp.appendingPathComponent(UUID().uuidString), ffmpegURL: ffmpegURL, probe: encoders, preset: .balanced, progress: progress, isCancelled: cancelled)
         }) { [weak self] snapshot in
             self?.handle(snapshot: snapshot)
         }

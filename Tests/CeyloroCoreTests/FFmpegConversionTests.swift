@@ -83,11 +83,35 @@ final class FFmpegConversionTests: XCTestCase {
 
     func testPolicyValidatesEncodersWhenProvided() {
         let encoders: Set<String> = ["libmp3lame", "aac", "mpeg4"]
-        XCTAssertTrue(FFmpegConversionPolicy.supports(target: .mp3, encoders: encoders))
-        XCTAssertTrue(FFmpegConversionPolicy.supports(target: .m4a, encoders: encoders))
-        XCTAssertTrue(FFmpegConversionPolicy.supports(target: .mp4, encoders: encoders))
+        let probe = ProbeResult.success(encoders: encoders)
+        XCTAssertTrue(FFmpegConversionPolicy.supports(target: .mp3, probe: probe))
+        XCTAssertTrue(FFmpegConversionPolicy.supports(target: .m4a, probe: probe))
+        XCTAssertTrue(FFmpegConversionPolicy.supports(target: .mp4, probe: probe))
         // WebM needs vp9/vp8 and opus/vorbis
-        XCTAssertFalse(FFmpegConversionPolicy.supports(target: .webm, encoders: encoders))
+        XCTAssertFalse(FFmpegConversionPolicy.supports(target: .webm, probe: probe))
+    }
+
+    // MARK: - B3 regression: ProbeResult.failed dan .unknown harus menolak semua target
+
+    func testProbeFailedRejectsAllTargets() {
+        XCTAssertFalse(FFmpegConversionPolicy.supports(target: .mp3, probe: .failed))
+        XCTAssertFalse(FFmpegConversionPolicy.supports(target: .mp4, probe: .failed))
+        XCTAssertFalse(FFmpegConversionPolicy.supports(target: .gif, probe: .failed))
+    }
+
+    func testProbeUnknownRejectsAllTargets() {
+        XCTAssertFalse(FFmpegConversionPolicy.supports(target: .mp3, probe: .unknown))
+        XCTAssertFalse(FFmpegConversionPolicy.supports(target: .mp4, probe: .unknown))
+        XCTAssertFalse(FFmpegConversionPolicy.supports(target: .gif, probe: .unknown))
+    }
+
+    func testProbeSuccessWithMissingEncoderRejectsTarget() {
+        // Encoder tersedia: hanya aac — MP3 tidak boleh ditawarkan
+        let probe = ProbeResult.success(encoders: ["aac"])
+        XCTAssertFalse(FFmpegConversionPolicy.supports(target: .mp3, probe: probe))
+        XCTAssertTrue(FFmpegConversionPolicy.supports(target: .m4a, probe: probe))
+        // MP4 butuh video encoder (mpeg4/libx264/h264) — tidak ada → ditolak
+        XCTAssertFalse(FFmpegConversionPolicy.supports(target: .mp4, probe: probe))
     }
 
     func testAdaptiveArgumentsPreferAvailableEncoders() {

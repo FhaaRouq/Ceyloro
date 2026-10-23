@@ -1,5 +1,23 @@
 import Foundation
 
+/// Hasil probe encoder FFmpeg.
+/// - `.success(encoders:)`: probe berhasil, berisi daftar encoder yang tersedia.
+/// - `.failed`: probe dijalankan tapi gagal (FFmpeg error, exit non-zero).
+/// - `.unknown`: probe belum dijalankan atau FFmpeg tidak ditemukan.
+/// `FFmpegConversionPolicy.supports` mengembalikan `false` untuk `.failed` dan `.unknown`
+/// agar target tidak ditawarkan tanpa verifikasi kemampuan (temuan B3).
+public enum ProbeResult: Equatable, Sendable {
+    case success(encoders: Set<String>)
+    case failed
+    case unknown
+
+    /// Encoder set dari hasil probe; kosong untuk `.failed`/`.unknown`.
+    public var encoders: Set<String> {
+        if case .success(let encoders) = self { return encoders }
+        return []
+    }
+}
+
 public struct FFmpegConversionPolicy: Sendable {
     public static let audioTargets: [TargetFormat] = [.mp3, .m4a, .wav, .flac, .ogg, .opus, .aiff]
     public static let videoTargets: [TargetFormat] = [.mp4, .mov, .mkv, .webm, .avi, .wmv, .gif]
@@ -17,8 +35,13 @@ public struct FFmpegConversionPolicy: Sendable {
         }
     }
 
-    public static func supports(target: TargetFormat, encoders: Set<String>) -> Bool {
-        guard !encoders.isEmpty else { return true }
+    public static func supports(target: TargetFormat, probe: ProbeResult) -> Bool {
+        switch probe {
+        case .failed, .unknown:
+            return false
+        case .success(let encoders):
+            break
+        }
         switch target {
         case .mp3:
             return encoders.contains("libshine") || encoders.contains("libmp3lame") || encoders.contains("mp3")

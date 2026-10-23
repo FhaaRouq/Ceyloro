@@ -133,6 +133,55 @@ final class DocumentConverterTests: XCTestCase {
         XCTAssertGreaterThan(try Data(contentsOf: docx).count, 0)
     }
 
+    // MARK: - Regression test B4: drain stderr konkuren — 10 MB ke stderr tidak boleh hang
+
+    func testRunProcessHandlesLargeStderrWithoutHang() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("CeyloroB4-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        // Buat fake pandoc yang menulis 10 MB ke stderr lalu exit 0
+        let fakePandoc = root.appendingPathComponent("fake-pandoc")
+        let script = """
+        #!/bin/sh
+        # Tulis 10 MB ke stderr untuk menguji drain konkuren (B4)
+        dd if=/dev/zero bs=1048576 count=10 2>/dev/null >&2
+        # Cari argumen --output dan tulis file output
+        output=""
+        prev=""
+        for arg in "$@"; do
+            if [ "$prev" = "--output" ]; then output="$arg"; fi
+            prev="$arg"
+        done
+        [ -n "$output" ] && echo "fake docx content" > "$output"
+        exit 0
+        """
+        try script.write(to: fakePandoc, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakePandoc.path)
+
+        // Buat PDF dengan teks yang dapat diekstrak
+        let input = root.appendingPathComponent("input.pdf")
+        try makeTextPDF(at: input)
+
+        // Konversi PDF → DOCX dengan fake pandoc.
+        // Sebelum fix B4, process block saat stderr pipe buffer penuh → hang.
+        let tempDir = root.appendingPathComponent("temp", isDirectory: true)
+        let result = try DocumentConverter().convert(
+            input: input,
+            target: .docx,
+            temporaryDirectory: tempDir,
+            libreOfficeURL: nil,
+            pandocURL: fakePandoc,
+            progress: { _ in },
+            isCancelled: { false }
+        )
+
+        guard case let .files(files) = result, let output = files.first else {
+            return XCTFail("Konversi dengan fake pandoc yang menulis 10 MB stderr tidak menghasilkan output.")
+        }
+        XCTAssertEqual(output.pathExtension, "docx")
+    }
+
     private func makeTextPDF(at url: URL) throws {
         var mediaBox = CGRect(x: 0, y: 0, width: 612, height: 792)
         guard let consumer = CGDataConsumer(url: url as CFURL),
