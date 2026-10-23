@@ -184,6 +184,7 @@ internal static class PdfConversion
                 pages.Add(pagePath);
                 progress(0.5 * (index + 1d) / document.PageCount);
             }
+        }
 
             CreateImagePdf(pages, output, new PdfConversionOptions(PageSize: "matchImage", Quality: "balanced"), cancellationToken, value => progress(0.5 + value * 0.5));
         }

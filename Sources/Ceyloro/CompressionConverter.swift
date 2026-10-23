@@ -2,6 +2,7 @@ import Foundation
 import PDFKit
 import CoreGraphics
 import ImageIO
+import UniformTypeIdentifiers
 import CeyloroCore
 
 final class CompressionConverter {
@@ -125,7 +126,7 @@ final class CompressionConverter {
                 }
                 progress(0.5 * Double(index + 1) / Double(document.pageCount))
             }
-            let mergeQuality: PDFQuality = preset == .smaller ? .minimum : .balanced
+            let mergeQuality: PDFMergeOptions.Quality = .balanced
             try PDFBuilder.build(images: pages, outputURL: output, options: PDFMergeOptions(pageSize: .matchImage, margin: .none, quality: mergeQuality), progress: { value in
                 progress(0.5 + value * 0.5)
             }, isCancelled: isCancelled)
@@ -208,7 +209,7 @@ final class CompressionConverter {
         try pack.run()
         pack.waitUntilExit()
 
-        guard pack.terminationStatus == 0 && fileManager.fileExists(atPath: output.path) else {
+        if !(pack.terminationStatus == 0 && fileManager.fileExists(atPath: output.path)) {
             // Fallback ke ditto jika zip gagal
             let dittoPack = Process()
             dittoPack.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")

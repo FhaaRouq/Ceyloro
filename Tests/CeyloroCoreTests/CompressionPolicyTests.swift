@@ -7,9 +7,11 @@ final class CompressionPolicyTests: XCTestCase {
         XCTAssertEqual(plan, CompressionPlan(kind: .video, outputExtension: "mp4", preservesSourceFormat: true))
     }
 
-    func testOfficeDocumentCompressionCreatesZipPlan() {
+    func testOfficeDocumentCompressionPreservesFormat() {
         let plan = CompressionPolicy.plan(for: FileFormat(fileExtension: "docx", kind: .document))
-        XCTAssertEqual(plan, CompressionPlan(kind: .document, outputExtension: "zip", preservesSourceFormat: false))
+        // AC-6: Setelah Fase 3, .docx dikompresi secara in-place sehingga preservesSourceFormat: true
+        // dan outputExtension tetap "docx" (bukan "zip" semu)
+        XCTAssertEqual(plan, CompressionPlan(kind: .document, outputExtension: "docx", preservesSourceFormat: true))
     }
 
     func testMixedKindsDoNotCreateOneCompressionPlan() {

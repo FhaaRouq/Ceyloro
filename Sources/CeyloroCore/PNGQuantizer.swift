@@ -203,7 +203,7 @@ public enum PNGQuantizer {
             colorTable[i * 3 + 2] = palette[i].b
         }
 
-        guard let indexedSpace = CGColorSpace(indexedBaseSpace: colorSpace, lastIndex: 255, colorTable: &colorTable) else {
+        guard let indexedSpace = CGColorSpace(indexedBaseSpace: colorSpace, last: 255, colorTable: &colorTable) else {
             return nil
         }
 

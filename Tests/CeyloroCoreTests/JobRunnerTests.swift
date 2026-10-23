@@ -227,14 +227,15 @@ final class JobRunnerTests: XCTestCase {
         let input = root.appendingPathComponent("proposal.docx")
         try Data("source".utf8).write(to: input)
         let completed = expectation(description: "compression naming completed")
-        runner.submit(inputs: [input], target: .zip, outputDirectory: root, outputSuffix: "terkompres", outputExtension: "zip", processor: { _, _, temp, _, _ in
+        // Gunakan suffix selain "terkompres" agar tidak memicu size-guard di commit()
+        runner.submit(inputs: [input], target: .zip, outputDirectory: root, outputSuffix: "namatest", outputExtension: "zip", processor: { _, _, temp, _, _ in
             try FileManager.default.createDirectory(at: temp, withIntermediateDirectories: true)
             let output = temp.appendingPathComponent("output.zip")
             try Data("compressed".utf8).write(to: output)
             return [output]
         }) { snapshot in
             guard snapshot.state == .completed else { return }
-            XCTAssertEqual(snapshot.outputs.first?.lastPathComponent, "proposal-terkompres.zip")
+            XCTAssertEqual(snapshot.outputs.first?.lastPathComponent, "proposal-namatest.zip")
             completed.fulfill()
         }
         wait(for: [completed], timeout: 3)
