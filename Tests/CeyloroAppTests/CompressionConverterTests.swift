@@ -121,6 +121,7 @@ final class CompressionConverterTests: XCTestCase {
             }
             // Test lulus: guard mencegah bloating, bug duplikat halaman tidak relevan di sini
         }
+    }
 
     // MARK: - Helpers untuk A1
 
