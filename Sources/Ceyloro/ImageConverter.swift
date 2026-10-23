@@ -10,13 +10,15 @@ struct ImageConversionOptions: Sendable {
     var jpgQuality: Double
     var heicQuality: Double
     var pdf: PDFMergeOptions
+    var quantizePNG: Bool
 
-    static let standard = ImageConversionOptions(jpgQuality: 0.92, heicQuality: 0.92, pdf: PDFMergeOptions())
+    static let standard = ImageConversionOptions(jpgQuality: 0.92, heicQuality: 0.92, pdf: PDFMergeOptions(), quantizePNG: false)
 
-    init(jpgQuality: Double = 0.92, heicQuality: Double = 0.92, pdf: PDFMergeOptions = PDFMergeOptions()) {
+    init(jpgQuality: Double = 0.92, heicQuality: Double = 0.92, pdf: PDFMergeOptions = PDFMergeOptions(), quantizePNG: Bool = false) {
         self.jpgQuality = min(max(jpgQuality, 0), 1)
         self.heicQuality = min(max(heicQuality, 0), 1)
         self.pdf = pdf
+        self.quantizePNG = quantizePNG
     }
 }
 
@@ -284,6 +286,12 @@ final class ImageConverter {
         case .heic:
             properties[kCGImageDestinationLossyCompressionQuality] = options.heicQuality
             CGImageDestinationAddImage(destination, image, properties as CFDictionary)
+        case .png:
+            if options.quantizePNG, let quantized = PNGQuantizer.quantize(image: image) {
+                CGImageDestinationAddImage(destination, quantized, properties as CFDictionary)
+            } else {
+                CGImageDestinationAddImage(destination, image, properties as CFDictionary)
+            }
         default:
             CGImageDestinationAddImage(destination, image, properties as CFDictionary)
         }

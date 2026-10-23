@@ -47,7 +47,8 @@ public enum CompressionPolicy {
         case .pdf:
             return CompressionPlan(kind: .pdf, outputExtension: "pdf", preservesSourceFormat: true)
         case .document:
-            return CompressionPlan(kind: .document, outputExtension: "zip", preservesSourceFormat: false)
+            guard ["docx", "xlsx", "pptx"].contains(format.fileExtension) else { return nil }
+            return CompressionPlan(kind: .document, outputExtension: format.fileExtension, preservesSourceFormat: true)
         case .subtitle, .archive, .unknown:
             return nil
         }

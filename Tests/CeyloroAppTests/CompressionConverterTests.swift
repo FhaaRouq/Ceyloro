@@ -134,19 +134,96 @@ final class CompressionConverterTests: XCTestCase {
         return PDFPage(image: NSImage(contentsOf: tempURL) ?? nsImage)
     }
 
-    func testDocumentCompressionPackagesOriginalFileInZip() throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("CeyloroCompression-\(UUID().uuidString)")
+    // AC-6: Dokumen DOCX yang dikompresi tidak berubah menjadi file .zip semu
+    func testDocumentCompressionPreservesOriginalFormat() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("CeyloroDocx-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
+
+        // Siapkan struktur minimal DOCX (arsip zip dengan word/media/)
+        let stagingDir = root.appendingPathComponent("staging")
+        let mediaDir = stagingDir.appendingPathComponent("word/media", isDirectory: true)
+        try FileManager.default.createDirectory(at: mediaDir, withIntermediateDirectories: true)
+        try Data("dummy document xml".utf8).write(to: stagingDir.appendingPathComponent("word/document.xml"))
+        // Masukkan gambar PNG besar yang compressible
+        let bigPngData = Data(repeating: 0x55, count: 80_000)
+        try bigPngData.write(to: mediaDir.appendingPathComponent("image1.png"))
+
         let input = root.appendingPathComponent("proposal.docx")
-        try Data(repeating: 0x41, count: 50_000).write(to: input)
+        let zipProcess = Process()
+        zipProcess.executableURL = URL(fileURLWithPath: "/usr/bin/zip")
+        zipProcess.currentDirectoryURL = stagingDir
+        zipProcess.arguments = ["-q", "-r", "-0", input.path, "."]
+        try zipProcess.run()
+        zipProcess.waitUntilExit()
 
         let result = try CompressionConverter().compress(input: input, temporaryDirectory: root.appendingPathComponent("temp"), ffmpegURL: nil, probe: .unknown, preset: .balanced, progress: { _ in }, isCancelled: { false })
         guard case let .files(outputs) = result, let output = outputs.first else {
-            return XCTFail("Kompresi dokumen tidak menghasilkan ZIP")
+            return XCTFail("Kompresi dokumen tidak menghasilkan output")
         }
-        XCTAssertEqual(output.pathExtension, "zip")
-        XCTAssertEqual(try Data(contentsOf: output).prefix(2), Data([0x50, 0x4B]))
+        // AC-6: Ekstensi harus tetap docx, bukan zip
+        XCTAssertEqual(output.pathExtension, "docx", "Ekstensi output dokumen harus tetap .docx, bukan .zip semu")
+        XCTAssertEqual(try Data(contentsOf: output).prefix(2), Data([0x50, 0x4B]), "Output harus merupakan arsip OpenXML yang valid")
+    }
+
+    // AC-3 & Test Plan 3: Memverifikasi PNG 32-bit mengalami penurunan ukuran >= 30% dengan transparansi
+    func testPNGCompressionReducesSize() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("CeyloroPNG-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let input = root.appendingPathComponent("logo.png")
+        let width = 200
+        let height = 200
+        let image = NSImage(size: NSSize(width: width, height: height))
+        image.lockFocus()
+        // Buat gambar dengan separuh transparan dan gradien warna
+        for y in 0..<height {
+            for x in 0..<width {
+                if x < 40 {
+                    // Area transparan
+                    NSColor.clear.setFill()
+                } else {
+                    let r = CGFloat(x) / CGFloat(width)
+                    let g = CGFloat(y) / CGFloat(height)
+                    NSColor(calibratedRed: r, green: g, blue: 0.7, alpha: 1.0).setFill()
+                }
+                NSRect(x: x, y: y, width: 1, height: 1).fill()
+            }
+        }
+        image.unlockFocus()
+
+        let tiff = try XCTUnwrap(image.tiffRepresentation)
+        let rep = try XCTUnwrap(NSBitmapImageRep(data: tiff))
+        let pngData = try XCTUnwrap(rep.representation(using: .png, properties: [:]))
+        try pngData.write(to: input)
+
+        let initialSize = (try FileManager.default.attributesOfItem(atPath: input.path)[.size] as? NSNumber)?.int64Value ?? 0
+        XCTAssertGreaterThan(initialSize, 0)
+
+        let result = try CompressionConverter().compress(
+            input: input,
+            temporaryDirectory: root.appendingPathComponent("temp"),
+            ffmpegURL: nil,
+            probe: .unknown,
+            preset: .balanced,
+            progress: { _ in },
+            isCancelled: { false }
+        )
+
+        guard case let .files(outputs) = result, let output = outputs.first else {
+            return XCTFail("Kompresi PNG tidak menghasilkan output")
+        }
+        XCTAssertEqual(output.pathExtension, "png")
+
+        let compressedSize = (try FileManager.default.attributesOfItem(atPath: output.path)[.size] as? NSNumber)?.int64Value ?? 0
+        // AC-3: Penurunan ukuran nyata (>= 30%)
+        let reductionRatio = Double(initialSize - compressedSize) / Double(initialSize)
+        XCTAssertGreaterThanOrEqual(reductionRatio, 0.30, "Penurunan ukuran PNG harus setidaknya 30%, aktual: \(reductionRatio * 100)%")
+
+        // Verifikasi transparansi tetap ada
+        let outRep = try XCTUnwrap(NSBitmapImageRep(data: try Data(contentsOf: output)))
+        XCTAssertTrue(outRep.hasAlpha, "Output PNG harus mempertahankan transparansi")
     }
 
     // AC-2: Guard Clause Size Verification & Rollback

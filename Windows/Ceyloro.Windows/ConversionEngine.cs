@@ -192,7 +192,7 @@ public sealed class ConversionEngine
         if (!IsCompressible(source)) throw new InvalidOperationException("Format file ini belum dapat dikompres.");
         var outputDirectory = ResolveOutputDirectory(input);
         Directory.CreateDirectory(outputDirectory);
-        var outputExtension = source.Kind == PortableMediaKind.Document ? "zip" : source.Extension;
+        var outputExtension = source.Extension;
         var output = UniqueOutputPath(outputDirectory, Path.GetFileNameWithoutExtension(input) + " (terkompres)", outputExtension);
         var staging = Path.Combine(Path.GetTempPath(), "Ceyloro", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(staging);
@@ -258,10 +258,49 @@ public sealed class ConversionEngine
     private static void ZipDocument(string input, string output, CancellationToken cancellationToken, Action<double> reportProgress)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        using var file = new FileStream(output, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None);
-        using var archive = new ZipArchive(file, ZipArchiveMode.Create);
-        archive.CreateEntryFromFile(input, Path.GetFileName(input), CompressionLevel.Optimal);
-        reportProgress(1);
+        var staging = Path.Combine(Path.GetTempPath(), "CeyloroDocx", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(staging);
+        try
+        {
+            ZipFile.ExtractToDirectory(input, staging);
+            var mediaDirs = Directory.GetDirectories(staging, "media", SearchOption.AllDirectories);
+            foreach (var dir in mediaDirs)
+            {
+                foreach (var file in Directory.GetFiles(dir))
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var ext = Path.GetExtension(file).TrimStart('.').ToLowerInvariant();
+                    if (ext is "jpg" or "jpeg")
+                    {
+                        var tempJpg = file + ".opt";
+                        using var img = Image.FromFile(file);
+                        WindowsImageConverter.SaveJpeg(img, tempJpg, 0.75);
+                        File.Delete(file);
+                        File.Move(tempJpg, file);
+                    }
+                    else if (ext is "png")
+                    {
+                        var tempPng = file + ".opt";
+                        using var img = Image.FromFile(file);
+                        WindowsImageConverter.SaveQuantizedPng(img, tempPng);
+                        File.Delete(file);
+                        File.Move(tempPng, file);
+                    }
+                }
+            }
+            cancellationToken.ThrowIfCancellationRequested();
+            ZipFile.CreateFromDirectory(staging, output, CompressionLevel.Optimal, includeBaseDirectory: false);
+            reportProgress(1);
+        }
+        catch (InvalidDataException)
+        {
+            File.Copy(input, output, overwrite: true);
+        }
+        finally
+        {
+            try { if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true); }
+            catch { }
+        }
     }
 
     private async Task RunFfmpegAsync(string input, string output, string target, CancellationToken cancellationToken, Action<double> reportProgress, bool compression)

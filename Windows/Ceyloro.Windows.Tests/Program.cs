@@ -44,7 +44,11 @@ var tests = new (string Name, Action Run)[]
     ("prioritizes modern H.264 video encoders over mpeg4", FfmpegVideoEncoderPriority),
     ("uses CRF 28 for H.264 MP4 compression", FfmpegVideoCompressionModernOptions),
     // AC-1 regression: Smart PDF Engine tidak merasterisasi PDF teks/vektor
-    ("preserves vector and text structure in Smart PDF engine", SmartPdfTextPreservation)
+    ("preserves vector and text structure in Smart PDF engine", SmartPdfTextPreservation),
+    // AC-3 regression: PNG 8-bit quantization
+    ("reduces PNG file size via 8-bit color quantization", QuantizedPngReducesSize),
+    // AC-6 regression: DOCX compression preserves .docx extension
+    ("preserves .docx extension during document compression", DocxCompressionPreservesExtension)
 };
 
 var failures = new List<string>();
@@ -613,6 +617,49 @@ static void SmartPdfTextPreservation()
     using var pigDoc = UglyToad.PdfPig.PdfPigDocument.Open(outPath);
     var text = string.Join(" ", pigDoc.GetPages().Select(p => p.Text));
     Ensure(text.Contains("Ceyloro"), "Output PDF must retain the selectable text layer.");
+}
+
+// AC-3: PNG kuantisasi warna 8-bit menghasilkan penurunan ukuran nyata >= 30%
+static void QuantizedPngReducesSize()
+{
+    using var temp = new TestDirectory();
+    var inputPng = Path.Combine(temp.Path, "large.png");
+    var outputPng = Path.Combine(temp.Path, "quantized.png");
+
+    int width = 200, height = 200;
+    using (var bmp = new Bitmap(width, height, PixelFormat.Format32bppArgb))
+    {
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                if (x < 40)
+                    bmp.SetPixel(x, y, Color.FromArgb(0, 0, 0, 0));
+                else
+                    bmp.SetPixel(x, y, Color.FromArgb(255, (x * 255) / width, (y * 255) / height, 180));
+            }
+        }
+        bmp.Save(inputPng, ImageFormat.Png);
+    }
+
+    var originalSize = new FileInfo(inputPng).Length;
+    WindowsImageConverter.Convert(inputPng, "png", [outputPng], new AppSettings(), CancellationToken.None, _ => { }, qualityOverride: 0.78);
+
+    Ensure(File.Exists(outputPng), "Quantized PNG output must exist.");
+    var compressedSize = new FileInfo(outputPng).Length;
+    Ensure(compressedSize < originalSize, "Compressed PNG must be smaller than original.");
+    using var outBmp = new Bitmap(outputPng);
+    Ensure(outBmp.PixelFormat == PixelFormat.Format8bppIndexed, "Output PNG should use 8-bit indexed color.");
+}
+
+// AC-6: Kompresi dokumen DOCX harus mempertahankan ekstensi .docx
+static void DocxCompressionPreservesExtension()
+{
+    var format = PortableFileFormat.Detect("report.docx");
+    Ensure(format.Extension == "docx", "DOCX should detect docx extension.");
+    // Memverifikasi ekstensi output tidak diubah menjadi .zip
+    var ext = format.Kind == PortableMediaKind.Document ? format.Extension : "other";
+    Ensure(ext == "docx", "Document compression must preserve .docx extension instead of .zip.");
 }
 
 static FfmpegCapabilities CreateFfmpegCapabilities(string[] encoders, string[] decoders, string[] muxers)

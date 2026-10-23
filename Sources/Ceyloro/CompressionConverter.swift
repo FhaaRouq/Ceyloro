@@ -42,7 +42,12 @@ final class CompressionConverter {
         switch plan.kind {
         case .image:
             guard let target = TargetFormat(rawValue: plan.outputExtension) else { throw ConversionError.unsupportedConversion }
-            result = try imageConverter.convert(input: input, target: target, temporaryDirectory: temporaryDirectory, progress: progress, isCancelled: isCancelled, options: ImageConversionOptions(jpgQuality: preset == .smaller ? 0.72 : 0.82, heicQuality: preset == .smaller ? 0.65 : 0.78))
+            let options = ImageConversionOptions(
+                jpgQuality: preset == .smaller ? 0.72 : 0.82,
+                heicQuality: preset == .smaller ? 0.65 : 0.78,
+                quantizePNG: true
+            )
+            result = try imageConverter.convert(input: input, target: target, temporaryDirectory: temporaryDirectory, progress: progress, isCancelled: isCancelled, options: options)
         case .audio, .video:
             guard let target = TargetFormat(rawValue: plan.outputExtension) else { throw ConversionError.unsupportedConversion }
             result = try ffmpegConverter.convert(input: input, target: target, temporaryDirectory: temporaryDirectory, ffmpegURL: ffmpegURL, probe: probe, progress: progress, isCancelled: isCancelled, allowSameFormat: true, compression: preset)
@@ -135,26 +140,89 @@ final class CompressionConverter {
     }
 
     private func archiveDocument(input: URL, temporaryDirectory: URL, progress: @escaping (Double) -> Void, isCancelled: @escaping () -> Bool) throws -> ConversionResult {
-        let output = temporaryDirectory.appendingPathComponent("output.zip")
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
-        process.arguments = ["-c", "-k", "--keepParent", input.path, output.path]
-        try process.run()
-        while process.isRunning {
-            if isCancelled() {
-                process.terminate()
-                process.waitUntilExit()
-                try? fileManager.removeItem(at: output)
-                throw CancellationError()
+        let ext = input.pathExtension.lowercased()
+        let finalExt = ext.isEmpty ? "docx" : ext
+        let output = temporaryDirectory.appendingPathComponent("output.\(finalExt)")
+        let extractedDir = temporaryDirectory.appendingPathComponent("extracted", isDirectory: true)
+        try fileManager.createDirectory(at: extractedDir, withIntermediateDirectories: true)
+
+        // 1. Ekstrak dokumen OpenXML (ZIP)
+        let unpack = Process()
+        unpack.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+        unpack.arguments = ["-x", "-k", input.path, extractedDir.path]
+        try unpack.run()
+        unpack.waitUntilExit()
+
+        guard unpack.terminationStatus == 0 else {
+            // Jika bukan arsip zip (misal file plain text), salin ke output agar guard clause mengevaluasi
+            try? fileManager.copyItem(at: input, to: output)
+            return .files([output])
+        }
+
+        if isCancelled() { throw CancellationError() }
+        progress(0.4)
+
+        // 2. Kompresi berkas media di dalam word/media, xl/media, ppt/media
+        let enumerator = fileManager.enumerator(at: extractedDir, includingPropertiesForKeys: [.isRegularFileKey])
+        while let fileURL = enumerator?.nextObject() as? URL {
+            if isCancelled() { throw CancellationError() }
+            let path = fileURL.path
+            guard path.contains("/media/") else { continue }
+            let fileExt = fileURL.pathExtension.lowercased()
+
+            if fileExt == "jpg" || fileExt == "jpeg" {
+                if let source = CGImageSourceCreateWithURL(fileURL as CFURL, nil),
+                   let image = CGImageSourceCreateImageAtIndex(source, 0, nil) {
+                    let tempURL = fileURL.appendingPathExtension("opt")
+                    let options = ImageConversionOptions(jpgQuality: 0.75, heicQuality: 0.75)
+                    if (try? write(image: image, to: tempURL, options: options)) != nil {
+                        _ = try? fileManager.removeItem(at: fileURL)
+                        _ = try? fileManager.moveItem(at: tempURL, to: fileURL)
+                    }
+                }
+            } else if fileExt == "png" {
+                if let source = CGImageSourceCreateWithURL(fileURL as CFURL, nil),
+                   let image = CGImageSourceCreateImageAtIndex(source, 0, nil),
+                   let quantized = PNGQuantizer.quantize(image: image) {
+                    let tempURL = fileURL.appendingPathExtension("opt")
+                    let pngType = UTType(filenameExtension: "png") ?? .png
+                    if let dest = CGImageDestinationCreateWithURL(tempURL as CFURL, pngType.identifier as CFString, 1, nil) {
+                        CGImageDestinationAddImage(dest, quantized, nil)
+                        if CGImageDestinationFinalize(dest) {
+                            _ = try? fileManager.removeItem(at: fileURL)
+                            _ = try? fileManager.moveItem(at: tempURL, to: fileURL)
+                        }
+                    }
+                }
             }
-            progress(0.5)
-            Thread.sleep(forTimeInterval: 0.05)
         }
-        guard process.terminationStatus == 0, fileManager.fileExists(atPath: output.path) else {
-            try? fileManager.removeItem(at: output)
-            throw ConversionError.archiveConversionFailed
+
+        if isCancelled() { throw CancellationError() }
+        progress(0.7)
+
+        // 3. Kemas kembali dokumen dengan ekstensi asli menggunakan /usr/bin/zip
+        let pack = Process()
+        pack.executableURL = URL(fileURLWithPath: "/usr/bin/zip")
+        pack.currentDirectoryURL = extractedDir
+        pack.arguments = ["-q", "-r", "-9", output.path, "."]
+        try pack.run()
+        pack.waitUntilExit()
+
+        guard pack.terminationStatus == 0 && fileManager.fileExists(atPath: output.path) else {
+            // Fallback ke ditto jika zip gagal
+            let dittoPack = Process()
+            dittoPack.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+            dittoPack.currentDirectoryURL = extractedDir
+            dittoPack.arguments = ["-c", "-k", ".", output.path]
+            try dittoPack.run()
+            dittoPack.waitUntilExit()
+            guard dittoPack.terminationStatus == 0 && fileManager.fileExists(atPath: output.path) else {
+                throw ConversionError.archiveConversionFailed
+            }
         }
-        progress(1)
+
+        try? fileManager.removeItem(at: extractedDir)
+        progress(1.0)
         return .files([output])
     }
 
