@@ -131,4 +131,37 @@ final class FFmpegConversionTests: XCTestCase {
         )
         XCTAssertTrue(webmArgs.contains("libvpx-vp9"))
     }
+
+    func testVideoCompressionUsesModernCodec() {
+        // AC-5: Video MP4 menggunakan encoder H.264 modern, bukan mpeg4.
+        let vtArgs = FFmpegCommandBuilder.arguments(
+            input: URL(fileURLWithPath: "/input.mp4"),
+            output: URL(fileURLWithPath: "/output.mp4"),
+            target: .mp4,
+            encoders: ["h264_videotoolbox", "mpeg4", "aac"],
+            compression: .balanced
+        )
+        XCTAssertTrue(vtArgs.contains("h264_videotoolbox"))
+        XCTAssertFalse(vtArgs.contains("mpeg4"))
+
+        let x264Args = FFmpegCommandBuilder.arguments(
+            input: URL(fileURLWithPath: "/input.mp4"),
+            output: URL(fileURLWithPath: "/output.mp4"),
+            target: .mp4,
+            encoders: ["libx264", "mpeg4", "aac"],
+            compression: .smaller
+        )
+        XCTAssertTrue(x264Args.contains("libx264"))
+        XCTAssertFalse(x264Args.contains("mpeg4"))
+        XCTAssertTrue(x264Args.contains("-crf"))
+        XCTAssertTrue(x264Args.contains("28"))
+    }
+
+    func testVideoPolicySupportsVideoToolbox() {
+        let probe = ProbeResult.success(encoders: ["h264_videotoolbox", "aac"])
+        XCTAssertTrue(FFmpegConversionPolicy.supports(target: .mp4, probe: probe))
+        XCTAssertTrue(FFmpegConversionPolicy.supports(target: .mov, probe: probe))
+        XCTAssertTrue(FFmpegConversionPolicy.supports(target: .mkv, probe: probe))
+    }
 }
+

@@ -39,7 +39,10 @@ var tests = new (string Name, Action Run)[]
     ("gif capability filtering rejects video targets without ffmpeg", GifCapabilityFilteringNoFfmpeg),
     ("gif capability filtering accepts targets when all encoders available", GifCapabilityFilteringAllAvailable),
     ("gif capability filtering rejects target when encoder missing", GifCapabilityFilteringEncoderMissing),
-    ("gif capability filtering rejects target when muxer missing", GifCapabilityFilteringMuxerMissing)
+    ("gif capability filtering rejects target when muxer missing", GifCapabilityFilteringMuxerMissing),
+    // AC-5 regression: prioritas encoder video modern dan opsi kompresi
+    ("prioritizes modern H.264 video encoders over mpeg4", FfmpegVideoEncoderPriority),
+    ("uses CRF 28 for H.264 MP4 compression", FfmpegVideoCompressionModernOptions)
 };
 
 var failures = new List<string>();
@@ -544,6 +547,50 @@ static void GifCapabilityFilteringMuxerMissing()
 
     Ensure(!caps.Supports("mp4"), "FFmpeg with encoder but no mp4 muxer must not support MP4.");
     Ensure(caps.Supports("mp3"), "FFmpeg with libmp3lame and mp3 muxer should support MP3.");
+}
+
+// AC-5: Video MP4 harus memprioritaskan encoder H.264 modern daripada mpeg4
+static void FfmpegVideoEncoderPriority()
+{
+    var capsModern = CreateFfmpegCapabilities(
+        encoders: ["mpeg4", "libx264", "h264_nvenc", "aac"],
+        decoders: ["h264"],
+        muxers: ["mp4"]);
+    Ensure(capsModern.EncoderFor("mp4") == "libx264", "libx264 should take priority over mpeg4 for MP4.");
+
+    var capsHardware = CreateFfmpegCapabilities(
+        encoders: ["mpeg4", "h264_nvenc", "aac"],
+        decoders: ["h264"],
+        muxers: ["mp4"]);
+    Ensure(capsHardware.EncoderFor("mp4") == "h264_nvenc", "h264_nvenc should take priority over mpeg4 when libx264 is absent.");
+
+    var capsLegacy = CreateFfmpegCapabilities(
+        encoders: ["mpeg4", "aac"],
+        decoders: ["mpeg4"],
+        muxers: ["mp4"]);
+    Ensure(capsLegacy.EncoderFor("mp4") == "mpeg4", "mpeg4 should be chosen only when no H.264 encoder is available.");
+}
+
+// AC-5: Kompresi MP4 dengan H.264 harus menggunakan -crf 28 alih-alih -q:v 7
+static void FfmpegVideoCompressionModernOptions()
+{
+    var caps = CreateFfmpegCapabilities(
+        encoders: ["libx264", "mpeg4", "aac"],
+        decoders: ["h264"],
+        muxers: ["mp4"]);
+
+    var args = FfmpegCommandBuilder.Build(
+        input: @"C:\media\sample.mp4",
+        output: @"C:\media\output.mp4",
+        target: "mp4",
+        capabilities: caps,
+        settings: new AppSettings(),
+        compression: true);
+
+    Ensure(args.Contains("libx264"), "MP4 compression should select libx264 when available.");
+    Ensure(!args.Contains("mpeg4"), "MP4 compression should not select mpeg4 when libx264 is available.");
+    Ensure(args.Contains("-crf") && args.Contains("28"), "libx264 MP4 compression should use -crf 28.");
+    Ensure(!args.Contains("-q:v"), "libx264 should not use -q:v for quality scaling.");
 }
 
 static FfmpegCapabilities CreateFfmpegCapabilities(string[] encoders, string[] decoders, string[] muxers)

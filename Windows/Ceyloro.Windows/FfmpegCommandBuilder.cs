@@ -46,9 +46,32 @@ internal static class FfmpegCommandBuilder
         }
         else
         {
-            arguments.AddRange(["-c:v", RequiredEncoder(capabilities, target)]);
+            var encoder = RequiredEncoder(capabilities, target);
+            arguments.AddRange(["-c:v", encoder]);
             if (target == "webm") arguments.AddRange(["-crf", compression ? "42" : "32", "-b:v", "0"]);
-            else if (target is "mp4" or "mov" or "mkv" or "avi") arguments.AddRange(["-q:v", compression ? "7" : "3"]);
+            else if (target is "mp4" or "mov" or "mkv" or "avi")
+            {
+                if (encoder is "libx264" or "h264")
+                {
+                    arguments.AddRange(["-crf", compression ? "28" : "23", "-preset", "medium"]);
+                }
+                else if (encoder.Contains("nvenc", StringComparison.OrdinalIgnoreCase))
+                {
+                    arguments.AddRange(["-cq", compression ? "32" : "26"]);
+                }
+                else if (encoder.Contains("qsv", StringComparison.OrdinalIgnoreCase))
+                {
+                    arguments.AddRange(["-global_quality", compression ? "28" : "23"]);
+                }
+                else if (encoder.Contains("amf", StringComparison.OrdinalIgnoreCase))
+                {
+                    arguments.AddRange(["-rc", "cqp", "-qp_p", compression ? "28" : "23", "-qp_i", compression ? "28" : "23"]);
+                }
+                else
+                {
+                    arguments.AddRange(["-q:v", compression ? "7" : "3"]);
+                }
+            }
             if (target == "gif")
             {
                 arguments.AddRange([

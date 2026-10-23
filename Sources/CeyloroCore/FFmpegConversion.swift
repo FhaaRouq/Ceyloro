@@ -53,7 +53,7 @@ public struct FFmpegConversionPolicy: Sendable {
         case .aiff:
             return encoders.contains("pcm_s16be") || encoders.contains("pcm_s16le")
         case .mp4, .mov, .mkv:
-            let hasVideo = encoders.contains("mpeg4") || encoders.contains("libx264") || encoders.contains("h264")
+            let hasVideo = encoders.contains("h264_videotoolbox") || encoders.contains("libx264") || encoders.contains("h264") || encoders.contains("mpeg4")
             let hasAudio = encoders.contains("aac") || encoders.contains("libfdk_aac") || encoders.contains("pcm_s16le")
             return hasVideo && hasAudio
         case .webm:
@@ -73,6 +73,20 @@ public struct FFmpegConversionPolicy: Sendable {
 }
 
 public enum FFmpegCommandBuilder {
+    private static func videoCodecArgs(encoders: Set<String>, compression: CompressionPreset?) -> (String, [String]) {
+        if encoders.contains("h264_videotoolbox") {
+            let quality = compression == .smaller ? "50" : "60"
+            return ("h264_videotoolbox", ["-q:v", quality])
+        } else if encoders.contains("libx264") || encoders.contains("h264") {
+            let codec = encoders.contains("libx264") ? "libx264" : "h264"
+            let crf = compression == .smaller ? "28" : "23"
+            return (codec, ["-crf", crf, "-preset", "medium"])
+        } else {
+            let qv = compression == .smaller ? "7" : "5"
+            return ("mpeg4", ["-q:v", qv])
+        }
+    }
+
     public static func arguments(input: URL, output: URL, target: TargetFormat, encoders: Set<String> = [], compression: CompressionPreset? = nil) -> [String] {
         var arguments = ["-hide_banner", "-loglevel", "error", "-nostdin", "-y", "-protocol_whitelist", "file,crypto,data", "-i", input.path]
         switch target {
@@ -92,11 +106,14 @@ public enum FFmpegCommandBuilder {
         case .aiff:
             arguments += ["-vn", "-c:a", "pcm_s16be"]
         case .mp4:
-            arguments += ["-c:v", "mpeg4", "-q:v", compression == .smaller ? "7" : "5", "-c:a", "aac", "-movflags", "+faststart"]
+            let (vcodec, vargs) = videoCodecArgs(encoders: encoders, compression: compression)
+            arguments += ["-c:v", vcodec] + vargs + ["-c:a", "aac", "-movflags", "+faststart"]
         case .mov:
-            arguments += ["-c:v", "mpeg4", "-q:v", compression == .smaller ? "7" : "5", "-c:a", "aac"]
+            let (vcodec, vargs) = videoCodecArgs(encoders: encoders, compression: compression)
+            arguments += ["-c:v", vcodec] + vargs + ["-c:a", "aac"]
         case .mkv:
-            arguments += ["-c:v", "mpeg4", "-q:v", compression == .smaller ? "7" : "5", "-c:a", "aac"]
+            let (vcodec, vargs) = videoCodecArgs(encoders: encoders, compression: compression)
+            arguments += ["-c:v", vcodec] + vargs + ["-c:a", "aac"]
         case .webm:
             let videoCodec = encoders.contains("vp9") || encoders.isEmpty ? "vp9" : (encoders.contains("libvpx-vp9") ? "libvpx-vp9" : "vp8")
             arguments += ["-c:v", videoCodec, "-crf", compression == .smaller ? "42" : "36", "-b:v", "0", "-c:a", "opus"]

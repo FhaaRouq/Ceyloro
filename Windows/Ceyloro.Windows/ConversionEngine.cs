@@ -226,6 +226,13 @@ public sealed class ConversionEngine
                     throw new InvalidOperationException("Format file ini belum dapat dikompres.");
             }
             cancellationToken.ThrowIfCancellationRequested();
+            var inputInfo = new FileInfo(input);
+            var outputInfo = new FileInfo(stagedOutput);
+            if (outputInfo.Exists && outputInfo.Length >= inputInfo.Length)
+            {
+                TryDelete(stagedOutput);
+                throw new InvalidOperationException("File ini sudah dalam ukuran paling optimal dan tidak dapat diperkecil lagi tanpa merusak kualitas.");
+            }
             File.Move(stagedOutput, output);
             reportProgress(1);
             return output;

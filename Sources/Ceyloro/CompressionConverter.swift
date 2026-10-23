@@ -38,18 +38,38 @@ final class CompressionConverter {
     func compress(input: URL, temporaryDirectory: URL, ffmpegURL: URL?, probe: ProbeResult, preset: CompressionPreset, progress: @escaping (Double) -> Void, isCancelled: @escaping () -> Bool) throws -> ConversionResult {
         guard let plan = CompressionPolicy.plan(for: FileFormat.detect(url: input)) else { throw ConversionError.unsupportedConversion }
         try fileManager.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
+        let result: ConversionResult
         switch plan.kind {
         case .image:
             guard let target = TargetFormat(rawValue: plan.outputExtension) else { throw ConversionError.unsupportedConversion }
-            return try imageConverter.convert(input: input, target: target, temporaryDirectory: temporaryDirectory, progress: progress, isCancelled: isCancelled, options: ImageConversionOptions(jpgQuality: preset == .smaller ? 0.72 : 0.82, heicQuality: preset == .smaller ? 0.65 : 0.78))
+            result = try imageConverter.convert(input: input, target: target, temporaryDirectory: temporaryDirectory, progress: progress, isCancelled: isCancelled, options: ImageConversionOptions(jpgQuality: preset == .smaller ? 0.72 : 0.82, heicQuality: preset == .smaller ? 0.65 : 0.78))
         case .audio, .video:
             guard let target = TargetFormat(rawValue: plan.outputExtension) else { throw ConversionError.unsupportedConversion }
-            return try ffmpegConverter.convert(input: input, target: target, temporaryDirectory: temporaryDirectory, ffmpegURL: ffmpegURL, probe: probe, progress: progress, isCancelled: isCancelled, allowSameFormat: true, compression: preset)
+            result = try ffmpegConverter.convert(input: input, target: target, temporaryDirectory: temporaryDirectory, ffmpegURL: ffmpegURL, probe: probe, progress: progress, isCancelled: isCancelled, allowSameFormat: true, compression: preset)
         case .pdf:
-            return try compressPDF(input: input, temporaryDirectory: temporaryDirectory, progress: progress, isCancelled: isCancelled)
+            result = try compressPDF(input: input, temporaryDirectory: temporaryDirectory, progress: progress, isCancelled: isCancelled)
         case .document:
-            return try archiveDocument(input: input, temporaryDirectory: temporaryDirectory, progress: progress, isCancelled: isCancelled)
+            result = try archiveDocument(input: input, temporaryDirectory: temporaryDirectory, progress: progress, isCancelled: isCancelled)
         }
+
+        let inputSize = (try? fileManager.attributesOfItem(atPath: input.path)[.size] as? NSNumber)?.int64Value ?? 0
+        let outputFiles: [URL]
+        switch result {
+        case let .files(files):
+            outputFiles = files
+        case let .collection(_, files):
+            outputFiles = files
+        }
+        let outputSize = outputFiles.reduce(Int64(0)) { acc, fileURL in
+            acc + ((try? fileManager.attributesOfItem(atPath: fileURL.path)[.size] as? NSNumber)?.int64Value ?? 0)
+        }
+        if inputSize > 0 && outputSize >= inputSize {
+            for fileURL in outputFiles {
+                try? fileManager.removeItem(at: fileURL)
+            }
+            throw CompressionError.alreadyOptimal(originalSize: inputSize, generatedSize: outputSize)
+        }
+        return result
     }
 
     private func compressPDF(input: URL, temporaryDirectory: URL, progress: @escaping (Double) -> Void, isCancelled: @escaping () -> Bool) throws -> ConversionResult {

@@ -174,7 +174,8 @@ public final class JobRunner {
                     } catch {
                         failures.append(JobFailure(input: input, message: error.localizedDescription))
                         let overall = Double(index + 1) / Double(total)
-                        self.emit(JobSnapshot(id: id, state: .running, progress: overall, message: "Gagal: \(input.lastPathComponent)", outputs: outputs, failures: failures), update: update)
+                        let failMsg = (error as? CompressionError) != nil ? error.localizedDescription : "Gagal: \(input.lastPathComponent)"
+                        self.emit(JobSnapshot(id: id, state: .running, progress: overall, message: failMsg, outputs: outputs, failures: failures), update: update)
                     }
                 }
 
@@ -183,7 +184,11 @@ public final class JobRunner {
                 if failures.isEmpty {
                     message = "Selesai"
                 } else if outputs.isEmpty {
-                    message = "Semua file gagal diproses"
+                    if failures.count == 1, let firstFailure = failures.first {
+                        message = firstFailure.message
+                    } else {
+                        message = "Semua file gagal diproses"
+                    }
                 } else {
                     message = "Selesai dengan \(failures.count) file gagal"
                 }
@@ -288,6 +293,19 @@ public final class JobRunner {
         case let .collection(name, files):
             temporaryFiles = files
             collectionName = name
+        }
+
+        if outputSuffix == "terkompres" {
+            let inputSize = (try? fileManager.attributesOfItem(atPath: input.path)[.size] as? NSNumber)?.int64Value ?? 0
+            let outputSize = temporaryFiles.reduce(Int64(0)) { acc, fileURL in
+                acc + ((try? fileManager.attributesOfItem(atPath: fileURL.path)[.size] as? NSNumber)?.int64Value ?? 0)
+            }
+            if inputSize > 0 && outputSize >= inputSize {
+                for fileURL in temporaryFiles {
+                    try? fileManager.removeItem(at: fileURL)
+                }
+                throw CompressionError.alreadyOptimal(originalSize: inputSize, generatedSize: outputSize)
+            }
         }
 
         guard temporaryFiles.count > 1, let collectionName else {

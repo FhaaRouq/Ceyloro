@@ -11,13 +11,16 @@ final class CompressionConverterTests: XCTestCase {
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
         let input = root.appendingPathComponent("photo.jpg")
-        let image = NSImage(size: NSSize(width: 32, height: 32))
+        let image = NSImage(size: NSSize(width: 128, height: 128))
         image.lockFocus()
-        NSColor.systemBlue.drawSwatch(in: NSRect(x: 0, y: 0, width: 32, height: 32))
+        for i in 0..<128 {
+            NSColor(calibratedRed: CGFloat(i) / 128.0, green: 0.4, blue: 0.8, alpha: 1.0).setFill()
+            NSRect(x: 0, y: CGFloat(i), width: 128, height: 1).fill()
+        }
         image.unlockFocus()
         let tiff = try XCTUnwrap(image.tiffRepresentation)
         let representation = try XCTUnwrap(NSBitmapImageRep(data: tiff))
-        try XCTUnwrap(representation.representation(using: .jpeg, properties: [.compressionFactor: 0.9])).write(to: input)
+        try XCTUnwrap(representation.representation(using: .jpeg, properties: [.compressionFactor: 1.0])).write(to: input)
 
         let result = try CompressionConverter().compress(input: input, temporaryDirectory: root.appendingPathComponent("temp"), ffmpegURL: nil, probe: .unknown, preset: .balanced, progress: { _ in }, isCancelled: { false })
         guard case let .files(outputs) = result, let output = outputs.first else {
@@ -26,6 +29,9 @@ final class CompressionConverterTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: output.path))
         XCTAssertEqual(output.pathExtension, "jpg")
         XCTAssertNotEqual(try Data(contentsOf: input), try Data(contentsOf: output))
+        let inputSize = (try FileManager.default.attributesOfItem(atPath: input.path)[.size] as? NSNumber)?.int64Value ?? 0
+        let outputSize = (try FileManager.default.attributesOfItem(atPath: output.path)[.size] as? NSNumber)?.int64Value ?? 0
+        XCTAssertLessThan(outputSize, inputSize, "Hasil kompresi harus lebih kecil dari ukuran asli")
     }
 
     // MARK: - Regression test A1: bug interpolasi nama halaman PDF macOS
@@ -133,7 +139,7 @@ final class CompressionConverterTests: XCTestCase {
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
         let input = root.appendingPathComponent("proposal.docx")
-        try Data("document payload".utf8).write(to: input)
+        try Data(repeating: 0x41, count: 50_000).write(to: input)
 
         let result = try CompressionConverter().compress(input: input, temporaryDirectory: root.appendingPathComponent("temp"), ffmpegURL: nil, probe: .unknown, preset: .balanced, progress: { _ in }, isCancelled: { false })
         guard case let .files(outputs) = result, let output = outputs.first else {
@@ -141,5 +147,32 @@ final class CompressionConverterTests: XCTestCase {
         }
         XCTAssertEqual(output.pathExtension, "zip")
         XCTAssertEqual(try Data(contentsOf: output).prefix(2), Data([0x50, 0x4B]))
+    }
+
+    // AC-2: Guard Clause Size Verification & Rollback
+    func testCompressionNeverIncreasesFileSize() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("CeyloroOptimal-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        // Berkas kecil yang bila dikompresi ke format ZIP/JPEG malah bertambah besar akibat overhead header
+        let input = root.appendingPathComponent("tiny.docx")
+        try Data("short text".utf8).write(to: input)
+
+        XCTAssertThrowsError(
+            try CompressionConverter().compress(
+                input: input,
+                temporaryDirectory: root.appendingPathComponent("temp"),
+                ffmpegURL: nil,
+                probe: .unknown,
+                preset: .balanced,
+                progress: { _ in },
+                isCancelled: { false }
+            )
+        ) { error in
+            guard let compError = error as? CompressionError, case .alreadyOptimal = compError else {
+                return XCTFail("Harus melempar CompressionError.alreadyOptimal, tetapi mendapat: \(error)")
+            }
+        }
     }
 }

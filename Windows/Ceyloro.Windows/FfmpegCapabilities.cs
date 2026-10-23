@@ -10,9 +10,11 @@ internal sealed class FfmpegCapabilities
         ["jpg"] = ["mjpeg"], ["png"] = ["png"], ["heic"] = ["libx265", "hevc"], ["tiff"] = ["tiff"],
         ["mp3"] = ["libmp3lame", "libshine"], ["m4a"] = ["aac"], ["wav"] = ["pcm_s16le"],
         ["flac"] = ["flac"], ["ogg"] = ["libvorbis", "vorbis"], ["opus"] = ["libopus", "opus"], ["aiff"] = ["pcm_s16be"],
-        ["mp4"] = ["mpeg4", "libx264", "h264"], ["mov"] = ["mpeg4", "libx264", "h264"],
-        ["mkv"] = ["mpeg4", "libx264", "h264"], ["webm"] = ["libvpx-vp9", "libvpx", "vp9"],
-        ["avi"] = ["mpeg4", "libx264", "h264"], ["wmv"] = ["wmv2"], ["gif"] = ["gif"]
+        ["mp4"] = ["libx264", "h264", "h264_nvenc", "h264_qsv", "h264_amf", "mpeg4"],
+        ["mov"] = ["libx264", "h264", "h264_nvenc", "h264_qsv", "h264_amf", "mpeg4"],
+        ["mkv"] = ["libx264", "h264", "h264_nvenc", "h264_qsv", "h264_amf", "mpeg4"],
+        ["webm"] = ["libvpx-vp9", "libvpx", "vp9"],
+        ["avi"] = ["libx264", "h264", "mpeg4"], ["wmv"] = ["wmv2"], ["gif"] = ["gif"]
     };
 
     private static readonly IReadOnlyDictionary<string, string[]> muxers = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
