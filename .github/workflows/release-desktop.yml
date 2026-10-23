@@ -3,6 +3,7 @@ name: Release desktop packages
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -175,7 +176,7 @@ jobs:
           test -f /tmp/smoke-output.jpg && echo "Smoke test PNG→JPEG: PASS"
       - name: Smoke test — verify checksum file
         run: |
-          shasum -a 256 -c dist/Ceyloro-macOS-universal.zip.sha256 && echo "Checksum: PASS"
+          (cd dist && shasum -a 256 -c Ceyloro-macOS-universal.zip.sha256) && echo "Checksum: PASS"
 
   release:
     needs: [macos, windows, smoke-test]
@@ -201,7 +202,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          release_args=("$GITHUB_REF_NAME" "dist/Ceyloro-macOS-universal.zip" "dist/Ceyloro-macOS-universal.zip.sha256" "dist/Ceyloro-Windows-x64.zip" "dist/Ceyloro-Windows-x64.zip.sha256" "dist/Ceyloro-Windows-arm64.zip" "dist/Ceyloro-Windows-arm64.zip.sha256" "--repo" "$GITHUB_REPOSITORY" "--title" "Ceyloro $GITHUB_REF_NAME" "--generate-notes" "--latest")
+          release_args=("$GITHUB_REF_NAME" "dist/Ceyloro-macOS-universal.zip" "dist/Ceyloro-macOS-universal.zip.sha256" "dist/Ceyloro-Windows-x64.zip" "dist/Ceyloro-Windows-x64.zip.sha256" "dist/Ceyloro-Windows-arm64.zip" "dist/Ceyloro-Windows-arm64.zip.sha256" "dist/release-manifest.json" "--repo" "$GITHUB_REPOSITORY" "--title" "Ceyloro $GITHUB_REF_NAME" "--generate-notes" "--latest")
           case "$GITHUB_REF_NAME" in
             *-preview*|*-alpha*|*-beta*|*-rc*) release_args+=("--prerelease") ;;
           esac
