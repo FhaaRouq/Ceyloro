@@ -15,6 +15,12 @@ jobs:
     runs-on: macos-15
     permissions:
       contents: read
+    # C5: secret dipetakan ke env di level job sehingga bisa dipakai di kondisi if: step
+    env:
+      APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+      APPLE_NOTARIZE_APPLE_ID: ${{ secrets.APPLE_NOTARIZE_APPLE_ID }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APPLE_NOTARIZE_PASSWORD: ${{ secrets.APPLE_NOTARIZE_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
       - name: Run test suite
@@ -48,25 +54,19 @@ jobs:
       # APPLE_NOTARIZE_APPLE_ID, APPLE_NOTARIZE_PASSWORD
       # Lihat docs/BUILD-SECRETS.md untuk cara mendapatkannya.
       - name: Sign macOS app (kondisional)
-        if: secrets.APPLE_SIGNING_IDENTITY != ''
-        env:
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        if: env.APPLE_SIGNING_IDENTITY != ''
         run: |
           codesign --force --deep --options runtime \
             --sign "$APPLE_SIGNING_IDENTITY" \
             Ceyloro.app
           echo "macOS app signed."
       - name: Notarize macOS app (kondisional)
-        if: secrets.APPLE_NOTARIZE_APPLE_ID != ''
-        env:
-          APPLE_ID: ${{ secrets.APPLE_NOTARIZE_APPLE_ID }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_NOTARIZE_PASSWORD }}
+        if: env.APPLE_NOTARIZE_APPLE_ID != ''
         run: |
           xcrun notarytool submit Ceyloro-macOS-universal.zip \
-            --apple-id "$APPLE_ID" \
+            --apple-id "$APPLE_NOTARIZE_APPLE_ID" \
             --team-id "$APPLE_TEAM_ID" \
-            --password "$APPLE_PASSWORD" \
+            --password "$APPLE_NOTARIZE_PASSWORD" \
             --wait
           xcrun stapler staple Ceyloro.app
           echo "macOS app notarized and stapled."
@@ -90,6 +90,10 @@ jobs:
         architecture: [x64, arm64]
     permissions:
       contents: read
+    # C5: secret dipetakan ke env di level job sehingga bisa dipakai di kondisi if: step
+    env:
+      WINDOWS_SIGNING_CERT_PFX: ${{ secrets.WINDOWS_SIGNING_CERT_PFX }}
+      WINDOWS_SIGNING_CERT_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERT_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
       - name: Set up .NET 10
@@ -118,15 +122,12 @@ jobs:
       # Secret yang diperlukan: WINDOWS_SIGNING_CERT_PFX (base64), WINDOWS_SIGNING_CERT_PASSWORD
       # Lihat docs/BUILD-SECRETS.md untuk cara mendapatkannya.
       - name: Sign Windows binary (kondisional)
-        if: secrets.WINDOWS_SIGNING_CERT_PFX != ''
+        if: env.WINDOWS_SIGNING_CERT_PFX != ''
         shell: pwsh
-        env:
-          CERT_PFX_BASE64: ${{ secrets.WINDOWS_SIGNING_CERT_PFX }}
-          CERT_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERT_PASSWORD }}
         run: |
           $certPath = "$env:RUNNER_TEMP\signing.pfx"
-          [System.IO.File]::WriteAllBytes($certPath, [System.Convert]::FromBase64String($env:CERT_PFX_BASE64))
-          signtool sign /f $certPath /p $env:CERT_PASSWORD /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 publish/Ceyloro.exe
+          [System.IO.File]::WriteAllBytes($certPath, [System.Convert]::FromBase64String($env:WINDOWS_SIGNING_CERT_PFX))
+          signtool sign /f $certPath /p $env:WINDOWS_SIGNING_CERT_PASSWORD /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 publish/Ceyloro.exe
           Remove-Item $certPath -Force
           Write-Host "Windows binary signed."
       - name: Create Windows package checksum
