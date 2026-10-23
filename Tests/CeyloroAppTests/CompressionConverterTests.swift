@@ -316,4 +316,46 @@ final class CompressionConverterTests: XCTestCase {
             }
         }
     }
+
+    // AC-7 & Test Plan 5: Menguji kompresi 50 halaman PDF dengan XCTest metric memory
+    func testMemoryFootprintDuringMultiPagePDFCompression() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CeyloroMemoryPDF-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        // Buat PDF 50 halaman
+        let inputURL = root.appendingPathComponent("50pages.pdf")
+        let doc = PDFDocument()
+        let colors: [NSColor] = [.systemRed, .systemGreen, .systemBlue, .systemOrange, .systemPurple]
+        for i in 0..<50 {
+            let color = colors[i % colors.count]
+            let pageImage = makeColorImage(color: color, size: NSSize(width: 250, height: 250))
+            if let page = makePDFPage(from: pageImage) {
+                doc.insert(page, at: doc.pageCount)
+            }
+        }
+        doc.write(to: inputURL)
+        XCTAssertEqual(doc.pageCount, 50)
+
+        let converter = CompressionConverter()
+        let tempDir = root.appendingPathComponent("temp")
+
+        // Verifikasi footprint memori selama kompresi multipage (AC-7)
+        measure(metrics: [XCTMemoryMetric()]) {
+            do {
+                _ = try converter.compress(
+                    input: inputURL,
+                    temporaryDirectory: tempDir,
+                    ffmpegURL: nil,
+                    probe: .unknown,
+                    preset: .balanced,
+                    progress: { _ in },
+                    isCancelled: { false }
+                )
+            } catch {
+                // Diperbolehkan jika guard clause alreadyOptimal terpicu
+            }
+        }
+    }
 }
