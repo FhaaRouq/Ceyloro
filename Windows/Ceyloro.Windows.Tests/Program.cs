@@ -606,16 +606,42 @@ static void SmartPdfTextPreservation()
     var pdfPath = Path.Combine(temp.Path, "sample.pdf");
     var outPath = Path.Combine(temp.Path, "output.pdf");
 
-    // Tulis PDF minimal dengan stream teks
-    var content = "%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>\nendobj\n4 0 obj\n<< /Length 44 >>\nstream\nBT\n/F1 12 Tf\n100 700 Td\n(Ceyloro Text Layer) Tj\nET\nendstream\nendobj\nxref\n0 5\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000206 00000 n \ntrailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n300\n%%EOF\n";
-    File.WriteAllText(pdfPath, content);
+    // Tulis PDF dengan stream teks dan font standar Helvetica agar valid bagi parser
+    using (var file = File.Create(pdfPath))
+    {
+        var offsets = new List<long> { 0 };
+        void WriteAscii(string s) => file.Write(System.Text.Encoding.Latin1.GetBytes(s));
+        void WriteObj(int id, string body)
+        {
+            offsets.Add(file.Position);
+            WriteAscii($"{id} 0 obj\n{body}\nendobj\n");
+        }
+
+        WriteAscii("%PDF-1.4\n%\xE2\xE3\xCF\xD3\n");
+        WriteObj(1, "<< /Type /Catalog /Pages 2 0 R >>");
+        WriteObj(2, "<< /Type /Pages /Count 1 /Kids [3 0 R] >>");
+        WriteObj(3, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>");
+        WriteObj(4, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
+
+        var textStream = "BT\n/F1 12 Tf\n100 700 Td\n(Ceyloro Text Layer) Tj\nET\n";
+        var streamBytes = System.Text.Encoding.Latin1.GetBytes(textStream);
+        offsets.Add(file.Position);
+        WriteAscii($"5 0 obj\n<< /Length {streamBytes.Length} >>\nstream\n");
+        file.Write(streamBytes);
+        WriteAscii("endstream\nendobj\n");
+
+        var xref = file.Position;
+        WriteAscii($"xref\n0 {offsets.Count}\n0000000000 65535 f \n");
+        foreach (var offset in offsets.Skip(1)) WriteAscii($"{offset:0000000000} 00000 n \n");
+        WriteAscii($"trailer\n<< /Size {offsets.Count} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n");
+    }
 
     // Jalankan CompressAsync
     PdfConversion.CompressAsync(pdfPath, outPath, CancellationToken.None, _ => { }).GetAwaiter().GetResult();
 
     Ensure(File.Exists(outPath), "Output PDF must exist.");
     // Cek raw bytes output: jika text layer dipertahankan (File.Copy path),
-    // string "Ceyloro" akan hadir di byte stream PDF asli
+    // string "Ceyloro" akan hadir di byte stream PDF output
     var outBytes = File.ReadAllBytes(outPath);
     var outRawText = System.Text.Encoding.Latin1.GetString(outBytes);
     Ensure(outRawText.Contains("Ceyloro"), "Output PDF must retain the selectable text layer.");

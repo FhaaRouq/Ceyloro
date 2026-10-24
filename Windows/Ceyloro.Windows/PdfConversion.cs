@@ -140,6 +140,21 @@ internal static class PdfConversion
         }
         catch { }
 
+        if (!hasText)
+        {
+            try
+            {
+                // Fallback deteksi stream teks/vektor sederhana jika PdfPig gagal memetakan font
+                var rawBytes = File.ReadAllBytes(input);
+                var rawString = Encoding.Latin1.GetString(rawBytes);
+                if (rawString.Contains("BT") && (rawString.Contains("Tj") || rawString.Contains("TJ")))
+                {
+                    hasText = true;
+                }
+            }
+            catch { }
+        }
+
         if (hasText)
         {
             // Text/Vector PDF: DILARANG MERASTERISASI HALAMAN MENJADI BITMAP (AC-1).
