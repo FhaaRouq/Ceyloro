@@ -56,7 +56,13 @@ var tests = new (string Name, Action Run)[]
     // WIN-8 Tri-Modal & Actions tests
     ("tri-modal drag gesture tracker detects mode modifiers", TriModalDragGestureTracker),
     ("tools engine offers appropriate tools for videos and archives", ToolsEngineApplicableTools),
-    ("file actions engine defines valid shell actions", FileActionsEngineDefinition)
+    ("file actions engine defines valid shell actions", FileActionsEngineDefinition),
+    // WIN-9 / PRD-02 Extended Tools Catalog tests
+    ("tools engine generates correct FFmpeg arguments for mute, snapshot, and trim", ToolsEngineMediaArguments),
+    ("tools engine correctly parses page ranges for PDF split", ToolsEnginePageRangeParsing),
+    ("tools engine splits multi-page PDF into discrete pages preserving structure", ToolsEnginePdfSplitExecution),
+    ("tools engine rejects zip-slip path traversal attacks on extract", ToolsEngineExtractZipSlipRejection),
+    ("trim dialog form parses various human time formats accurately", TrimDialogFormTimeParsing)
 };
 
 var failures = new List<string>();
@@ -815,9 +821,109 @@ static void ToolsEngineApplicableTools()
     var videoTools = ToolsEngine.GetApplicableTools(["clip.mp4"], engine);
     Ensure(videoTools.Contains("mute"), "Video should offer mute tool.");
     Ensure(videoTools.Contains("snapshot"), "Video should offer snapshot tool.");
+    Ensure(videoTools.Contains("trim"), "Video should offer trim tool.");
+
+    var audioTools = ToolsEngine.GetApplicableTools(["song.mp3"], engine);
+    Ensure(audioTools.Contains("trim"), "Audio should offer trim tool.");
+
+    var pdfTools = ToolsEngine.GetApplicableTools(["document.pdf"], engine);
+    Ensure(pdfTools.Contains("split"), "PDF should offer split tool.");
 
     var archiveTools = ToolsEngine.GetApplicableTools(["archive.zip"], engine);
     Ensure(archiveTools.Contains("ekstrak"), "Archive should offer ekstrak tool.");
+}
+
+static void ToolsEngineMediaArguments()
+{
+    var muteArgs = ToolsEngine.BuildMuteArguments("in.mp4", "out.mp4");
+    Ensure(muteArgs.SequenceEqual(["-y", "-i", "in.mp4", "-c:v", "copy", "-an", "out.mp4"]), "Mute arguments should be -c:v copy -an.");
+
+    var snapArgs = ToolsEngine.BuildSnapshotArguments("in.mp4", "out.png", TimeSpan.FromSeconds(2.5));
+    Ensure(snapArgs.Contains("-ss") && snapArgs.Contains("00:00:02.500") && snapArgs.Contains("-frames:v"), "Snapshot arguments should set timestamp and 1 frame.");
+
+    var losslessTrim = ToolsEngine.BuildTrimArguments("in.mp4", "out.mp4", TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(10), lossless: true);
+    Ensure(losslessTrim.Contains("-c") && losslessTrim.Contains("copy"), "Lossless trim should copy stream.");
+
+    var reencodeTrim = ToolsEngine.BuildTrimArguments("in.mp4", "out.mp4", TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(10), lossless: false);
+    Ensure(!losslessTrim.SequenceEqual(reencodeTrim) && !reencodeTrim.Contains("copy"), "Re-encode trim must not copy stream.");
+}
+
+static void ToolsEnginePageRangeParsing()
+{
+    var r1 = ToolsEngine.ParsePageRange("1-3, 5", 10);
+    Ensure(r1.SequenceEqual([1, 2, 3, 5]), "Range 1-3, 5 did not parse correctly.");
+
+    var r2 = ToolsEngine.ParsePageRange("all", 4);
+    Ensure(r2.SequenceEqual([1, 2, 3, 4]), "Range 'all' did not return all 4 pages.");
+
+    var r3 = ToolsEngine.ParsePageRange(null, 3);
+    Ensure(r3.SequenceEqual([1, 2, 3]), "Null range did not return all 3 pages.");
+
+    var r4 = ToolsEngine.ParsePageRange("4-2", 5);
+    Ensure(r4.SequenceEqual([2, 3, 4]), "Reverse range 4-2 was not normalized.");
+
+    var r5 = ToolsEngine.ParsePageRange("8-10", 5);
+    Ensure(r5.Count == 0, "Out of bounds range was not filtered.");
+}
+
+static void ToolsEnginePdfSplitExecution()
+{
+    using var temp = new TestDirectory();
+    var pdfPath = Path.Combine(temp.Path, "sample.pdf");
+
+    // Buat multi-page PDF (2 halaman) dengan PdfDocumentBuilder
+    var builder = new UglyToad.PdfPig.Writer.PdfDocumentBuilder();
+    builder.AddPage(595, 842);
+    builder.AddPage(595, 842);
+    File.WriteAllBytes(pdfPath, builder.Build());
+
+    var resultFolder = ToolsEngine.ExecutePdfSplitAsync(pdfPath, temp.Path, null, CancellationToken.None).GetAwaiter().GetResult();
+    Ensure(Directory.Exists(resultFolder), "PDF split output folder was not created.");
+
+    var files = Directory.GetFiles(resultFolder, "*.pdf").OrderBy(f => f).ToArray();
+    Ensure(files.Length == 2, $"Expected 2 split PDF pages, found {files.Length}.");
+    Ensure(Path.GetFileName(files[0]) == "sample-01.pdf", $"Page 1 name mismatch: {Path.GetFileName(files[0])}");
+    Ensure(Path.GetFileName(files[1]) == "sample-02.pdf", $"Page 2 name mismatch: {Path.GetFileName(files[1])}");
+
+    using var doc1 = UglyToad.PdfPig.PdfDocument.Open(files[0]);
+    Ensure(doc1.NumberOfPages == 1, "Split page 1 must have exactly 1 page.");
+
+    using var doc2 = UglyToad.PdfPig.PdfDocument.Open(files[1]);
+    Ensure(doc2.NumberOfPages == 1, "Split page 2 must have exactly 1 page.");
+}
+
+static void ToolsEngineExtractZipSlipRejection()
+{
+    using var temp = new TestDirectory();
+    var zipPath = Path.Combine(temp.Path, "malicious.zip");
+
+    using (var file = File.Create(zipPath))
+    using (var archive = new ZipArchive(file, ZipArchiveMode.Create))
+    {
+        var entry = archive.CreateEntry("../../evil.txt");
+        using var writer = new StreamWriter(entry.Open());
+        writer.Write("exploited");
+    }
+
+    var threw = false;
+    try
+    {
+        ToolsEngine.ExecuteExtractAsync(zipPath, temp.Path, CancellationToken.None).GetAwaiter().GetResult();
+    }
+    catch (InvalidDataException)
+    {
+        threw = true;
+    }
+
+    Ensure(threw, "Extracting a zip with path traversal '../../' must be rejected with InvalidDataException.");
+}
+
+static void TrimDialogFormTimeParsing()
+{
+    Ensure(TrimDialogForm.TryParseTime("00:01:15", out var t1) && t1.TotalSeconds == 75, "00:01:15 should parse to 75 seconds.");
+    Ensure(TrimDialogForm.TryParseTime("45", out var t2) && t2.TotalSeconds == 45, "45 should parse to 45 seconds.");
+    Ensure(TrimDialogForm.TryParseTime("01:30", out var t3) && t3.TotalSeconds == 90, "01:30 should parse to 90 seconds.");
+    Ensure(!TrimDialogForm.TryParseTime("invalid", out _), "Invalid string should fail parsing.");
 }
 
 static void FileActionsEngineDefinition()

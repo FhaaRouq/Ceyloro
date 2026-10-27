@@ -237,6 +237,28 @@ public sealed class RadialOverlayForm : Form
     {
         isConverting = true;
         Hide();
+
+        var trimStart = TimeSpan.Zero;
+        var trimEnd = TimeSpan.FromSeconds(30);
+        var trimLossless = true;
+
+        if (tool == "trim")
+        {
+            var probed = await ToolsEngine.ProbeDurationAsync(files[0], engine.Settings.Current, CancellationToken.None);
+            var initialDuration = probed.HasValue ? TimeSpan.FromSeconds(probed.Value) : (TimeSpan?)null;
+
+            using var trimForm = new TrimDialogForm(files[0], initialDuration);
+            if (trimForm.ShowDialog(this) != DialogResult.OK)
+            {
+                Close();
+                return;
+            }
+
+            trimStart = trimForm.StartTime;
+            trimEnd = trimForm.EndTime;
+            trimLossless = trimForm.LosslessMode;
+        }
+
         using var progress = new ProgressForm();
         progress.Show(this);
         var outputDir = engine.Settings.Current.OutputDirectory.Trim();
@@ -252,9 +274,13 @@ public sealed class RadialOverlayForm : Form
                 if (tool == "mute")
                     outputs.Add(await ToolsEngine.ExecuteMuteAsync(file, outputDir, engine.Settings.Current, progress.CancellationToken));
                 else if (tool == "snapshot")
-                    outputs.Add(await ToolsEngine.ExecuteSnapshotAsync(file, outputDir, engine.Settings.Current, progress.CancellationToken));
+                    outputs.Add(await ToolsEngine.ExecuteSnapshotAsync(file, outputDir, engine.Settings.Current, null, progress.CancellationToken));
+                else if (tool == "trim")
+                    outputs.Add(await ToolsEngine.ExecuteTrimAsync(file, outputDir, trimStart, trimEnd, engine.Settings.Current, trimLossless, progress.CancellationToken));
                 else if (tool == "ekstrak")
                     outputs.Add(await ToolsEngine.ExecuteExtractAsync(file, outputDir, progress.CancellationToken));
+                else if (tool == "split")
+                    outputs.Add(await ToolsEngine.ExecutePdfSplitAsync(file, outputDir, null, progress.CancellationToken, p => progress.Report(p)));
             }
             progress.Close();
             var summary = $"Selesai: {outputs.Count} file diproses ({tool.ToUpperInvariant()}).";
