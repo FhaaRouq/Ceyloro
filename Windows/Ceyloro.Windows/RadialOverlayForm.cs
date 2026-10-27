@@ -212,7 +212,7 @@ public sealed class RadialOverlayForm : Form
         {
             var action = availableTargets[targetIndex];
             Hide();
-            FileActionsEngine.ExecuteAction(action, files, out var feedback);
+            FileActionsEngine.ExecuteAction(action, files, out var feedback, this.Handle, engine.Settings.Current.PathFormatStyle);
             Close();
             showMessage(feedback);
             return;

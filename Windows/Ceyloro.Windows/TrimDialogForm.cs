@@ -182,3 +182,4 @@ public sealed class TrimDialogForm : Form
         return false;
     }
 }
+

@@ -62,7 +62,10 @@ var tests = new (string Name, Action Run)[]
     ("tools engine correctly parses page ranges for PDF split", ToolsEnginePageRangeParsing),
     ("tools engine splits multi-page PDF into discrete pages preserving structure", ToolsEnginePdfSplitExecution),
     ("tools engine rejects zip-slip path traversal attacks on extract", ToolsEngineExtractZipSlipRejection),
-    ("trim dialog form parses various human time formats accurately", TrimDialogFormTimeParsing)
+    ("trim dialog form parses various human time formats accurately", TrimDialogFormTimeParsing),
+    // WIN-10 / PRD-03 Native File Actions tests
+    ("file actions engine formats paths across standard, quoted, unix, and wsl styles", PathFormattingStyles),
+    ("file actions engine configures clipboard drop effects for copy and move", ClipboardDropEffectConfiguration)
 };
 
 var failures = new List<string>();
@@ -931,6 +934,44 @@ static void FileActionsEngineDefinition()
     Ensure(FileActionsEngine.AvailableActions.Contains("salin path"), "Should contain salin path action.");
     Ensure(FileActionsEngine.AvailableActions.Contains("terminal"), "Should contain terminal action.");
     Ensure(FileActionsEngine.AvailableActions.Contains("buka folder"), "Should contain buka folder action.");
+    Ensure(FileActionsEngine.AvailableActions.Contains("salin file"), "Should contain salin file action.");
+    Ensure(FileActionsEngine.AvailableActions.Contains("potong file"), "Should contain potong file action.");
+    Ensure(FileActionsEngine.AvailableActions.Contains("bagikan"), "Should contain bagikan action.");
+}
+
+static void PathFormattingStyles()
+{
+    var sample = @"C:\Users\Ceyloro\doc.pdf";
+    Ensure(FileActionsEngine.FormatPath(sample, PathFormatStyle.Standard) == sample, "Standard path mismatch.");
+    Ensure(FileActionsEngine.FormatPath(sample, PathFormatStyle.Quoted) == $"\"{sample}\"", "Quoted path mismatch.");
+    Ensure(FileActionsEngine.FormatPath(sample, PathFormatStyle.Unix) == "C:/Users/Ceyloro/doc.pdf", "Unix path mismatch.");
+    Ensure(FileActionsEngine.FormatPath(sample, PathFormatStyle.Wsl) == "/mnt/c/Users/Ceyloro/doc.pdf", "WSL path mismatch.");
+    Ensure(FileActionsEngine.ToWslPath(@"D:\Data\photo.jpg") == "/mnt/d/Data/photo.jpg", "WSL D: drive conversion mismatch.");
+    Ensure(FileActionsEngine.ParsePathFormatStyle("wsl") == PathFormatStyle.Wsl, "Parse WSL style failed.");
+    Ensure(FileActionsEngine.ParsePathFormatStyle("quoted") == PathFormatStyle.Quoted, "Parse Quoted style failed.");
+}
+
+static void ClipboardDropEffectConfiguration()
+{
+    using var temp = new TestDirectory();
+    var testFile = Path.Combine(temp.Path, "clip.txt");
+    File.WriteAllText(testFile, "test data");
+
+    // Test Copy DropEffect (1)
+    FileActionsEngine.SetClipboardFiles([testFile], isMove: false);
+    var copyData = Clipboard.GetDataObject();
+    Ensure(copyData != null, "Clipboard data object should not be null after copy.");
+    var copyStream = copyData.GetData("Preferred DropEffect") as Stream;
+    Ensure(copyStream != null, "Preferred DropEffect stream must be present for copy.");
+    Ensure(copyStream.ReadByte() == 1, "DROPEFFECT_COPY must be 1.");
+
+    // Test Move / Cut DropEffect (2)
+    FileActionsEngine.SetClipboardFiles([testFile], isMove: true);
+    var moveData = Clipboard.GetDataObject();
+    Ensure(moveData != null, "Clipboard data object should not be null after move.");
+    var moveStream = moveData.GetData("Preferred DropEffect") as Stream;
+    Ensure(moveStream != null, "Preferred DropEffect stream must be present for move/cut.");
+    Ensure(moveStream.ReadByte() == 2, "DROPEFFECT_MOVE must be 2.");
 }
 
 static void Ensure(bool condition, string message)
