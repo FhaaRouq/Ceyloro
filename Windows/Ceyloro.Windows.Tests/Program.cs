@@ -68,7 +68,10 @@ var tests = new (string Name, Action Run)[]
     ("file actions engine configures clipboard drop effects for copy and move", ClipboardDropEffectConfiguration),
     // WIN-11 / PRD-04 Toast Notification Engine tests
     ("notification service activation handler routes openFile, openFolder, and openLog actions", NotificationActivationHandlerRouting),
-    ("notification service activation handler is safe against malformed or empty arguments", NotificationActivationHandlerEdgeCases)
+    ("notification service activation handler is safe against malformed or empty arguments", NotificationActivationHandlerEdgeCases),
+    // WIN-12 / PRD-05 GPU Hardware Acceleration tests
+    ("gpu hardware acceleration selects optimal vendor encoder and supports cpu fallback", GpuHardwareAccelerationSelection),
+    ("gpu command builder configures vendor-specific rate control parameters", GpuCommandBuilderVendorParameters)
 };
 
 var failures = new List<string>();
@@ -1031,6 +1034,104 @@ static void NotificationActivationHandlerEdgeCases()
     try { NotificationService.HandleActivation("action=openFile&path=C:\\does\\not\\exist.pdf"); }
     catch { threw = true; }
     Ensure(!threw, "HandleActivation openFile with non-existent path must not throw.");
+}
+
+static void GpuHardwareAccelerationSelection()
+{
+    // 1. Probed NVIDIA GPU
+    var nvCaps = CreateFfmpegCapabilitiesWithGpu(
+        encoders: ["libx264", "h264_nvenc", "libx265", "hevc_nvenc", "aac"],
+        decoders: ["h264", "hevc"],
+        muxers: ["mp4"],
+        gpuEncoder: "h264_nvenc",
+        hevcGpuEncoder: "hevc_nvenc");
+
+    Ensure(nvCaps.IsHardwareAccelerated, "NVIDIA capabilities should report IsHardwareAccelerated = true.");
+    Ensure(nvCaps.EncoderFor("mp4") == "h264_nvenc", "NVIDIA should prefer h264_nvenc.");
+    Ensure(nvCaps.EncoderFor("mp4", allowHardware: false) == "libx264", "Fallback should select libx264 when allowHardware is false.");
+    Ensure(nvCaps.EncoderFor("heic") == "hevc_nvenc", "NVIDIA should prefer hevc_nvenc for HEIC.");
+    Ensure(nvCaps.EncoderFor("heic", allowHardware: false) == "libx265", "Fallback should select libx265 for HEIC when allowHardware is false.");
+
+    // 2. Probed Intel QSV
+    var qsvCaps = CreateFfmpegCapabilitiesWithGpu(
+        encoders: ["libx264", "h264_qsv", "aac"],
+        decoders: ["h264"],
+        muxers: ["mp4"],
+        gpuEncoder: "h264_qsv");
+    Ensure(qsvCaps.IsHardwareAccelerated, "QSV should report IsHardwareAccelerated = true.");
+    Ensure(qsvCaps.EncoderFor("mp4") == "h264_qsv", "QSV should prefer h264_qsv.");
+
+    // 3. Probed AMD AMF
+    var amfCaps = CreateFfmpegCapabilitiesWithGpu(
+        encoders: ["libx264", "h264_amf", "aac"],
+        decoders: ["h264"],
+        muxers: ["mp4"],
+        gpuEncoder: "h264_amf");
+    Ensure(amfCaps.IsHardwareAccelerated, "AMF should report IsHardwareAccelerated = true.");
+    Ensure(amfCaps.EncoderFor("mp4") == "h264_amf", "AMF should prefer h264_amf.");
+
+    // 4. Pure CPU (no hardware detected)
+    var cpuCaps = CreateFfmpegCapabilitiesWithGpu(
+        encoders: ["libx264", "aac"],
+        decoders: ["h264"],
+        muxers: ["mp4"]);
+    Ensure(!cpuCaps.IsHardwareAccelerated, "CPU should report IsHardwareAccelerated = false.");
+    Ensure(cpuCaps.EncoderFor("mp4") == "libx264", "CPU should use libx264.");
+}
+
+static void GpuCommandBuilderVendorParameters()
+{
+    var settings = new AppSettings();
+
+    // 1. NVIDIA NVENC command arguments
+    var nvCaps = CreateFfmpegCapabilitiesWithGpu(
+        encoders: ["libx264", "h264_nvenc", "aac"],
+        decoders: ["h264"],
+        muxers: ["mp4"],
+        gpuEncoder: "h264_nvenc");
+
+    var nvArgs = FfmpegCommandBuilder.Build(@"C:\in.mp4", @"C:\out.mp4", "mp4", nvCaps, settings, compression: false);
+    Ensure(nvArgs.Contains("h264_nvenc"), "Should use h264_nvenc.");
+    Ensure(nvArgs.Contains("-cq") && nvArgs.Contains("24"), "NVENC normal should use -cq 24.");
+    Ensure(nvArgs.Contains("-preset") && nvArgs.Contains("p5"), "NVENC should use preset p5.");
+    Ensure(nvArgs.Contains("-rc:v") && nvArgs.Contains("vbr"), "NVENC should use vbr rate control.");
+
+    var nvCompArgs = FfmpegCommandBuilder.Build(@"C:\in.mp4", @"C:\out.mp4", "mp4", nvCaps, settings, compression: true);
+    Ensure(nvCompArgs.Contains("-cq") && nvCompArgs.Contains("30"), "NVENC compression should use -cq 30.");
+
+    // 2. Fallback to CPU via disableHardwareAcceleration flag
+    var fallbackArgs = FfmpegCommandBuilder.Build(@"C:\in.mp4", @"C:\out.mp4", "mp4", nvCaps, settings, compression: false, disableHardwareAcceleration: true);
+    Ensure(fallbackArgs.Contains("libx264"), "Fallback must select libx264.");
+    Ensure(!fallbackArgs.Contains("h264_nvenc"), "Fallback must not use h264_nvenc.");
+    Ensure(fallbackArgs.Contains("-crf") && fallbackArgs.Contains("23"), "CPU normal should use -crf 23.");
+
+    // 3. Intel QSV command arguments
+    var qsvCaps = CreateFfmpegCapabilitiesWithGpu(
+        encoders: ["libx264", "h264_qsv", "aac"],
+        decoders: ["h264"],
+        muxers: ["mp4"],
+        gpuEncoder: "h264_qsv");
+    var qsvArgs = FfmpegCommandBuilder.Build(@"C:\in.mp4", @"C:\out.mp4", "mp4", qsvCaps, settings, compression: false);
+    Ensure(qsvArgs.Contains("h264_qsv") && qsvArgs.Contains("-global_quality") && qsvArgs.Contains("24"), "QSV should use -global_quality 24.");
+
+    // 4. AMD AMF command arguments
+    var amfCaps = CreateFfmpegCapabilitiesWithGpu(
+        encoders: ["libx264", "h264_amf", "aac"],
+        decoders: ["h264"],
+        muxers: ["mp4"],
+        gpuEncoder: "h264_amf");
+    var amfArgs = FfmpegCommandBuilder.Build(@"C:\in.mp4", @"C:\out.mp4", "mp4", amfCaps, settings, compression: false);
+    Ensure(amfArgs.Contains("h264_amf") && amfArgs.Contains("-rc") && amfArgs.Contains("cqp") && amfArgs.Contains("-qp_i") && amfArgs.Contains("24"), "AMF should use cqp with qp_i 24.");
+}
+
+static FfmpegCapabilities CreateFfmpegCapabilitiesWithGpu(string[] encoders, string[] decoders, string[] muxers, string? gpuEncoder = null, string? hevcGpuEncoder = null)
+{
+    return new FfmpegCapabilities(
+        new HashSet<string>(encoders, StringComparer.OrdinalIgnoreCase),
+        new HashSet<string>(decoders, StringComparer.OrdinalIgnoreCase),
+        new HashSet<string>(muxers, StringComparer.OrdinalIgnoreCase),
+        gpuEncoder,
+        hevcGpuEncoder);
 }
 
 static void Ensure(bool condition, string message)

@@ -234,3 +234,4 @@ public sealed class NotificationService
             .Replace("\"", "&quot;")
             .Replace("'", "&apos;");
 }
+
