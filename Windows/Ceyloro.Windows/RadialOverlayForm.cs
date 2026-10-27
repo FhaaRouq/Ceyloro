@@ -214,7 +214,8 @@ public sealed class RadialOverlayForm : Form
             Hide();
             FileActionsEngine.ExecuteAction(action, files, out var feedback, this.Handle, engine.Settings.Current.PathFormatStyle);
             Close();
-            showMessage(feedback);
+            if (!string.IsNullOrWhiteSpace(feedback))
+                NotificationService.ShowInfoToast("Ceyloro — Aksi File", feedback);
             return;
         }
 
@@ -283,24 +284,20 @@ public sealed class RadialOverlayForm : Form
                     outputs.Add(await ToolsEngine.ExecutePdfSplitAsync(file, outputDir, null, progress.CancellationToken, p => progress.Report(p)));
             }
             progress.Close();
-            var summary = $"Selesai: {outputs.Count} file diproses ({tool.ToUpperInvariant()}).";
-            var choice = MessageBox.Show(this, summary + "\n\nBuka folder hasil?", "Ceyloro", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
-            if (choice == DialogResult.Yes && outputs.Count > 0)
-            {
-                var folder = Directory.Exists(outputs[0]) ? outputs[0] : Path.GetDirectoryName(outputs[0]);
-                if (!string.IsNullOrWhiteSpace(folder))
-                    Process.Start(new ProcessStartInfo("explorer.exe", $"\"{folder}\"") { UseShellExecute = true });
-            }
+            var toolTitle = $"Ceyloro — {tool.ToUpperInvariant()} Selesai";
+            var toolSummary = $"{outputs.Count} file diproses.";
+            NotificationService.ShowCompletionToast(toolTitle, toolSummary, outputs);
         }
         catch (OperationCanceledException)
         {
             progress.Close();
-            showMessage("Operasi dibatalkan.");
+            NotificationService.ShowInfoToast("Ceyloro", "Operasi dibatalkan.");
         }
         catch (Exception error)
         {
             progress.Close();
-            showMessage($"Operasi gagal: {error.Message}");
+            AppLog.Write($"Tool '{tool}' gagal: {error}");
+            NotificationService.ShowWarningToast("Ceyloro — Operasi Gagal", error.Message);
         }
         finally
         {
@@ -346,7 +343,8 @@ public sealed class RadialOverlayForm : Form
                     try { engine.Settings.Save(); }
                     catch (Exception error)
                     {
-                        MessageBox.Show(this, $"Pilihan disimpan untuk pekerjaan ini, tetapi tidak dapat disimpan sebagai preferensi: {error.Message}", "Pengaturan Ceyloro", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        AppLog.Write($"Gagal menyimpan preferensi PDF merge: {error.Message}");
+                        NotificationService.ShowWarningToast("Pengaturan Ceyloro", $"Pilihan berlaku untuk pekerjaan ini, tetapi tidak dapat disimpan permanen: {error.Message}");
                     }
                 }
             }
@@ -368,36 +366,39 @@ public sealed class RadialOverlayForm : Form
                 ? new BatchResult([await engine.MergeImagesToPdfAsync(files, combinedPdfName, pdfOptions ?? new PdfConversionOptions(), progressReporter, progress.CancellationToken)], [])
                 : await engine.ConvertAsync(files, target, progressReporter, progress.CancellationToken, pdfOptions, progress.SetCurrentFile);
             progress.Close();
-            var summary = target == "compress"
-                ? $"Selesai: {result.Outputs.Count} file dikompres."
-                : $"Selesai: {result.Outputs.Count} file {target.ToUpperInvariant()} dibuat.";
+            var title = target == "compress" ? "Ceyloro — Kompresi Selesai" : $"Ceyloro — Konversi {target.ToUpperInvariant()} Selesai";
+            var body = target == "compress"
+                ? $"{result.Outputs.Count} file berhasil dikompres."
+                : $"{result.Outputs.Count} file {target.ToUpperInvariant()} berhasil dibuat.";
+
+            AppLog.Write($"Batch selesai: output={result.Outputs.Count}, failure={result.Failures.Count}");
+
             if (result.Failures.Count > 0)
             {
-                var details = string.Join("\n", result.Failures.Take(5).Select(failure => $"{Path.GetFileName(failure.Input)}: {failure.Message}"));
-                summary += $"\nGagal: {result.Failures.Count} file.\n{details}";
-                if (result.Failures.Count > 5) summary += $"\n… dan {result.Failures.Count - 5} lainnya.";
-                AppLog.Write($"Batch selesai dengan kegagalan: {string.Join(" | ", result.Failures.Select(failure => $"{Path.GetFileName(failure.Input)}: {failure.Message}"))}");
+                var details = string.Join(", ", result.Failures.Take(3).Select(f => Path.GetFileName(f.Input)));
+                var failBody = $"{result.Outputs.Count} file berhasil, {result.Failures.Count} file gagal ({details}{(result.Failures.Count > 3 ? ", …" : "")}).";
+                AppLog.Write($"Batch kegagalan: {string.Join(" | ", result.Failures.Select(f => $"{Path.GetFileName(f.Input)}: {f.Message}"))}");
+                var failFolder = result.Outputs.Count > 0
+                    ? (Directory.Exists(result.Outputs[0]) ? result.Outputs[0] : Path.GetDirectoryName(result.Outputs[0]) ?? string.Empty)
+                    : string.Empty;
+                NotificationService.ShowPartialFailureToast("Ceyloro — Selesai dengan Catatan", failBody, failFolder);
             }
-            AppLog.Write($"Batch selesai: output={result.Outputs.Count}, failure={result.Failures.Count}");
-            var choice = MessageBox.Show(this, summary + "\n\nBuka folder hasil?", "Ceyloro", MessageBoxButtons.YesNo, result.Failures.Count == 0 ? MessageBoxIcon.Information : MessageBoxIcon.Warning);
-            if (choice == DialogResult.Yes && result.Outputs.Count > 0)
+            else
             {
-                var folder = Directory.Exists(result.Outputs[0]) ? result.Outputs[0] : Path.GetDirectoryName(result.Outputs[0]);
-                if (!string.IsNullOrWhiteSpace(folder))
-                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe", $"\"{folder}\"") { UseShellExecute = true });
+                NotificationService.ShowCompletionToast(title, body, result.Outputs);
             }
         }
         catch (OperationCanceledException)
         {
             progress.Close();
             AppLog.Write("Konversi dibatalkan oleh pengguna.");
-            showMessage("Konversi dibatalkan.");
+            NotificationService.ShowInfoToast("Ceyloro", "Konversi dibatalkan.");
         }
         catch (Exception error)
         {
             progress.Close();
             AppLog.Write($"Konversi gagal: {error}");
-            showMessage(error.Message);
+            NotificationService.ShowWarningToast("Ceyloro — Konversi Gagal", error.Message);
         }
         finally
         {

@@ -29,22 +29,28 @@ public sealed class TrayApplicationContext : ApplicationContext
         trayIcon.DoubleClick += (_, _) => OpenOverlay();
         hotKeyWindow = new HotKeyWindow(OpenOverlay);
         if (!hotKeyWindow.Register())
-            trayIcon.ShowBalloonTip(3000, "Ceyloro", "Hotkey Ctrl+Alt+Space tidak tersedia.", ToolTipIcon.Warning);
+            NotificationService.ShowWarningToast("Ceyloro", "Hotkey Ctrl+Alt+Space tidak tersedia di sistem ini.");
         shiftDragMonitor = new ShiftDragMonitor(SynchronizationContext.Current);
         shiftDragMonitor.GestureTriggered += OnShiftDragGesture;
         shiftDragMonitor.DragCompleted += OnShiftDragCompleted;
         if (settings.Current.EnableShiftDragGesture)
         {
             if (!shiftDragMonitor.Start())
-                trayIcon.ShowBalloonTip(3000, "Ceyloro", "Gesture Shift-drag tidak dapat didaftarkan.", ToolTipIcon.Warning);
+                NotificationService.ShowWarningToast("Ceyloro", "Gesture Shift-drag tidak dapat didaftarkan.");
         }
         if (settings.LoadWarning is not null)
         {
             AppLog.Write(settings.LoadWarning);
-            trayIcon.ShowBalloonTip(6000, "Ceyloro", settings.LoadWarning, ToolTipIcon.Warning);
+            NotificationService.ShowWarningToast("Ceyloro — Pengaturan", settings.LoadWarning);
         }
         if (openOverlayOnStartup)
             Application.Idle += OpenOverlayOnFirstIdle;
+
+        // Daftar handler jika pengguna klik "Unduh & Pasang" dari toast update
+        NotificationService.UpdateRequested += async (_, _) =>
+        {
+            await CheckForUpdatesAsync(userInitiated: true, skipPrompt: true);
+        };
 
         if (settings.Current.AutoCheckUpdates)
             _ = Task.Run(async () =>
@@ -71,7 +77,7 @@ public sealed class TrayApplicationContext : ApplicationContext
         return menu;
     }
 
-    private async Task CheckForUpdatesAsync(bool userInitiated)
+    private async Task CheckForUpdatesAsync(bool userInitiated, bool skipPrompt = false)
     {
         try
         {
@@ -79,44 +85,29 @@ public sealed class TrayApplicationContext : ApplicationContext
             if (!result.HasUpdate)
             {
                 if (userInitiated)
-                {
-                    MessageBox.Show(
-                        $"Ceyloro sudah menggunakan versi terbaru (v{result.CurrentVersion}).",
-                        "Pembaruan Ceyloro",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Information);
-                }
+                    NotificationService.ShowInfoToast("Ceyloro", $"Sudah menggunakan versi terbaru (v{result.CurrentVersion}).");
                 return;
             }
 
-            var prompt = $"Versi baru Ceyloro tersedia!\n\n" +
-                         $"Versi terpasang: v{result.CurrentVersion}\n" +
-                         $"Versi terbaru: v{result.LatestVersion}\n\n" +
-                         (string.IsNullOrWhiteSpace(result.ReleaseNotes) ? string.Empty : $"Catatan Rilis:\n{result.ReleaseNotes}\n\n") +
-                         $"Apakah Anda ingin mengunduh dan memasang pembaruan sekarang?";
-
-            var choice = MessageBox.Show(prompt, "Pembaruan Ceyloro", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
-            if (choice != DialogResult.Yes)
+            if (skipPrompt)
+            {
+                // Dipanggil dari klik tombol toast → langsung unduh
+                NotificationService.ShowInfoToast("Ceyloro", "Mengunduh pembaruan…");
+                var zipPath = await updateService.DownloadAndVerifyAsync(result);
+                NotificationService.ShowInfoToast("Ceyloro", "Memasang pembaruan dan memuat ulang…");
+                await Task.Delay(1000);
+                UpdateService.ApplyUpdateAndRestart(zipPath);
                 return;
+            }
 
-            trayIcon.ShowBalloonTip(4000, "Ceyloro", "Mengunduh pembaruan…", ToolTipIcon.Info);
-            var zipPath = await updateService.DownloadAndVerifyAsync(result);
-
-            trayIcon.ShowBalloonTip(3000, "Ceyloro", "Memasang pembaruan dan memuat ulang…", ToolTipIcon.Info);
-            await Task.Delay(1000);
-            UpdateService.ApplyUpdateAndRestart(zipPath);
+            // Tampilkan toast dengan tombol interaktif
+            NotificationService.ShowUpdateAvailableToast(result.CurrentVersion, result.LatestVersion);
         }
         catch (Exception error)
         {
             AppLog.Write($"Pemeriksaan pembaruan gagal: {error.Message}");
             if (userInitiated)
-            {
-                MessageBox.Show(
-                    $"Gagal memeriksa atau mengunduh pembaruan:\n{error.Message}",
-                    "Pembaruan Ceyloro",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning);
-            }
+                NotificationService.ShowWarningToast("Ceyloro — Pembaruan Gagal", $"Gagal memeriksa atau mengunduh pembaruan:\n{error.Message}");
         }
     }
 
@@ -188,9 +179,9 @@ public sealed class TrayApplicationContext : ApplicationContext
         settingsForm.Activate();
     }
 
-    private void ShowMessage(string message)
+    private static void ShowMessage(string message)
     {
-        trayIcon.ShowBalloonTip(5000, "Ceyloro", message, ToolTipIcon.Info);
+        NotificationService.ShowInfoToast("Ceyloro", message);
     }
 
     protected override void ExitThreadCore()

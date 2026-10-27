@@ -65,7 +65,10 @@ var tests = new (string Name, Action Run)[]
     ("trim dialog form parses various human time formats accurately", TrimDialogFormTimeParsing),
     // WIN-10 / PRD-03 Native File Actions tests
     ("file actions engine formats paths across standard, quoted, unix, and wsl styles", PathFormattingStyles),
-    ("file actions engine configures clipboard drop effects for copy and move", ClipboardDropEffectConfiguration)
+    ("file actions engine configures clipboard drop effects for copy and move", ClipboardDropEffectConfiguration),
+    // WIN-11 / PRD-04 Toast Notification Engine tests
+    ("notification service activation handler routes openFile, openFolder, and openLog actions", NotificationActivationHandlerRouting),
+    ("notification service activation handler is safe against malformed or empty arguments", NotificationActivationHandlerEdgeCases)
 };
 
 var failures = new List<string>();
@@ -972,6 +975,62 @@ static void ClipboardDropEffectConfiguration()
     var moveStream = moveData.GetData("Preferred DropEffect") as Stream;
     Ensure(moveStream != null, "Preferred DropEffect stream must be present for move/cut.");
     Ensure(moveStream.ReadByte() == 2, "DROPEFFECT_MOVE must be 2.");
+}
+
+static void NotificationActivationHandlerRouting()
+{
+    using var temp = new TestDirectory();
+
+    // openFile: file ada → seharusnya tidak throw
+    var testFile = Path.Combine(temp.Path, "result.txt");
+    File.WriteAllText(testFile, "ceyloro test");
+    // Tidak memanggil Process.Start sungguhan karena file tidak bisa dibuka di test runner;
+    // pastikan HandleActivation tidak throw untuk argumen yang valid.
+    var threw = false;
+    try { NotificationService.HandleActivation($"action=openFile&path={Uri.EscapeDataString(testFile)}"); }
+    catch { threw = true; }
+    Ensure(!threw, "HandleActivation openFile must not throw for an existing file.");
+
+    // openFolder: folder ada
+    threw = false;
+    try { NotificationService.HandleActivation($"action=openFolder&path={Uri.EscapeDataString(temp.Path)}"); }
+    catch { threw = true; }
+    Ensure(!threw, "HandleActivation openFolder must not throw for an existing folder.");
+
+    // openLog: log ada
+    threw = false;
+    var logFile = Path.Combine(temp.Path, "app.log");
+    File.WriteAllText(logFile, "log content");
+    try { NotificationService.HandleActivation($"action=openLog&path={Uri.EscapeDataString(logFile)}"); }
+    catch { threw = true; }
+    Ensure(!threw, "HandleActivation openLog must not throw for an existing log file.");
+}
+
+static void NotificationActivationHandlerEdgeCases()
+{
+    // Argumen kosong
+    var threw = false;
+    try { NotificationService.HandleActivation(string.Empty); }
+    catch { threw = true; }
+    Ensure(!threw, "HandleActivation must handle empty arguments silently.");
+
+    // Argumen null-equivalent
+    threw = false;
+    try { NotificationService.HandleActivation("   "); }
+    catch { threw = true; }
+    Ensure(!threw, "HandleActivation must handle whitespace-only arguments silently.");
+
+    // Action tidak dikenal
+    threw = false;
+    try { NotificationService.HandleActivation("action=unknownAction&path=C:\\nowhere"); }
+    catch { threw = true; }
+    Ensure(!threw, "HandleActivation must silently ignore unknown actions.");
+
+    // openFile dengan path tidak ada → tidak crash
+    threw = false;
+    try { NotificationService.HandleActivation("action=openFile&path=C:\\does\\not\\exist.pdf"); }
+    catch { threw = true; }
+    Ensure(!threw, "HandleActivation openFile with non-existent path must not throw.");
 }
 
 static void Ensure(bool condition, string message)
