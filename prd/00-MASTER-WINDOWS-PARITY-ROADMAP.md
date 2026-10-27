@@ -124,3 +124,4 @@
 2. Sumber file asli pengguna 100% aman (tidak pernah dimodifikasi, ditimpa, atau dihapus).
 3. Setiap operasi memiliki penanganan pembatalan (*cancellation token*) instan tanpa file sampah tersisa.
 4. Kompatibel penuh dan teruji lulus kompilasi untuk `win-x64` dan `win-arm64`.
+

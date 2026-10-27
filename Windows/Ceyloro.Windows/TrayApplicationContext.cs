@@ -132,14 +132,16 @@ public sealed class TrayApplicationContext : ApplicationContext
         overlay.Show();
     }
 
-    private void OnShiftDragGesture(Point screenPoint)
+    private void OnShiftDragGesture(Point screenPoint, RadialWheelMode mode)
     {
         if (overlay is { IsDisposed: false })
         {
+            if (overlay.CurrentMode != mode)
+                overlay.SwitchMode(mode);
             overlay.RepositionTo(screenPoint);
             return;
         }
-        overlay = new RadialOverlayForm(engine, ShowMessage, openedByGesture: true);
+        overlay = new RadialOverlayForm(engine, ShowMessage, openedByGesture: true, initialMode: mode);
         overlay.FormClosed += (_, _) => overlay = null;
         overlay.RepositionTo(screenPoint);
         overlay.Show();

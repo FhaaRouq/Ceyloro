@@ -84,3 +84,4 @@ Aplikasi mendaftarkan event handler `OnNotificationActivated` di `NotificationSe
 1. Tidak ada dialog pop-up `MessageBox.Show` yang memblokir layar saat batch selesai.
 2. Mengklik tombol *"Buka Folder"* pada banner notifikasi langsung membuka folder Windows Explorer secara instan.
 3. Notifikasi tersimpan di Windows Action Center jika pengguna sedang sibuk (*Focus Assist / Do Not Disturb*) dan dapat diakses kembali kemudian.
+

@@ -66,3 +66,4 @@ Melengkapi fitur `Kompres` yang sudah tersedia, PRD ini mendefinisikan implement
   1. Pohon proses `ffmpeg.exe` atau I/O worker dimatikan seketika (`process.Kill(entireProcessTree: true)`).
   2. Direktori staging sementara di `%Temp%\Ceyloro\<guid>` dihapus bersih.
   3. Tidak ada file output parsial atau korup yang tertinggal di folder tujuan pengguna.
+

@@ -27,3 +27,4 @@ Folder ini menjadi **satu sumber kebenaran (Single Source of Truth / SSOT)** per
 3. **Non-Blocking Drag Loop**: Hook mouse global (`WH_MOUSE_LL`) dan event OLE drag-and-drop harus secepat mungkin menyerahkan beban berat ke background thread agar drag loop Explorer tidak mengalami lag atau stutter.
 4. **Hardware-Aware Adaptive Execution**: Deteksi kapabilitas CPU, GPU, dan memori untuk mengalokasikan thread worker dan akselerator hardware secara optimal.
 5. **Cross-Architecture Parity (x64 & ARM64)**: Seluruh biner dan pustaka harus dikompilasi secara native untuk arsitektur target tanpa mengandalkan lapisan emulasi overhead.
+

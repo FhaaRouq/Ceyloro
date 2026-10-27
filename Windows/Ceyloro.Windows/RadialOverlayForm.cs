@@ -17,14 +17,16 @@ public sealed class RadialOverlayForm : Form
     private bool waitingForTargets;
     private int dragGeneration;
 
+    public RadialWheelMode CurrentMode { get; private set; }
     public bool OpenedByGesture { get; }
     public bool IsConverting => isConverting;
 
-    public RadialOverlayForm(ConversionEngine engine, Action<string> showMessage, bool openedByGesture = false)
+    public RadialOverlayForm(ConversionEngine engine, Action<string> showMessage, bool openedByGesture = false, RadialWheelMode initialMode = RadialWheelMode.Convert)
     {
         this.engine = engine;
         this.showMessage = showMessage;
         OpenedByGesture = openedByGesture;
+        CurrentMode = initialMode;
         virtualBounds = SystemInformation.VirtualScreen;
         Bounds = virtualBounds;
         StartPosition = FormStartPosition.Manual;
@@ -111,15 +113,53 @@ public sealed class RadialOverlayForm : Form
         Invalidate();
     }
 
+    public void SwitchMode(RadialWheelMode newMode)
+    {
+        CurrentMode = newMode;
+        selectedIndex = -1;
+        var generation = ++dragGeneration;
+        if (draggedFiles.Length > 0)
+        {
+            waitingForTargets = true;
+            emptyStateMessage = "Memuat pilihan…";
+            _ = LoadTargetsAsync(draggedFiles, generation);
+        }
+        else
+        {
+            availableTargets = CurrentMode switch
+            {
+                RadialWheelMode.Actions => FileActionsEngine.AvailableActions,
+                _ => []
+            };
+            emptyStateMessage = CurrentMode switch
+            {
+                RadialWheelMode.Tools => "Tarik file untuk melihat alat pengolahan",
+                RadialWheelMode.Actions => "Tarik file untuk melakukan aksi",
+                _ => "Tarik file untuk mengonversi format"
+            };
+        }
+        Invalidate();
+    }
+
     private async Task LoadTargetsAsync(string[] files, int generation)
     {
         try
         {
+            var mode = CurrentMode;
             var evaluation = await Task.Run(() =>
             {
+                if (mode == RadialWheelMode.Tools)
+                {
+                    var tools = ToolsEngine.GetApplicableTools(files, engine);
+                    return (Targets: tools, Message: tools.Length == 0 ? "Tidak ada alat yang cocok untuk file ini" : string.Empty);
+                }
+                if (mode == RadialWheelMode.Actions)
+                {
+                    var actions = FileActionsEngine.AvailableActions;
+                    return (Targets: actions, Message: string.Empty);
+                }
+
                 var targets = engine.TargetsFor(files).ToList();
-                if (engine.CanCompress(files))
-                    targets.Insert(0, "compress");
                 return (Targets: targets.ToArray(), Message: targets.Count == 0 ? engine.EmptyStateFor(files) : string.Empty);
             });
             if (IsDisposed || generation != dragGeneration) return;
@@ -146,7 +186,7 @@ public sealed class RadialOverlayForm : Form
 
     private async void OnDragDrop(object? sender, DragEventArgs e)
     {
-        AppLog.Write($"DragDrop files={draggedFiles.Length} target={(selectedIndex >= 0 && selectedIndex < availableTargets.Length ? availableTargets[selectedIndex] : "none")}");
+        AppLog.Write($"DragDrop mode={CurrentMode} files={draggedFiles.Length} target={(selectedIndex >= 0 && selectedIndex < availableTargets.Length ? availableTargets[selectedIndex] : "none")}");
         if (isConverting || selectedIndex < 0 || selectedIndex >= availableTargets.Length)
         {
             Close();
@@ -156,12 +196,95 @@ public sealed class RadialOverlayForm : Form
         var files = ReadFiles(e.Data);
         if (files.Length == 0)
             files = draggedFiles;
-        await StartConversionAsync(files, selectedIndex);
+
+        await ExecuteSelectionAsync(files, selectedIndex);
     }
 
-    private async Task StartConversionAsync(string[] files, int targetIndex)
+    private async Task ExecuteSelectionAsync(string[] files, int targetIndex)
     {
-        if (isConverting || targetIndex < 0 || targetIndex >= availableTargets.Length || files.Length == 0)
+        if (files.Length == 0 || targetIndex < 0 || targetIndex >= availableTargets.Length)
+        {
+            Close();
+            return;
+        }
+
+        if (CurrentMode == RadialWheelMode.Actions)
+        {
+            var action = availableTargets[targetIndex];
+            Hide();
+            FileActionsEngine.ExecuteAction(action, files, out var feedback);
+            Close();
+            showMessage(feedback);
+            return;
+        }
+
+        if (CurrentMode == RadialWheelMode.Tools)
+        {
+            var tool = availableTargets[targetIndex].ToLowerInvariant();
+            if (tool == "kompres")
+            {
+                await StartConversionAsync(files, "compress");
+                return;
+            }
+            await StartToolExecutionAsync(files, tool);
+            return;
+        }
+
+        await StartConversionAsync(files, availableTargets[targetIndex]);
+    }
+
+    private async Task StartToolExecutionAsync(string[] files, string tool)
+    {
+        isConverting = true;
+        Hide();
+        using var progress = new ProgressForm();
+        progress.Show(this);
+        var outputDir = engine.Settings.Current.OutputDirectory.Trim();
+        if (string.IsNullOrWhiteSpace(outputDir))
+            outputDir = Path.GetDirectoryName(files[0]) ?? Environment.CurrentDirectory;
+
+        try
+        {
+            var outputs = new List<string>();
+            foreach (var file in files)
+            {
+                progress.SetCurrentFile(file);
+                if (tool == "mute")
+                    outputs.Add(await ToolsEngine.ExecuteMuteAsync(file, outputDir, engine.Settings.Current, progress.CancellationToken));
+                else if (tool == "snapshot")
+                    outputs.Add(await ToolsEngine.ExecuteSnapshotAsync(file, outputDir, engine.Settings.Current, progress.CancellationToken));
+                else if (tool == "ekstrak")
+                    outputs.Add(await ToolsEngine.ExecuteExtractAsync(file, outputDir, progress.CancellationToken));
+            }
+            progress.Close();
+            var summary = $"Selesai: {outputs.Count} file diproses ({tool.ToUpperInvariant()}).";
+            var choice = MessageBox.Show(this, summary + "\n\nBuka folder hasil?", "Ceyloro", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+            if (choice == DialogResult.Yes && outputs.Count > 0)
+            {
+                var folder = Directory.Exists(outputs[0]) ? outputs[0] : Path.GetDirectoryName(outputs[0]);
+                if (!string.IsNullOrWhiteSpace(folder))
+                    Process.Start(new ProcessStartInfo("explorer.exe", $"\"{folder}\"") { UseShellExecute = true });
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            progress.Close();
+            showMessage("Operasi dibatalkan.");
+        }
+        catch (Exception error)
+        {
+            progress.Close();
+            showMessage($"Operasi gagal: {error.Message}");
+        }
+        finally
+        {
+            Close();
+        }
+    }
+
+    private async Task StartConversionAsync(string[] files, string target)
+    {
+        if (isConverting || files.Length == 0)
         {
             Close();
             return;
@@ -265,6 +388,22 @@ public sealed class RadialOverlayForm : Form
             e.SuppressKeyPress = true;
             return;
         }
+
+        // Tab untuk rotasi mode: Konversi -> Alat -> Aksi -> Konversi
+        if (e.KeyCode == Keys.Tab)
+        {
+            var nextMode = CurrentMode switch
+            {
+                RadialWheelMode.Convert => RadialWheelMode.Tools,
+                RadialWheelMode.Tools => RadialWheelMode.Actions,
+                _ => RadialWheelMode.Convert
+            };
+            SwitchMode(nextMode);
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+            return;
+        }
+
         if (availableTargets.Length == 0)
             return;
 
@@ -294,8 +433,8 @@ public sealed class RadialOverlayForm : Form
             }
         }
 
-        // Navigasi panah atau Tab untuk berpindah antar petal
-        if (e.KeyCode is Keys.Right or Keys.Down or Keys.Tab)
+        // Navigasi panah untuk berpindah antar petal
+        if (e.KeyCode is Keys.Right or Keys.Down)
         {
             selectedIndex = (selectedIndex + 1) % availableTargets.Length;
             Invalidate();
@@ -316,7 +455,7 @@ public sealed class RadialOverlayForm : Form
         {
             if (selectedIndex >= 0 && selectedIndex < availableTargets.Length && draggedFiles.Length > 0)
             {
-                await StartConversionAsync(draggedFiles, selectedIndex);
+                await ExecuteSelectionAsync(draggedFiles, selectedIndex);
                 e.Handled = true;
                 e.SuppressKeyPress = true;
                 return;
@@ -330,6 +469,19 @@ public sealed class RadialOverlayForm : Form
         var dx = local.X - center.X;
         var dy = local.Y - center.Y;
         var radius = Math.Sqrt(dx * dx + dy * dy);
+
+        // Jika klik di dalam hub pada baris mode switcher (dy antara -52 dan -24)
+        if (radius <= 66 && dy >= -52 && dy <= -24)
+        {
+            if (dx < -16)
+                SwitchMode(RadialWheelMode.Convert);
+            else if (dx > 16)
+                SwitchMode(RadialWheelMode.Actions);
+            else
+                SwitchMode(RadialWheelMode.Tools);
+            return;
+        }
+
         if (radius < 66 || radius > 154)
         {
             Close();
@@ -337,7 +489,7 @@ public sealed class RadialOverlayForm : Form
         }
         if (selectedIndex >= 0 && selectedIndex < availableTargets.Length && draggedFiles.Length > 0)
         {
-            await StartConversionAsync(draggedFiles, selectedIndex);
+            await ExecuteSelectionAsync(draggedFiles, selectedIndex);
         }
     }
 
@@ -360,9 +512,10 @@ public sealed class RadialOverlayForm : Form
         {
             using var hubBrush = new SolidBrush(Color.FromArgb(235, 32, 32, 32));
             e.Graphics.FillEllipse(hubBrush, hubRect);
-            DrawCentered(e.Graphics, "Ceyloro", new RectangleF(center.X - 60, center.Y - 43, 120, 25), Color.White, 13, FontStyle.Bold);
-            DrawCentered(e.Graphics, emptyStateMessage, new RectangleF(center.X - 150, center.Y + 47, 300, 42), Color.White, 11, FontStyle.Bold);
-            DrawCentered(e.Graphics, "Format gambar, audio, video, dan subtitle", new RectangleF(center.X - 165, center.Y + 87, 330, 28), Color.Gainsboro, 9, FontStyle.Regular);
+            DrawModeTabs(e.Graphics, center, CurrentMode);
+            DrawCentered(e.Graphics, "Ceyloro", new RectangleF(center.X - 60, center.Y - 18, 120, 22), Color.White, 12, FontStyle.Bold);
+            DrawCentered(e.Graphics, emptyStateMessage, new RectangleF(center.X - 150, center.Y + 47, 300, 42), Color.White, 10, FontStyle.Bold);
+            DrawCentered(e.Graphics, "Tekan Tab untuk beralih mode", new RectangleF(center.X - 165, center.Y + 87, 330, 24), Color.Gainsboro, 8.5f, FontStyle.Regular);
             return;
         }
 
@@ -391,17 +544,52 @@ public sealed class RadialOverlayForm : Form
         using var hubBorderPen = new Pen(Color.FromArgb(60, 255, 255, 255), 1.5f);
         e.Graphics.DrawEllipse(hubBorderPen, hubRect);
 
+        // Render Mode Switcher Pills di bagian atas hub
+        DrawModeTabs(e.Graphics, center, CurrentMode);
+
         // Pusat wheel menampilkan target aktif jika ada pilihan
         if (selectedIndex >= 0 && selectedIndex < availableTargets.Length)
         {
             var activeTarget = availableTargets[selectedIndex].ToUpperInvariant();
-            DrawCentered(e.Graphics, activeTarget, new RectangleF(center.X - 60, center.Y - 16, 120, 24), Color.FromArgb(255, 165, 0), 12, FontStyle.Bold);
-            DrawCentered(e.Graphics, "Lepaskan untuk pilih", new RectangleF(center.X - 90, center.Y + 12, 180, 20), Color.Gainsboro, 8, FontStyle.Regular);
+            DrawCentered(e.Graphics, activeTarget, new RectangleF(center.X - 60, center.Y - 14, 120, 24), Color.FromArgb(255, 165, 0), 12, FontStyle.Bold);
+            DrawCentered(e.Graphics, "Lepaskan untuk pilih", new RectangleF(center.X - 90, center.Y + 14, 180, 20), Color.Gainsboro, 8, FontStyle.Regular);
         }
         else
         {
-            DrawCentered(e.Graphics, "Ceyloro", new RectangleF(center.X - 60, center.Y - 12, 120, 24), Color.White, 13, FontStyle.Bold);
-            DrawCentered(e.Graphics, "Lepaskan file untuk pilih", new RectangleF(center.X - 90, center.Y + 20, 180, 20), Color.Gainsboro, 8, FontStyle.Regular);
+            DrawCentered(e.Graphics, "Ceyloro", new RectangleF(center.X - 60, center.Y - 10, 120, 22), Color.White, 12, FontStyle.Bold);
+            var modeSubtitle = CurrentMode switch
+            {
+                RadialWheelMode.Tools => "Alat Pengolahan",
+                RadialWheelMode.Actions => "Aksi File Shell",
+                _ => "Konversi Format"
+            };
+            DrawCentered(e.Graphics, modeSubtitle, new RectangleF(center.X - 90, center.Y + 12, 180, 18), Color.Gainsboro, 8, FontStyle.Regular);
+            DrawCentered(e.Graphics, "Tekan Tab ganti mode", new RectangleF(center.X - 90, center.Y + 30, 180, 16), Color.FromArgb(160, 160, 160), 7, FontStyle.Regular);
+        }
+    }
+
+    private static void DrawModeTabs(Graphics graphics, Point center, RadialWheelMode activeMode)
+    {
+        var modes = new[] { ("KONVERSI", RadialWheelMode.Convert), ("ALAT", RadialWheelMode.Tools), ("AKSI", RadialWheelMode.Actions) };
+        var startX = center.X - 58f;
+        var y = center.Y - 48f;
+        var pillWidth = 38f;
+        var pillHeight = 16f;
+
+        for (var i = 0; i < modes.Length; i++)
+        {
+            var (name, mode) = modes[i];
+            var rect = new RectangleF(startX + i * 39f, y, pillWidth, pillHeight);
+            var isActive = mode == activeMode;
+
+            if (isActive)
+            {
+                using var activeBg = new SolidBrush(Color.FromArgb(220, 255, 140, 0));
+                graphics.FillRectangle(activeBg, rect);
+            }
+
+            var textColor = isActive ? Color.White : Color.FromArgb(160, 160, 160);
+            DrawCentered(graphics, name, rect, textColor, 6.5f, isActive ? FontStyle.Bold : FontStyle.Regular);
         }
     }
 

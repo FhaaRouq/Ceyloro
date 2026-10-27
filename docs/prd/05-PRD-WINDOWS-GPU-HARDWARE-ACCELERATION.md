@@ -59,3 +59,4 @@ Jika saat proses konversi nyata GPU kehabisan Video RAM (VRAM) atau driver crash
 1. Pada mesin dengan GPU NVIDIA/Intel/AMD, waktu konversi video batch menurun drastis sebesar $3\times$ hingga $5\times$ lebih cepat dibandingkan software CPU.
 2. Penggunaan CPU turun dari ~100% menjadi di bawah 25% selama konversi video berjalan.
 3. Parameter visual output mempertahankan ketajaman visual (*visually lossless*) setara preset CRF 23.
+

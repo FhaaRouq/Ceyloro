@@ -52,7 +52,11 @@ var tests = new (string Name, Action Run)[]
     // W3 / Updater & Lifecycle tests
     ("ceyloro version comparison and semantic ordering", CeyloroVersionComparison),
     ("app settings preserves update and gesture flags", SettingsFlagsPreservation),
-    ("document engine locator handles missing binaries gracefully", DocumentEngineLocatorMissing)
+    ("document engine locator handles missing binaries gracefully", DocumentEngineLocatorMissing),
+    // WIN-8 Tri-Modal & Actions tests
+    ("tri-modal drag gesture tracker detects mode modifiers", TriModalDragGestureTracker),
+    ("tools engine offers appropriate tools for videos and archives", ToolsEngineApplicableTools),
+    ("file actions engine defines valid shell actions", FileActionsEngineDefinition)
 };
 
 var failures = new List<string>();
@@ -781,6 +785,46 @@ static void DocumentEngineLocatorMissing()
     };
     var engines = DocumentEngineLocator.Locate(dummySettings);
     Ensure(engines is not null, "Locator should return non-null record.");
+}
+
+static void TriModalDragGestureTracker()
+{
+    var tracker = new DragGestureTracker(threshold: 6);
+
+    // Ctrl drag -> Tools mode
+    tracker.OnMouseDown(new Point(50, 50), modifierPressed: true, isExplorer: true, mode: RadialWheelMode.Tools);
+    Ensure(tracker.Mode == RadialWheelMode.Tools, "Tracker should record Tools mode on Ctrl drag.");
+    tracker.OnMouseMove(new Point(65, 65), out _);
+    Ensure(tracker.GestureTriggered, "Gesture should trigger above threshold.");
+    tracker.Reset();
+
+    // Alt drag -> Actions mode
+    tracker.OnMouseDown(new Point(50, 50), modifierPressed: true, isExplorer: true, mode: RadialWheelMode.Actions);
+    Ensure(tracker.Mode == RadialWheelMode.Actions, "Tracker should record Actions mode on Alt drag.");
+    tracker.Reset();
+
+    // Shift drag -> Convert mode
+    tracker.OnMouseDown(new Point(50, 50), modifierPressed: true, isExplorer: true, mode: RadialWheelMode.Convert);
+    Ensure(tracker.Mode == RadialWheelMode.Convert, "Tracker should record Convert mode on Shift drag.");
+}
+
+static void ToolsEngineApplicableTools()
+{
+    var engine = new ConversionEngine(SettingsStore.Load());
+
+    var videoTools = ToolsEngine.GetApplicableTools(["clip.mp4"], engine);
+    Ensure(videoTools.Contains("mute"), "Video should offer mute tool.");
+    Ensure(videoTools.Contains("snapshot"), "Video should offer snapshot tool.");
+
+    var archiveTools = ToolsEngine.GetApplicableTools(["archive.zip"], engine);
+    Ensure(archiveTools.Contains("ekstrak"), "Archive should offer ekstrak tool.");
+}
+
+static void FileActionsEngineDefinition()
+{
+    Ensure(FileActionsEngine.AvailableActions.Contains("salin path"), "Should contain salin path action.");
+    Ensure(FileActionsEngine.AvailableActions.Contains("terminal"), "Should contain terminal action.");
+    Ensure(FileActionsEngine.AvailableActions.Contains("buka folder"), "Should contain buka folder action.");
 }
 
 static void Ensure(bool condition, string message)

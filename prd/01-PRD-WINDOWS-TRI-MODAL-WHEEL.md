@@ -78,3 +78,4 @@ Di pusat roda (hub), disediakan tombol/indikator tab mikro yang memungkinkan pen
 2. Menahan `Alt` saat drag menampilkan aksi shell native, bukan daftar format konversi.
 3. Roda tidak pernah mencampur target format (misal `.mp4`) dengan aksi file (misal `Salin Path`) dalam satu lingkaran petal yang sama.
 4. Hit-test sektor matematika (`RadialGeometry.HitTest`) konsisten 100% antara rendering grafis GDI+ dan deteksi titik kursor mouse.
+

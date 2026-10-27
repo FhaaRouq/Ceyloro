@@ -53,3 +53,4 @@ Ketika pengguna mengklik *"Buka dengan Roda Ceyloro"* dari File Explorer:
 2. Memilih item tersebut membuka roda di posisi kursor mouse dalam waktu kurang dari 200 milidetik.
 3. Tidak ada jendela konsol hitam (*CMD window*) yang berkedip saat menu dipanggil.
 4. Bekerja sempurna untuk pemilihan satu file maupun banyak file sekaligus (*multi-file selection*).
+

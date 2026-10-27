@@ -61,3 +61,4 @@ PRD ini mendefinisikan implementasi **Mode Aksi File (Actions Mode)** pada radia
 1. Aksi *Salin Path* bekerja seketika (< 50 milidetik) dan langsung mengisi clipboard tanpa dialog yang mengganggu.
 2. Membuka terminal secara otomatis memilih Windows Terminal jika tersedia di Windows 10/11.
 3. Operasi aksi file tidak pernah memodifikasi isi berkas.
+
