@@ -69,6 +69,17 @@ public sealed class RadialOverlayForm : Form
         Invalidate();
     }
 
+    public void PreloadFiles(string[] files)
+    {
+        draggedFiles = files.Where(f => File.Exists(f) || Directory.Exists(f)).ToArray();
+        availableTargets = [];
+        waitingForTargets = draggedFiles.Length > 0;
+        emptyStateMessage = draggedFiles.Length == 0 ? engine.EmptyStateFor(draggedFiles) : "Memeriksa format…";
+        if (waitingForTargets)
+            _ = LoadTargetsAsync(draggedFiles, ++dragGeneration);
+        Invalidate();
+    }
+
     protected override bool ShowWithoutActivation => OpenedByGesture;
 
     protected override CreateParams CreateParams

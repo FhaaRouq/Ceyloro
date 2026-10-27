@@ -12,11 +12,17 @@ public sealed class TrayApplicationContext : ApplicationContext
     private readonly ShiftDragMonitor shiftDragMonitor;
     private readonly UpdateService updateService = new();
     private readonly Icon brandedIcon;
+    private readonly SynchronizationContext? syncContext;
+    private readonly string[]? initialStartupFiles;
     private RadialOverlayForm? overlay;
     private SettingsForm? settingsForm;
 
-    public TrayApplicationContext(bool openOverlayOnStartup = false)
+    public TrayApplicationContext(bool openOverlayOnStartup = false, string[]? initialFiles = null)
     {
+        syncContext = SynchronizationContext.Current;
+        initialStartupFiles = initialFiles;
+        SingleInstanceGate.FilesReceived += OnFilesReceivedViaIpc;
+
         engine = new ConversionEngine(settings);
         brandedIcon = CreateTrayIcon();
         trayIcon = new NotifyIcon
@@ -63,7 +69,36 @@ public sealed class TrayApplicationContext : ApplicationContext
     private void OpenOverlayOnFirstIdle(object? sender, EventArgs e)
     {
         Application.Idle -= OpenOverlayOnFirstIdle;
-        OpenOverlay();
+        if (initialStartupFiles != null && initialStartupFiles.Length > 0)
+            OpenOverlayWithFiles(initialStartupFiles);
+        else
+            OpenOverlay();
+    }
+
+    private void OnFilesReceivedViaIpc(string[] files)
+    {
+        if (syncContext != null)
+            syncContext.Post(_ => OpenOverlayWithFiles(files), null);
+        else
+            OpenOverlayWithFiles(files);
+    }
+
+    public void OpenOverlayWithFiles(string[] files, Point? cursorPosition = null)
+    {
+        var targetPoint = cursorPosition ?? Cursor.Position;
+        if (overlay is { IsDisposed: false })
+        {
+            overlay.RepositionTo(targetPoint);
+            overlay.PreloadFiles(files);
+            overlay.Activate();
+            return;
+        }
+        overlay = new RadialOverlayForm(engine, ShowMessage);
+        overlay.FormClosed += (_, _) => overlay = null;
+        overlay.RepositionTo(targetPoint);
+        overlay.PreloadFiles(files);
+        overlay.Show();
+        overlay.Activate();
     }
 
     private ContextMenuStrip BuildMenu()
@@ -186,6 +221,7 @@ public sealed class TrayApplicationContext : ApplicationContext
 
     protected override void ExitThreadCore()
     {
+        SingleInstanceGate.FilesReceived -= OnFilesReceivedViaIpc;
         shiftDragMonitor.Dispose();
         hotKeyWindow.Dispose();
         trayIcon.Visible = false;

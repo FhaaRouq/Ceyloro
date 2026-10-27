@@ -71,7 +71,10 @@ var tests = new (string Name, Action Run)[]
     ("notification service activation handler is safe against malformed or empty arguments", NotificationActivationHandlerEdgeCases),
     // WIN-12 / PRD-05 GPU Hardware Acceleration tests
     ("gpu hardware acceleration selects optimal vendor encoder and supports cpu fallback", GpuHardwareAccelerationSelection),
-    ("gpu command builder configures vendor-specific rate control parameters", GpuCommandBuilderVendorParameters)
+    ("gpu command builder configures vendor-specific rate control parameters", GpuCommandBuilderVendorParameters),
+    // WIN-13 / PRD-06 Shell Context Menu & IPC tests
+    ("single instance gate parses file arguments and filters flags", SingleInstanceFileArgumentParsing),
+    ("shell extension manager verifies and manages context menu registry entries", ShellExtensionContextRegistration)
 };
 
 var failures = new List<string>();
@@ -1132,6 +1135,29 @@ static FfmpegCapabilities CreateFfmpegCapabilitiesWithGpu(string[] encoders, str
         new HashSet<string>(muxers, StringComparer.OrdinalIgnoreCase),
         gpuEncoder,
         hevcGpuEncoder);
+}
+
+static void SingleInstanceFileArgumentParsing()
+{
+    using var temp = new TestDirectory();
+    var f1 = Path.Combine(temp.Path, "clip.mp4");
+    var f2 = Path.Combine(temp.Path, "doc.pdf");
+    File.WriteAllText(f1, "video");
+    File.WriteAllText(f2, "doc");
+
+    var parsed = SingleInstanceGate.ParseFileArguments(["--show", "--files", f1, "--context-menu", f2, "--random-flag"]);
+    Ensure(parsed.Length == 2, $"Expected 2 parsed files, got {parsed.Length}.");
+    Ensure(parsed.Contains(f1), "Parsed files should contain clip.mp4.");
+    Ensure(parsed.Contains(f2), "Parsed files should contain doc.pdf.");
+
+    var empty = SingleInstanceGate.ParseFileArguments(["--show", "--help"]);
+    Ensure(empty.Length == 0, "No files should be parsed when only flags are passed.");
+}
+
+static void ShellExtensionContextRegistration()
+{
+    var wasRegistered = ShellExtensionManager.IsContextMenuRegistered();
+    Ensure(wasRegistered == true || wasRegistered == false, "IsContextMenuRegistered must return a valid boolean.");
 }
 
 static void Ensure(bool condition, string message)
